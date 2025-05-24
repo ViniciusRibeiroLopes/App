@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "110598728236",
+    "project_id": "pillcheck-fcfba",
+    "storage_bucket": "pillcheck-fcfba.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:110598728236:android:9b847cd9263e1405cdff89",
+        "android_client_info": {
+          "package_name": "com.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDDCviC_k0lZ47Yd_ahuX1fLMhEUndDhz8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
