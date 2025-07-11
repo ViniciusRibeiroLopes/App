@@ -1,8 +1,12 @@
-import React from 'react';
+import React, {useState} from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import auth from '@react-native-firebase/auth';
 
 const LoginScreen = () => {
+
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
 
   const navigation = useNavigation();
 
@@ -13,6 +17,12 @@ const LoginScreen = () => {
     });
   }
 
+  function signIn() {
+    auth().signInWithEmailAndPassword(email, password)
+    .then(() => console.log("Usuário logado!"))
+    .catch(error => console.log(error))
+  }
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Entrar</Text>
@@ -21,14 +31,18 @@ const LoginScreen = () => {
         style={styles.input}
         placeholder="Email"
         keyboardType="email-address"
+        value={email}
+        onChangeText={setEmail}
       />
       <TextInput
         style={styles.input}
         placeholder="Senha"
         secureTextEntry
+        value={password}
+        onChangeText={setPassword}
       />
 
-      <TouchableOpacity style={styles.button}>
+      <TouchableOpacity style={styles.button} onPress={signIn}>
         <Text style={styles.buttonText}>Entrar</Text>
       </TouchableOpacity>
 
