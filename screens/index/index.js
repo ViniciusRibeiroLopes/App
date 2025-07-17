@@ -25,7 +25,6 @@ const Index = ({ navigation }) => {
     const unsubscribe = firestore()
       .collection('remedios')
       .where('usuarioId', '==', user.uid)
-      .orderBy('hora')
       .onSnapshot(
         snapshot => {
           if (!snapshot || !snapshot.docs) {
@@ -38,7 +37,6 @@ const Index = ({ navigation }) => {
             ...doc.data()
           }));
           setMedicamentos(lista);
-          generateAlertas(lista);
         },
         error => {
           console.error('Erro ao buscar medicamentos:', error);
@@ -46,55 +44,48 @@ const Index = ({ navigation }) => {
         }
       );
 
-    return unsubscribe;
+      const unsubscribe2 = firestore()
+        .collection('avisos')
+        .where('usuarioId', '==', user.uid)
+        .orderBy('horario')
+        .onSnapshot(
+          snapshot => {
+            if (!snapshot || !snapshot.docs) {
+              console.warn('Snapshot vazio ou inválido');
+              return;
+            }
+
+            const lista_alert = snapshot.docs.map(doc => ({
+              id: doc.id,
+              ...doc.data()
+            }));
+            generateAlertas(lista_alert);
+          },
+          error => {
+            console.error('Erro ao buscar alertas:', error);
+            Alert.alert('Erro', 'Não foi possível carregar os dados.');
+          }
+        );
+
+    return () => {
+      unsubscribe();
+      unsubscribe2();
+    };
   }, [user]);
 
-  const generateAlertas = (medicamentosList) => {
-    const now = new Date();
-    const alertasGerados = [];
-
-    medicamentosList.forEach(med => {
-      // Alerta de dose atrasada
-      if (Math.random() > 0.7) {
-        alertasGerados.push({
-          id: `atrasada-${med.id}`,
-          tipo: 'urgente',
-          titulo: `Dose Atrasada - ${med.nome}`,
-          descricao: `Você perdeu a dose das ${med.horario}. É importante manter a regularidade.`,
-          tempo: 'Há 2 horas',
-          medicamento: med,
-          cor: '#ff6b6b'
-        });
-      }
-
-      // Alerta de próxima dose
-      if (Math.random() > 0.5) {
-        alertasGerados.push({
-          id: `proxima-${med.id}`,
-          tipo: 'lembrete',
-          titulo: `Próxima Dose - ${med.nome}`,
-          descricao: `Sua próxima dose está agendada para ${med.horario}. ${med.dosagem}.`,
-          tempo: 'Em 1 hora',
-          medicamento: med,
-          cor: '#3742fa'
-        });
-      }
-
-      if (Math.random() > 0.6) {
-        alertasGerados.push({
-          id: `tomar-${med.id}`,
-          tipo: 'aviso',
-          titulo: `Hora de Tomar - ${med.nome}`,
-          descricao: `É hora de tomar ${med.dosagem} de ${med.nome}. ${med.para}.`,
-          tempo: 'Agora',
-          medicamento: med,
-          cor: '#ffa502'
-        });
-      }
-    });
+  const generateAlertas = (alertasList) => {
+    const alertasGerados = alertasList.map((ale) => ({
+      id: `tomar-${ale.id}`,
+      tipo: 'aviso',
+      titulo: `Hora de Tomar - ${ale.nome}`,
+      descricao: `É hora de tomar ${ale.dosagem} de ${ale.nome}.`,
+      tempo: 'Agora',
+      medicamento: ale,
+      cor: '#ffa502'
+    }));
 
     setAlertas(alertasGerados);
-  };
+};
 
   const handleLogout = async () => {
     try {
@@ -103,30 +94,6 @@ const Index = ({ navigation }) => {
     } catch (error) {
       Alert.alert('Erro ao sair');
     }
-  };
-
-  const renderStatsCards = () => {
-    const totalAlertas = alertas.length;
-    const urgentes = alertas.filter(a => a.tipo === 'urgente').length;
-    const lembretes = alertas.filter(a => a.tipo === 'lembrete').length;
-    const avisos = alertas.filter(a => a.tipo === 'aviso').length;
-
-    return (
-      <View style={styles.statsContainer}>
-        <View style={[styles.statCard, { backgroundColor: '#3742fa' }]}>
-          <Text style={styles.statNumber}>{totalAlertas}</Text>
-          <Text style={styles.statLabel}>Total de Avisos</Text>
-        </View>
-        <View style={[styles.statCard, { backgroundColor: '#ff6b6b' }]}>
-          <Text style={styles.statNumber}>{urgentes}</Text>
-          <Text style={styles.statLabel}>Urgentes</Text>
-        </View>
-        <View style={[styles.statCard, { backgroundColor: '#ffa502' }]}>
-          <Text style={styles.statNumber}>{medicamentos.length}</Text>
-          <Text style={styles.statLabel}>Medicamentos</Text>
-        </View>
-      </View>
-    );
   };
 
   const renderAlertItem = (alerta) => (
@@ -182,14 +149,13 @@ const Index = ({ navigation }) => {
 
   const renderAlertas = () => (
     <ScrollView style={styles.tabContent}>
-      {renderStatsCards()}
       
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>🔔 Todos os Avisos</Text>
           <TouchableOpacity 
             style={styles.addAlertButton}
-            onPress={() => Alert.alert('Adicionar Alerta', 'Funcionalidade em desenvolvimento')}
+            onPress={() => navigation.navigate('AdicionarAlerta')}
           >
             <Text style={styles.addAlertButtonText}>+</Text>
           </TouchableOpacity>

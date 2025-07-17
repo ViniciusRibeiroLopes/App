@@ -9,8 +9,9 @@ import OnBoarding from './components/OnBoarding';
 import LoginScreen from './screens/auth/LoginScreen';
 import RegisterScreen from './screens/auth/SignupScreen';
 import Index from './screens/index/Index';
-import UserProfileForm from './screens/index/FormUser';
-import AdicionarRemedio from './screens/forms_remedio/RemedioForm';
+import UserProfileForm from './screens/forms/FormUser';
+import AdicionarRemedio from './screens/forms/FormRemedio';
+import AdicionarAlerta from './screens/forms/FormAlerta';
 
 import { View, Image } from 'react-native';
 
@@ -75,6 +76,7 @@ export default function App() {
           <>
             <Stack.Screen name="Index" component={Index} />
             <Stack.Screen name="AdicionarRemedio" component={AdicionarRemedio} />
+            <Stack.Screen name="AdicionarAlerta" component={AdicionarAlerta} />
           </>
         )
       ) : (
