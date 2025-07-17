@@ -44,7 +44,7 @@ const Index = ({ navigation }) => {
         }
       );
 
-      const unsubscribe2 = firestore()
+      const unsubscribe_alert = firestore()
         .collection('avisos')
         .where('usuarioId', '==', user.uid)
         .orderBy('horario')
@@ -69,22 +69,41 @@ const Index = ({ navigation }) => {
 
     return () => {
       unsubscribe();
-      unsubscribe2();
+      unsubscribe_alert();
     };
   }, [user]);
 
-  const generateAlertas = (alertasList) => {
-    const alertasGerados = alertasList.map((ale) => ({
-      id: `tomar-${ale.id}`,
-      tipo: 'aviso',
-      titulo: `Hora de Tomar - ${ale.nome}`,
-      descricao: `É hora de tomar ${ale.dosagem} de ${ale.nome}.`,
-      tempo: 'Agora',
-      medicamento: ale,
-      cor: '#ffa502'
-    }));
+ const generateAlertas = async (alertasList) => {
+  const alertasCompletos = await Promise.all(
+    alertasList.map(async (aviso) => {
+      try {
+        const remedioSnapshot = await firestore()
+          .collection('remedios')
+          .doc(aviso.remedioId)
+          .get();
 
-    setAlertas(alertasGerados);
+        const remedioData = remedioSnapshot.exists ? remedioSnapshot.data() : {};
+
+        return {
+          id: `tomar-${aviso.id}`,
+          tipo: 'aviso',
+          titulo: remedioData.nome || 'Remédio',
+          horario: aviso.horario,
+          descricao: `Tomar ${aviso.dosagem || 'a dose prescrita'}`,
+          tempo: 'Agora',
+          cor: '#4CAF50',
+          medicamento: remedioData,
+          ativo: true
+        };
+      } catch (error) {
+        console.error('Erro ao buscar nome do remédio:', error);
+        return null;
+      }
+    })
+  );
+
+  const filtrados = alertasCompletos.filter(Boolean);
+  setAlertas(filtrados);
 };
 
   const handleLogout = async () => {
@@ -97,29 +116,22 @@ const Index = ({ navigation }) => {
   };
 
   const renderAlertItem = (alerta) => (
-    <View key={alerta.id} style={[styles.alertCard, { borderLeftColor: alerta.cor }]}>
-      <View style={styles.alertHeader}>
-        <View style={styles.alertTitleContainer}>
-          <Text style={styles.alertTitle}>{alerta.titulo}</Text>
-          <View style={[styles.typeBadge, { backgroundColor: alerta.cor }]}>
-            <Text style={styles.typeText}>
-              {alerta.tipo === 'urgente' ? 'Urgente' : 
-               alerta.tipo === 'lembrete' ? 'Lembrete' : 'Aviso'}
-            </Text>
+    <View key={alerta.id} style={styles.alarmCard}>
+      <View style={styles.alarmHeader}>
+        <View style={styles.alarmTimeContainer}>
+          <Text style={styles.alarmTime}>{alerta.horario}</Text>
+          <Text style={styles.alarmPeriod}>Alarme</Text>
+        </View>
+        <TouchableOpacity style={styles.alarmToggle}>
+          <View style={[styles.toggleSwitch, alerta.ativo && styles.toggleActive]}>
+            <View style={[styles.toggleKnob, alerta.ativo && styles.toggleKnobActive]} />
           </View>
-        </View>
-        <View style={styles.alertTimeContainer}>
-          <Text style={styles.alertTime}>{alerta.tempo}</Text>
-        </View>
+        </TouchableOpacity>
       </View>
-      <Text style={styles.alertDescription}>{alerta.descricao}</Text>
-      <View style={styles.alertActions}>
-        <TouchableOpacity style={styles.primaryButton}>
-          <Text style={styles.primaryButtonText}>Confirmar</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.secondaryButton}>
-          <Text style={styles.secondaryButtonText}>Adiar</Text>
-        </TouchableOpacity>
+      
+      <View style={styles.alarmContent}>
+        <Text style={styles.alarmMedicamento}>{alerta.titulo}</Text>
+        <Text style={styles.alarmDescricao}>{alerta.descricao}</Text>
       </View>
     </View>
   );
@@ -152,7 +164,7 @@ const Index = ({ navigation }) => {
       
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>🔔 Todos os Avisos</Text>
+          <Text style={styles.sectionTitle}>⏰ Alarmes de Medicação</Text>
           <TouchableOpacity 
             style={styles.addAlertButton}
             onPress={() => navigation.navigate('AdicionarAlerta')}
@@ -161,7 +173,7 @@ const Index = ({ navigation }) => {
           </TouchableOpacity>
         </View>
         {alertas.length === 0 ? (
-          <Text style={styles.noData}>Nenhum aviso no momento.</Text>
+          <Text style={styles.noData}>Nenhum alarme configurado.</Text>
         ) : (
           alertas.map(renderAlertItem)
         )}
@@ -203,7 +215,7 @@ const Index = ({ navigation }) => {
           onPress={() => setActiveTab('alertas')}
         >
           <Text style={[styles.tabText, activeTab === 'alertas' && styles.activeTabText]}>
-            🔔 Avisos
+            ⏰ Alarmes
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -290,34 +302,6 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 20,
   },
-  statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-  },
-  statCard: {
-    flex: 1,
-    marginHorizontal: 5,
-    padding: 20,
-    borderRadius: 12,
-    alignItems: 'center',
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  statNumber: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 5,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#fff',
-    textAlign: 'center',
-    opacity: 0.9,
-  },
   section: {
     marginBottom: 25,
   },
@@ -349,88 +333,118 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
   },
-  alertCard: {
+  alarmCard: {
     backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderLeftWidth: 4,
-    elevation: 3,
+    borderRadius: 16,
+    padding: 10,
+    marginBottom: 15,
+    elevation: 4,
     shadowColor: '#000',
     shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
   },
-  alertHeader: {
+  alarmHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
+    marginBottom: 7,
+  },
+  alarmTimeContainer: {
+    flex: 1,
+  },
+  alarmTime: {
+    fontSize: 48,
+    fontWeight: '200',
+    color: '#121a29',
+    fontFamily: 'monospace',
+    letterSpacing: -2,
+  },
+  alarmPeriod: {
+    fontSize: 14,
+    color: '#718096',
+    fontWeight: '500',
+    marginTop: -5,
+  },
+  alarmToggle: {
+    padding: 5,
+  },
+  toggleSwitch: {
+    width: 50,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#e2e8f0',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  toggleActive: {
+    backgroundColor: '#4CAF50',
+  },
+  toggleKnob: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#fff',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+  },
+  toggleKnobActive: {
+    alignSelf: 'flex-end',
+  },
+  alarmContent: {
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+    paddingTop: 15,
     marginBottom: 10,
   },
-  alertTitleContainer: {
-    flex: 1,
-    marginRight: 10,
-  },
-  alertTitle: {
-    fontSize: 16,
+  alarmMedicamento: {
+    fontSize: 20,
     fontWeight: '600',
     color: '#121a29',
     marginBottom: 5,
   },
-  typeBadge: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
-  },
-  typeText: {
-    fontSize: 10,
-    color: '#fff',
-    fontWeight: '600',
-    textTransform: 'uppercase',
-  },
-  alertTimeContainer: {
-    backgroundColor: '#f8f9fa',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 15,
-  },
-  alertTime: {
-    fontSize: 12,
-    color: '#718096',
-    fontWeight: '600',
-  },
-  alertDescription: {
+  alarmDescricao: {
     fontSize: 14,
     color: '#718096',
     lineHeight: 20,
-    marginBottom: 15,
   },
-  alertActions: {
+  alarmActions: {
     flexDirection: 'row',
-    gap: 10,
+    justifyContent: 'space-between',
+    gap: 12,
   },
-  primaryButton: {
-    backgroundColor: '#121a29',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  primaryButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  secondaryButton: {
+  snoozeButton: {
+    flex: 1,
     backgroundColor: '#f8f9fa',
+    paddingVertical: 12,
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+    borderRadius: 25,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
   },
-  secondaryButtonText: {
+  snoozeButtonText: {
     color: '#718096',
     fontSize: 14,
     fontWeight: '600',
   },
+  confirmButton: {
+    flex: 1,
+    backgroundColor: '#4CAF50',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 25,
+    alignItems: 'center',
+  },
+  confirmButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  // Estilos dos cards de medicamento (mantidos)
   medicamentoCard: {
     backgroundColor: '#fff',
     borderRadius: 12,
@@ -482,6 +496,19 @@ const styles = StyleSheet.create({
   detailValue: {
     fontSize: 14,
     color: '#121a29',
+    fontWeight: '600',
+  },
+  editButton: {
+    backgroundColor: '#f8f9fa',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    alignSelf: 'flex-start',
+    marginTop: 10,
+  },
+  editButtonText: {
+    color: '#718096',
+    fontSize: 14,
     fontWeight: '600',
   },
   noData: {
