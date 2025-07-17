@@ -3,7 +3,7 @@ import { View, Text, TextInput, Button, StyleSheet, Alert } from 'react-native';
 import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
 
-const UserProfileForm = ({ navigation }) => {
+const UserProfileForm = ({ navigation, onProfileCreated }) => {
   const [name, setName] = useState('');
   const [birthdate, setBirthdate] = useState('');
 
@@ -24,7 +24,8 @@ const UserProfileForm = ({ navigation }) => {
       });
 
       Alert.alert('Sucesso', 'Dados salvos com sucesso!');
-      navigation.replace('Index'); // ou para a tela principal
+      onProfileCreated();
+      navigation.replace('Index');
     } catch (error) {
       console.error(error);
       Alert.alert('Erro', 'Não foi possível salvar os dados');

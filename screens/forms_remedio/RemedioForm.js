@@ -6,23 +6,19 @@ import auth from '@react-native-firebase/auth';
 const RemedioForm = ({ route, navigation }) => {
   const isEdit = !!route.params?.remedio;
   const [nome, setNome] = useState('');
-  const [dosagem, setDosagem] = useState('');
-  const [intervalo, setIntervalo] = useState('');
-  const [hora, setHora] = useState('');
+  const [utilidade, setUtilidade] = useState('');
 
   useEffect(() => {
     if (isEdit) {
-      const { nome, dosagem, intervalo, hora } = route.params.remedio;
+      const { nome, utilidade} = route.params.remedio;
       setNome(nome);
-      setDosagem(dosagem);
-      setIntervalo(intervalo);
-      setHora(hora);
+      setUtilidade(utilidade);
     }
   }, []);
 
   const handleSalvar = async () => {
     const uid = auth().currentUser?.uid;
-    if (!nome || !dosagem || !intervalo || !hora) {
+    if (!nome || !utilidade) {
       Alert.alert('Erro', 'Preencha todos os campos.');
       return;
     }
@@ -30,12 +26,12 @@ const RemedioForm = ({ route, navigation }) => {
     try {
       if (isEdit) {
         await firestore().collection('remedios').doc(route.params.remedio.id).update({
-          nome, dosagem, intervalo, hora
+          nome, utilidade
         });
         Alert.alert('Sucesso', 'Remédio atualizado!');
       } else {
         await firestore().collection('remedios').add({
-          nome, dosagem, intervalo, hora, usuarioId: uid
+          nome, utilidade, usuarioId: uid
         });
         Alert.alert('Sucesso', 'Remédio adicionado!');
       }
@@ -59,21 +55,9 @@ const RemedioForm = ({ route, navigation }) => {
       />
       <TextInput
         style={styles.input}
-        placeholder="Dosagem (ex: 500mg)"
-        value={dosagem}
-        onChangeText={setDosagem}
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Intervalo (ex: 8/8h)"
-        value={intervalo}
-        onChangeText={setIntervalo}
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Horário (ex: 14:00)"
-        value={hora}
-        onChangeText={setHora}
+        placeholder="Função do medicamento"
+        value={utilidade}
+        onChangeText={setUtilidade}
       />
 
       <TouchableOpacity style={styles.button} onPress={handleSalvar}>

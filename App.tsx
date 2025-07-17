@@ -8,8 +8,8 @@ import FastImage from 'react-native-fast-image';
 import OnBoarding from './components/OnBoarding';
 import LoginScreen from './screens/auth/LoginScreen';
 import RegisterScreen from './screens/auth/SignupScreen';
-import Index from './screens/index/index';
-import UserProfileForm from './screens/index/form_user';
+import Index from './screens/index/Index';
+import UserProfileForm from './screens/index/FormUser';
 import AdicionarRemedio from './screens/forms_remedio/RemedioForm';
 
 import { View, Image } from 'react-native';
@@ -66,7 +66,11 @@ export default function App() {
       <Stack.Navigator screenOptions={{ headerShown: false }}>
       {user ? (
         profileExists === false ? (
-          <Stack.Screen name="UserProfileForm" component={UserProfileForm} />
+          <Stack.Screen name="UserProfileForm">
+            {(props) => (
+              <UserProfileForm {...props} onProfileCreated={() => setProfileExists(true)} />
+            )}
+          </Stack.Screen>
         ) : (
           <>
             <Stack.Screen name="Index" component={Index} />
