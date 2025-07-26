@@ -12,6 +12,7 @@ import Index from './screens/index/Index';
 import UserProfileForm from './screens/forms/FormUser';
 import AdicionarRemedio from './screens/forms/FormRemedio';
 import AdicionarAlerta from './screens/forms/FormAlerta';
+import AlarmSystem from './components/AlarmSystem.js';
 
 import { View, Image } from 'react-native';
 
@@ -63,30 +64,34 @@ export default function App() {
   }
 
   return (
-    <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-      {user ? (
-        profileExists === false ? (
-          <Stack.Screen name="UserProfileForm">
-            {(props) => (
-              <UserProfileForm {...props} onProfileCreated={() => setProfileExists(true)} />
-            )}
-          </Stack.Screen>
+    <>
+      <NavigationContainer>
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+        {user ? (
+          profileExists === false ? (
+            <Stack.Screen name="UserProfileForm">
+              {(props) => (
+                <UserProfileForm {...props} onProfileCreated={() => setProfileExists(true)} />
+              )}
+            </Stack.Screen>
+          ) : (
+            <>
+              <Stack.Screen name="Index" component={Index} />
+              <Stack.Screen name="AdicionarRemedio" component={AdicionarRemedio} />
+              <Stack.Screen name="AdicionarAlerta" component={AdicionarAlerta} />
+            </>
+          )
         ) : (
           <>
-            <Stack.Screen name="Index" component={Index} />
-            <Stack.Screen name="AdicionarRemedio" component={AdicionarRemedio} />
-            <Stack.Screen name="AdicionarAlerta" component={AdicionarAlerta} />
+            <Stack.Screen name="OnBoarding" component={OnBoarding} />
+            <Stack.Screen name="Login" component={LoginScreen} />
+            <Stack.Screen name="Register" component={RegisterScreen} />
           </>
-        )
-      ) : (
-        <>
-          <Stack.Screen name="OnBoarding" component={OnBoarding} />
-          <Stack.Screen name="Login" component={LoginScreen} />
-          <Stack.Screen name="Register" component={RegisterScreen} />
-        </>
-      )}
-      </Stack.Navigator>
-    </NavigationContainer>
+        )}
+        </Stack.Navigator>
+      </NavigationContainer>
+      
+      {user && profileExists && <AlarmSystem />}
+    </>
   );
 }
