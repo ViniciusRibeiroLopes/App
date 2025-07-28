@@ -1,4 +1,3 @@
-// components/AlarmSystem.js
 import React, { useEffect, useState, useRef } from 'react';
 import {
   Modal,
@@ -13,6 +12,16 @@ import {
   Vibration,
   AppState,
 } from 'react-native';
+
+import notifee, {
+  TimestampTrigger,
+  TriggerType,
+  AndroidImportance,
+  AndroidCategory,
+  AndroidVisibility,
+  RepeatFrequency
+} from '@notifee/react-native';
+
 import Sound from 'react-native-sound';
 import BackgroundTimer from 'react-native-background-timer';
 import firestore from '@react-native-firebase/firestore';
@@ -278,7 +287,7 @@ const AlarmSystem = () => {
       console.log(`Verificando alarmes: ${currentTime} - ${currentDay}`);
 
       const snapshot = await firestore()
-        .collection('avisos')
+        .collection('alertas')
         .where('usuarioId', '==', uid)
         .get();
 
@@ -302,7 +311,7 @@ const AlarmSystem = () => {
                 .get();
             
                 if (!tomado.empty){
-                    return;
+                  continue;
                 }
                 
             console.log('Alarme encontrado:', alarm);
@@ -426,6 +435,8 @@ const AlarmSystem = () => {
         });
         
         console.log('Medicamento registrado como tomado');
+        scheduleNextAlarm(currentAlarm);
+
       } catch (error) {
         console.error('Erro ao registrar medicamento tomado:', error);
       }
@@ -445,7 +456,69 @@ const AlarmSystem = () => {
     stopAlarmSound();
   };
 
-  // Não renderizar nada se não há usuário
+  const scheduleNextAlarm = async (alarmData) => {
+    try {
+      const now = new Date();
+      const diasSemana = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
+      const hojeIndex = now.getDay();
+
+      let proximoDiaIndex = null;
+
+      for (let i = 1; i <= 7; i++) {
+        const idx = (hojeIndex + i) % 7;
+        const abrev = diasSemana[idx];
+        if (alarmData.dias.includes(abrev)) {
+          proximoDiaIndex = idx;
+          break;
+        }
+      }
+
+      if (proximoDiaIndex === null) return;
+
+      const [hora, minuto] = alarmData.horario.split(':').map(Number);
+      const proximaData = new Date(now);
+      const diffDias = (proximoDiaIndex - hojeIndex + 7) % 7 || 7;
+      proximaData.setDate(now.getDate() + diffDias);
+      proximaData.setHours(hora, minuto, 0, 0);
+
+      const trigger = {
+        type: TriggerType.TIMESTAMP,
+        timestamp: proximaData.getTime(),
+        repeatFrequency: RepeatFrequency.WEEKLY,
+      };
+
+      await notifee.createTriggerNotification(
+        {
+          title: 'Hora de tomar o remédio',
+          body: `Dosagem: ${dosagem}`,
+          android: {
+            channelId: 'alarm-channel',
+            category: AndroidCategory.ALARM,
+            fullScreenAction: {
+              id: 'default',
+            },
+            pressAction: {
+              id: 'default',
+              launchActivity: 'default',
+            },
+            sound: 'default',
+            priority: AndroidImportance.MAX,
+            visibility: AndroidVisibility.PUBLIC,
+            ongoing: true,
+            smallIcon: 'ic_launcher',
+          },
+        },
+        trigger
+      );
+
+      console.log('🔔 Próxima notificação agendada para:', proximaData);
+
+    } catch (error) {
+      console.error('Erro ao agendar próxima notificação:', error);
+    }
+  };
+
+
   if (!uid) return null;
 
   return (
@@ -467,7 +540,6 @@ const AlarmSystem = () => {
 };
 
 const styles = StyleSheet.create({
-  // Estilos do Alarme Principal
   alarmContainer: {
     flex: 1,
     backgroundColor: '#d32f2f',

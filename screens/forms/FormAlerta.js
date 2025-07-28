@@ -19,6 +19,23 @@ const diasSemana = [
   { abrev: 'Sáb', completo: 'Sábado' }
 ];
 
+async function listarNotificacoesAgendadas() {
+  const notificacoes = await notifee.getTriggerNotifications();
+  
+  console.log('🔔 Notificações agendadas:', notificacoes);
+
+  notificacoes.forEach((n, index) => {
+    const data = new Date(n.trigger.timestamp);
+    console.log(`🕒 #${index + 1}:`, {
+      id: n.notification.id,
+      titulo: n.notification.title,
+      mensagem: n.notification.body,
+      paraQuando: data.toLocaleString(),
+      repeticao: n.trigger.repeatFrequency,
+    });
+  });
+}
+
 const FormAlerta = ({ navigation }) => {
   const [remedios, setRemedios] = useState([]);
   const [remedioSelecionado, setRemedioSelecionado] = useState('');
@@ -30,7 +47,7 @@ const FormAlerta = ({ navigation }) => {
   useEffect(() => {
     const setupAndTest = async () => {
       await notifee.requestPermission();
-
+      listarNotificacoesAgendadas();
       await notifee.createChannel({
         id: 'alarm-channel',
         name: 'Alarmes de Medicamento',
@@ -81,7 +98,7 @@ const FormAlerta = ({ navigation }) => {
     }
 
     try {
-      await firestore().collection('avisos').add({
+      await firestore().collection('alertas').add({
         usuarioId: uid,
         remedioId: remedioSelecionado,
         dias: diasSelecionados,
@@ -120,12 +137,13 @@ const FormAlerta = ({ navigation }) => {
             channelId: 'alarm-channel',
             category: AndroidCategory.ALARM,
             fullScreenAction: {
-              id: 'alarm',
+              id: 'default',
             },
             pressAction: {
-              id: 'alarm',
+              id: 'default',
+              launchActivity: 'default',
             },
-            sound: 'alarm',
+            sound: 'default',
             priority: AndroidImportance.MAX,
             visibility: AndroidVisibility.PUBLIC,
             ongoing: true,
@@ -139,13 +157,6 @@ const FormAlerta = ({ navigation }) => {
 
   function getProximaData(diaSemana, hora, minuto) {
     const diasDaSemana = {
-      'domingo': 0,
-      'segunda': 1,
-      'terca': 2,
-      'quarta': 3,
-      'quinta': 4,
-      'sexta': 5,
-      'sabado': 6,
       'dom': 0,
       'seg': 1,
       'ter': 2,
@@ -168,23 +179,25 @@ const FormAlerta = ({ navigation }) => {
     }
 
     const agora = new Date();
-    const data = new Date(agora);
-    data.setHours(hora);
-    data.setMinutes(minuto);
-    data.setSeconds(0);
-    data.setMilliseconds(0);
+    const dataAlvo = new Date(agora);
+    dataAlvo.setHours(hora, minuto, 0, 0);
 
     const diaAtual = agora.getDay();
-    let diasParaAdicionar = (diaAlvo - diaAtual + 7) % 7;
+    let diasParaAdicionar = diaAlvo - diaAtual;
 
-    if (diasParaAdicionar === 0 && data <= agora) {
+    if (diasParaAdicionar < 0) {
+      diasParaAdicionar += 7;
+    }
+
+    if (diasParaAdicionar === 0 && dataAlvo <= agora) {
       diasParaAdicionar = 7;
     }
 
-    data.setDate(agora.getDate() + diasParaAdicionar);
+    dataAlvo.setDate(dataAlvo.getDate() + diasParaAdicionar);
 
-    return data;
+    return dataAlvo;
   }
+
 
   const formatarHorario = (date) => {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });

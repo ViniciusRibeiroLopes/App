@@ -8,11 +8,14 @@ import FastImage from 'react-native-fast-image';
 import OnBoarding from './components/OnBoarding';
 import LoginScreen from './screens/auth/LoginScreen';
 import RegisterScreen from './screens/auth/SignupScreen';
-import Index from './screens/index/Index';
+import Index from './screens/menus/Index.js';
 import UserProfileForm from './screens/forms/FormUser';
 import AdicionarRemedio from './screens/forms/FormRemedio';
 import AdicionarAlerta from './screens/forms/FormAlerta';
 import AlarmSystem from './components/AlarmSystem.js';
+import AlertasMenu from './screens/menus/AlertasMenu.js';
+import RemediosMenu from './screens/menus/RemediosMenu.js';
+import HistoricoMenu from './screens/menus/HistoricoMenu.js';
 
 import { View, Image } from 'react-native';
 
@@ -77,6 +80,9 @@ export default function App() {
           ) : (
             <>
               <Stack.Screen name="Index" component={Index} />
+              <Stack.Screen name="AlertasMenu" component={AlertasMenu} />
+              <Stack.Screen name="RemediosMenu" component={RemediosMenu} />
+              <Stack.Screen name="HistoricoMenu" component={HistoricoMenu} />
               <Stack.Screen name="AdicionarRemedio" component={AdicionarRemedio} />
               <Stack.Screen name="AdicionarAlerta" component={AdicionarAlerta} />
             </>
