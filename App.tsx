@@ -16,8 +16,12 @@ import AlarmSystem from './components/AlarmSystem.js';
 import AlertasMenu from './screens/menus/AlertasMenu.js';
 import RemediosMenu from './screens/menus/RemediosMenu.js';
 import HistoricoMenu from './screens/menus/HistoricoMenu.js';
-import DependentesMenu from './screens/menus/DependentesMenu.js';
-import AdicionarDependente from './screens/forms/FormDependentes.js';
+
+import DependentesMenu from './screens/menus/dependentes/DependentesMenu.js';
+import AdicionarDependente from './screens/forms/dependentes/FormDependentes.js';
+import IndexDependentes from './screens/menus/dependentes/IndexDependentes.js';
+import HistoricoDependentes from './screens/menus/dependentes/HistoricoDependentes.js';
+import AdicionarAlertaDependente from './screens/forms/dependentes/FormAlertaDependentes.js';
 
 import { View, Image } from 'react-native';
 
@@ -89,6 +93,10 @@ export default function App() {
               <Stack.Screen name="AdicionarRemedio" component={AdicionarRemedio} />
               <Stack.Screen name="AdicionarAlerta" component={AdicionarAlerta} />
               <Stack.Screen name="AdicionarDependente" component={AdicionarDependente} />
+
+              <Stack.Screen name="IndexDependentes" component={IndexDependentes} />
+              <Stack.Screen name="HistoricoDependentes" component={HistoricoDependentes} />
+              <Stack.Screen name="AdicionarAlertaDependente" component={AdicionarAlertaDependente} />
             </>
           )
         ) : (

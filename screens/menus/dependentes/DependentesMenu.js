@@ -120,12 +120,11 @@ const Dependentes = ({ navigation }) => {
       <TouchableOpacity 
         key={dependente.id} 
         style={styles.dependenteCard}
-        onPress={() => handleEditarDependente(dependente)}
+        onPress={() => navigation.navigate('IndexDependentes', {dependenteId: dependente.id})}
       >
         <View style={styles.cardHeader}>
           <View style={styles.avatarContainer}>
             <Text style={styles.avatar}>{avatar}</Text>
-            <View style={[styles.statusIndicator, styles.statusAtivo]} />
           </View>
           
           <View style={styles.dependenteInfo}>
@@ -137,7 +136,7 @@ const Dependentes = ({ navigation }) => {
           
           <TouchableOpacity 
             style={styles.moreButton}
-            onPress={() => handleRemoverDependente(dependente.id)}
+            onPress={() => handleEditarDependente(dependente)}
           >
             <Text style={styles.moreButtonText}>⋯</Text>
           </TouchableOpacity>

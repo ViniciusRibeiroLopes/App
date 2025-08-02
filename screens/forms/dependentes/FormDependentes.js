@@ -46,24 +46,15 @@ const AdicionarDependentes = ({ navigation, route }) => {
   }, [isEditing]);
 
   const parentescoOptions = [
-    'Pai',
-    'Mãe',
-    'Avô',
-    'Avó',
-    'Filho',
-    'Filha',
-    'Irmão',
-    'Irmã',
-    'Esposo',
-    'Esposa',
-    'Tio',
-    'Tia',
-    'Primo',
-    'Prima',
-    'Sogro',
-    'Sogra',
-    'Genro',
-    'Nora',
+    'Pai/Mãe',
+    'Avô/Avó',
+    'Filho(a)',
+    'Irmão/Irmã',
+    'Marido/Esposa',
+    'Tio(a)',
+    'Primo(a)',
+    'Sogro(a)',
+    'Genro/Nora',
     'Outro'
   ];
 
