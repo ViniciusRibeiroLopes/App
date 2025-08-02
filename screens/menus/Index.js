@@ -152,7 +152,7 @@ const Index = ({ navigation }) => {
 
           <TouchableOpacity 
             style={styles.quickActionButton}
-            onPress={() => navigation.navigate('Consultas')}
+            onPress={() => navigation.navigate('DependentesMenu')}
           >
             <View style={styles.quickActionIcon}>
               <Text style={styles.quickActionIconText}>🩺</Text>

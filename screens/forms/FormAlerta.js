@@ -19,23 +19,6 @@ const diasSemana = [
   { abrev: 'Sáb', completo: 'Sábado' }
 ];
 
-async function listarNotificacoesAgendadas() {
-  const notificacoes = await notifee.getTriggerNotifications();
-  
-  console.log('🔔 Notificações agendadas:', notificacoes);
-
-  notificacoes.forEach((n, index) => {
-    const data = new Date(n.trigger.timestamp);
-    console.log(`🕒 #${index + 1}:`, {
-      id: n.notification.id,
-      titulo: n.notification.title,
-      mensagem: n.notification.body,
-      paraQuando: data.toLocaleString(),
-      repeticao: n.trigger.repeatFrequency,
-    });
-  });
-}
-
 const FormAlerta = ({ navigation }) => {
   const [remedios, setRemedios] = useState([]);
   const [remedioSelecionado, setRemedioSelecionado] = useState('');
@@ -43,26 +26,6 @@ const FormAlerta = ({ navigation }) => {
   const [dosagem, setDosagem] = useState(null);
   const [horario, setHorario] = useState(new Date());
   const [showTimePicker, setShowTimePicker] = useState(false);
-
-  useEffect(() => {
-    const setupAndTest = async () => {
-      await notifee.requestPermission();
-      listarNotificacoesAgendadas();
-      await notifee.createChannel({
-        id: 'alarm-channel',
-        name: 'Alarmes de Medicamento',
-        importance: AndroidImportance.MAX,
-        sound: 'alarm',
-        vibration: true,
-        bypassDnd: true,
-        lockscreenVisibility: AndroidVisibility.PUBLIC,
-      });
-    };
-
-    setupAndTest();
-  }, []);
-
-
 
   const uid = auth().currentUser?.uid;
 
@@ -107,7 +70,6 @@ const FormAlerta = ({ navigation }) => {
       });
 
       const remedio = remedios.find(r => r.id === remedioSelecionado);
-      await agendarNotificacao(remedio?.nome || 'Remédio', horario, diasSelecionados, dosagem);
 
       Alert.alert('Sucesso', 'Aviso salvo com sucesso!');
       navigation.goBack();
@@ -116,88 +78,6 @@ const FormAlerta = ({ navigation }) => {
       Alert.alert('Erro', 'Não foi possível salvar o aviso.');
     }
   };
-
-  const agendarNotificacao = async (remedioNome, horario, dias, dosagem) => {
-    const hora = parseInt(horario.getHours());
-    const minuto = parseInt(horario.getMinutes());
-
-
-    for (let dia of dias) {
-      const trigger = {
-        type: TriggerType.TIMESTAMP,
-        timestamp: getProximaData(dia, hora, minuto).getTime(),
-        repeatFrequency: RepeatFrequency.WEEKLY,
-      };
-
-      await notifee.createTriggerNotification(
-        {
-          title: 'Hora de tomar o remédio',
-          body: `Dosagem: ${dosagem}`,
-          android: {
-            channelId: 'alarm-channel',
-            category: AndroidCategory.ALARM,
-            fullScreenAction: {
-              id: 'default',
-            },
-            pressAction: {
-              id: 'default',
-              launchActivity: 'default',
-            },
-            sound: 'default',
-            priority: AndroidImportance.MAX,
-            visibility: AndroidVisibility.PUBLIC,
-            ongoing: true,
-            smallIcon: 'ic_launcher',
-          },
-        },
-        trigger
-      );
-    }
-  };
-
-  function getProximaData(diaSemana, hora, minuto) {
-    const diasDaSemana = {
-      'dom': 0,
-      'seg': 1,
-      'ter': 2,
-      'qua': 3,
-      'qui': 4,
-      'sex': 5,
-      'sab': 6
-    };
-
-    const diaFormatado = diaSemana
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '');
-
-    const diaAlvo = diasDaSemana[diaFormatado];
-
-    if (diaAlvo === undefined) {
-      console.error('❌ Dia inválido:', diaSemana);
-      return null;
-    }
-
-    const agora = new Date();
-    const dataAlvo = new Date(agora);
-    dataAlvo.setHours(hora, minuto, 0, 0);
-
-    const diaAtual = agora.getDay();
-    let diasParaAdicionar = diaAlvo - diaAtual;
-
-    if (diasParaAdicionar < 0) {
-      diasParaAdicionar += 7;
-    }
-
-    if (diasParaAdicionar === 0 && dataAlvo <= agora) {
-      diasParaAdicionar = 7;
-    }
-
-    dataAlvo.setDate(dataAlvo.getDate() + diasParaAdicionar);
-
-    return dataAlvo;
-  }
-
 
   const formatarHorario = (date) => {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });

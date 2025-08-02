@@ -16,6 +16,8 @@ import AlarmSystem from './components/AlarmSystem.js';
 import AlertasMenu from './screens/menus/AlertasMenu.js';
 import RemediosMenu from './screens/menus/RemediosMenu.js';
 import HistoricoMenu from './screens/menus/HistoricoMenu.js';
+import DependentesMenu from './screens/menus/DependentesMenu.js';
+import AdicionarDependente from './screens/forms/FormDependentes.js';
 
 import { View, Image } from 'react-native';
 
@@ -83,8 +85,10 @@ export default function App() {
               <Stack.Screen name="AlertasMenu" component={AlertasMenu} />
               <Stack.Screen name="RemediosMenu" component={RemediosMenu} />
               <Stack.Screen name="HistoricoMenu" component={HistoricoMenu} />
+              <Stack.Screen name="DependentesMenu" component={DependentesMenu} />
               <Stack.Screen name="AdicionarRemedio" component={AdicionarRemedio} />
               <Stack.Screen name="AdicionarAlerta" component={AdicionarAlerta} />
+              <Stack.Screen name="AdicionarDependente" component={AdicionarDependente} />
             </>
           )
         ) : (
