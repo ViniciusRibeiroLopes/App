@@ -14,7 +14,7 @@ import auth from '@react-native-firebase/auth';
 const HistoricoMenu = ({ navigation }) => {
   const [medicamentosTomados, setMedicamentosTomados] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filtroSelecionado, setFiltroSelecionado] = useState('hoje');
+  const [filtroSelecionado, setFiltroSelecionado] = useState('todos');
   const user = auth().currentUser;
 
   useEffect(() => {
@@ -140,11 +140,10 @@ const HistoricoMenu = ({ navigation }) => {
 
   const renderFiltros = () => {
     const filtros = [
+      { key: 'todos', label: 'Todos' },
       { key: 'hoje', label: 'Hoje' },
-      { key: 'ontem', label: 'Ontem' },
       { key: 'semana', label: '7 dias' },
-      { key: 'mes', label: '30 dias' },
-      { key: 'todos', label: 'Todos' }
+      { key: 'mes', label: '30 dias' }
     ];
 
     return (

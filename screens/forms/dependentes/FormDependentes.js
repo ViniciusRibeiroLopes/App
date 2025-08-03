@@ -188,7 +188,8 @@ const AdicionarDependentes = ({ navigation, route }) => {
       } else {
         await firestore()
           .collection('users_dependentes')
-          .add(dadosDependente);
+          .doc(dadosDependente.dependenteUid)
+          .set(dadosDependente);
         
         Alert.alert(
           'Sucesso', 

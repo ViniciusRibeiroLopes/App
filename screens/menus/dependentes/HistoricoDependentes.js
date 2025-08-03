@@ -55,7 +55,6 @@ const HistoricoMedicamentosScreen = ({ navigation, route }) => {
       }
     };
 
-    // Buscar histórico de medicamentos tomados
     const buscarHistorico = async (dependenteData) => {
       if (!dependenteData) {
         setLoading(false);
@@ -64,7 +63,7 @@ const HistoricoMedicamentosScreen = ({ navigation, route }) => {
 
       const unsubscribe = firestore()
         .collection('medicamentos_tomados_dependentes')
-        .where('usuarioId', '==', user.uid)
+        .where('dependenteId', '==', dependenteId)
         .orderBy('dia', 'desc')
         .orderBy('horario', 'desc')
         .onSnapshot(

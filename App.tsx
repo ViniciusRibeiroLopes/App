@@ -23,6 +23,8 @@ import IndexDependentes from './screens/menus/dependentes/IndexDependentes.js';
 import HistoricoDependentes from './screens/menus/dependentes/HistoricoDependentes.js';
 import AdicionarAlertaDependente from './screens/forms/dependentes/FormAlertaDependentes.js';
 
+import IndexTelaDependente from './screens/telas_dependentes/IndexTelaDependente.js';
+
 import { View, Image } from 'react-native';
 
 const Stack = createNativeStackNavigator();
@@ -30,6 +32,7 @@ const Stack = createNativeStackNavigator();
 export default function App() {
   const [user, setUser] = useState<FirebaseAuthTypes.User | null>(null);
   const [profileExists, setProfileExists] = useState<boolean | null>(null);
+  const [isDependentUser, setIsDependentUser] = useState<boolean | null>(null);
   const [firebaseReady, setFirebaseReady] = useState(false);
   const [gifDone, setGifDone] = useState(false);
 
@@ -38,10 +41,25 @@ export default function App() {
       setUser(_user);
 
       if (_user) {
-        const doc = await firestore().collection('users').doc(_user.uid).get();
-        setProfileExists(doc.exists);
+        try {
+          const userDoc = await firestore().collection('users').doc(_user.uid).get();
+          setProfileExists(userDoc.exists);
+
+          const dependentUserQuery = await firestore()
+            .collection('users_dependentes')
+            .where('dependenteUid', '==', _user.uid)
+            .get();
+
+          setIsDependentUser(!dependentUserQuery.empty);
+
+        } catch (error) {
+          console.error('Erro ao verificar usuário:', error);
+          setProfileExists(false);
+          setIsDependentUser(false);
+        }
       } else {
         setProfileExists(null);
+        setIsDependentUser(null);
       }
 
       setFirebaseReady(true);
@@ -77,27 +95,31 @@ export default function App() {
       <NavigationContainer>
         <Stack.Navigator screenOptions={{ headerShown: false }}>
         {user ? (
-          profileExists === false ? (
-            <Stack.Screen name="UserProfileForm">
-              {(props) => (
-                <UserProfileForm {...props} onProfileCreated={() => setProfileExists(true)} />
-              )}
-            </Stack.Screen>
+          isDependentUser ? (
+            <Stack.Screen name="IndexTelaDependente" component={IndexTelaDependente} />
           ) : (
-            <>
-              <Stack.Screen name="Index" component={Index} />
-              <Stack.Screen name="AlertasMenu" component={AlertasMenu} />
-              <Stack.Screen name="RemediosMenu" component={RemediosMenu} />
-              <Stack.Screen name="HistoricoMenu" component={HistoricoMenu} />
-              <Stack.Screen name="DependentesMenu" component={DependentesMenu} />
-              <Stack.Screen name="AdicionarRemedio" component={AdicionarRemedio} />
-              <Stack.Screen name="AdicionarAlerta" component={AdicionarAlerta} />
-              <Stack.Screen name="AdicionarDependente" component={AdicionarDependente} />
+            profileExists === false ? (
+              <Stack.Screen name="UserProfileForm">
+                {(props) => (
+                  <UserProfileForm {...props} onProfileCreated={() => setProfileExists(true)} />
+                )}
+              </Stack.Screen>
+            ) : (
+              <>
+                <Stack.Screen name="Index" component={Index} />
+                <Stack.Screen name="AlertasMenu" component={AlertasMenu} />
+                <Stack.Screen name="RemediosMenu" component={RemediosMenu} />
+                <Stack.Screen name="HistoricoMenu" component={HistoricoMenu} />
+                <Stack.Screen name="DependentesMenu" component={DependentesMenu} />
+                <Stack.Screen name="AdicionarRemedio" component={AdicionarRemedio} />
+                <Stack.Screen name="AdicionarAlerta" component={AdicionarAlerta} />
+                <Stack.Screen name="AdicionarDependente" component={AdicionarDependente} />
 
-              <Stack.Screen name="IndexDependentes" component={IndexDependentes} />
-              <Stack.Screen name="HistoricoDependentes" component={HistoricoDependentes} />
-              <Stack.Screen name="AdicionarAlertaDependente" component={AdicionarAlertaDependente} />
-            </>
+                <Stack.Screen name="IndexDependentes" component={IndexDependentes} />
+                <Stack.Screen name="HistoricoDependentes" component={HistoricoDependentes} />
+                <Stack.Screen name="AdicionarAlertaDependente" component={AdicionarAlertaDependente} />
+              </>
+            )
           )
         ) : (
           <>
@@ -109,7 +131,7 @@ export default function App() {
         </Stack.Navigator>
       </NavigationContainer>
       
-      {user && profileExists && <AlarmSystem />}
+      {user && profileExists && !isDependentUser && <AlarmSystem />}
     </>
   );
 }

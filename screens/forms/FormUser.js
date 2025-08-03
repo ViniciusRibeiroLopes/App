@@ -19,7 +19,6 @@ const UserProfileForm = ({ navigation, onProfileCreated }) => {
       await firestore().collection('users').doc(uid).set({
         name: name,
         birthdate: birthdate,
-        createdAt: firestore.FieldValue.serverTimestamp(),
         email: auth().currentUser?.email,
       });
 
