@@ -69,7 +69,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const gifDuration = 2300;
+    const gifDuration = 3000;
 
     const timer = setTimeout(() => {
       setGifDone(true);

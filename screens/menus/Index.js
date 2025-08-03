@@ -7,10 +7,14 @@ import {
   ScrollView, 
   Alert,
   Dimensions,
-  ActivityIndicator
+  ActivityIndicator,
+  StatusBar
 } from 'react-native';
 import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
+import Icon from 'react-native-vector-icons/Ionicons';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 
 const { width } = Dimensions.get('window');
 
@@ -19,6 +23,12 @@ const Index = ({ navigation }) => {
   const [medicamentos, setMedicamentos] = useState([]);
   const [alertas, setAlertas] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    medicamentosAtivos: 0,
+    alertasHoje: 0,
+    dependentes: 0
+  });
+  
   const user = auth().currentUser;
 
   useEffect(() => {
@@ -43,6 +53,7 @@ const Index = ({ navigation }) => {
             ...doc.data()
           }));
           setMedicamentos(lista);
+          setStats(prev => ({ ...prev, medicamentosAtivos: lista.length }));
           setLoading(false);
         },
         error => {
@@ -52,34 +63,49 @@ const Index = ({ navigation }) => {
         }
       );
 
+    const unsubscribeDependentes = firestore()
+      .collection('dependentes')
+      .where('usuarioId', '==', user.uid)
+      .onSnapshot(snapshot => {
+        setStats(prev => ({ ...prev, dependentes: snapshot?.docs?.length || 0 }));
+      });
+
     return () => {
       unsubscribe();
+      unsubscribeDependentes();
     };
   }, [user]);
 
   const handleLogout = async () => {
-    try {
-      await auth().signOut();
-      Alert.alert('Sucesso', 'Você saiu da conta.');
-    } catch (error) {
-      Alert.alert('Erro ao sair');
-    }
-  };
-
-  const getPrioridadeCor = (prioridade) => {
-    switch (prioridade) {
-      case 'alta': return '#ff4757';
-      case 'media': return '#ffa502';
-      case 'baixa': return '#2ed573';
-      default: return '#747d8c';
-    }
+    Alert.alert(
+      'Sair da conta',
+      'Tem certeza que deseja sair?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Sair',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await auth().signOut();
+            } catch (error) {
+              Alert.alert('Erro', 'Não foi possível sair da conta.');
+            }
+          }
+        }
+      ]
+    );
   };
 
   const renderAvisoItem = (aviso) => (
     <TouchableOpacity key={aviso.id} style={styles.avisoCard}>
       <View style={styles.avisoHeader}>
-        <View style={styles.avisoIconContainer}>
-          <Text style={styles.avisoIcon}>{aviso.icone}</Text>
+        <View style={[styles.avisoIconContainer, { backgroundColor: getPrioridadeCor(aviso.prioridade) + '20' }]}>
+          <Icon 
+            name={getTipoIcon(aviso.tipo)} 
+            size={20} 
+            color={getPrioridadeCor(aviso.prioridade)} 
+          />
         </View>
         <View style={styles.avisoContent}>
           <Text style={styles.avisoTitulo}>{aviso.titulo}</Text>
@@ -99,7 +125,9 @@ const Index = ({ navigation }) => {
 
   const renderEmptyState = () => (
     <View style={styles.emptyStateContainer}>
-      <Text style={styles.emptyStateIcon}>📭</Text>
+      <View style={styles.emptyStateIconContainer}>
+        <Icon name="notifications-off" size={48} color="#8A8A8A" />
+      </View>
       <Text style={styles.emptyStateTitle}>Nenhum aviso encontrado</Text>
       <Text style={styles.emptyStateDescription}>
         Você não possui avisos ou notificações no momento.
@@ -109,33 +137,33 @@ const Index = ({ navigation }) => {
 
   const renderLoadingState = () => (
     <View style={styles.loadingContainer}>
-      <ActivityIndicator size="large" color="#121a29" />
+      <ActivityIndicator size="large" color="#4D97DB" />
       <Text style={styles.loadingText}>Carregando avisos...</Text>
     </View>
   );
 
   return (
     <View style={styles.container}>
-      {/* Header */}
+      <StatusBar barStyle="light-content" backgroundColor="#121A29" />
+      
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <View>
-            <Text style={styles.title}>💊 PillCheck</Text>
-            <Text style={styles.subtitle}>Olá, {user?.email?.split('@')[0] || 'Usuário'} 👋</Text>
+            <Text style={styles.title}>PillCheck</Text>
+            <Text style={styles.subtitle}>Olá, {user?.displayName || user?.email?.split('@')[0] || 'Usuário'}</Text>
           </View>
           <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-            <Text style={styles.logoutText}>Sair</Text>
+            <Icon name="log-out-outline" size={20} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
 
-        {/* Botões de Ação Rápida - Estilo Bancário */}
         <View style={styles.quickActionsContainer}>
           <TouchableOpacity 
             style={styles.quickActionButton}
             onPress={() => navigation.navigate('AlertasMenu')}
           >
             <View style={styles.quickActionIcon}>
-              <Text style={styles.quickActionIconText}>⏰</Text>
+              <Icon name="alarm" size={20} color="#FFFFFF" />
             </View>
             <Text style={styles.quickActionText}>Alarmes</Text>
           </TouchableOpacity>
@@ -145,7 +173,7 @@ const Index = ({ navigation }) => {
             onPress={() => navigation.navigate('RemediosMenu')}
           >
             <View style={styles.quickActionIcon}>
-              <Text style={styles.quickActionIconText}>💊</Text>
+              <MaterialIcons name="medication" size={20} color="#FFFFFF" />
             </View>
             <Text style={styles.quickActionText}>Remédios</Text>
           </TouchableOpacity>
@@ -155,7 +183,7 @@ const Index = ({ navigation }) => {
             onPress={() => navigation.navigate('DependentesMenu')}
           >
             <View style={styles.quickActionIcon}>
-              <Text style={styles.quickActionIconText}>🩺</Text>
+              <FontAwesome5 name="user-friends" size={18} color="#FFFFFF" />
             </View>
             <Text style={styles.quickActionText}>Dependentes</Text>
           </TouchableOpacity>
@@ -165,18 +193,22 @@ const Index = ({ navigation }) => {
             onPress={() => navigation.navigate('HistoricoMenu')}
           >
             <View style={styles.quickActionIcon}>
-              <Text style={styles.quickActionIconText}>📊</Text>
+              <Icon name="bar-chart" size={20} color="#FFFFFF" />
             </View>
             <Text style={styles.quickActionText}>Histórico</Text>
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Lista de Avisos */}
       <View style={styles.avisosSection}>
         <View style={styles.avisosSectionHeader}>
-          <Text style={styles.avisosSectionTitle}>📢 Avisos e Notificações</Text>
+          <View style={styles.sectionTitleContainer}>
+            <Icon name="notifications" size={20} color="#ffffffb6" />
+            <Text style={styles.avisosSectionTitle}>Avisos e Notificações</Text>
+          </View>
           <TouchableOpacity style={styles.verTodosButton}>
+            <Text style={styles.verTodosText}>Ver todos</Text>
+            <Icon name="chevron-forward" size={14} color="#ffffffff" />
           </TouchableOpacity>
         </View>
 
@@ -198,11 +230,11 @@ const Index = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f7fa',
+    backgroundColor: '#2b3241ff',
   },
   header: {
-    backgroundColor: '#121a29',
-    paddingHorizontal: 20,
+    backgroundColor: '#121A29',
+    paddingHorizontal: 24,
     paddingTop: 60,
     paddingBottom: 30,
     borderBottomLeftRadius: 25,
@@ -217,23 +249,22 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#fff',
+    color: '#FFFFFF',
     marginBottom: 6,
   },
   subtitle: {
     fontSize: 16,
-    color: '#cbd5e0',
+    color: '#8A8A8A',
   },
   logoutButton: {
-    backgroundColor: '#ffffff15',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
-  logoutText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   quickActionsContainer: {
     flexDirection: 'row',
@@ -243,61 +274,29 @@ const styles = StyleSheet.create({
   quickActionButton: {
     flex: 1,
     alignItems: 'center',
-    backgroundColor: '#ffffff15',
-    paddingVertical: 15,
-    borderRadius: 15,
+    backgroundColor: '#d03d6298',
+    paddingVertical: 16,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#ffffff20',
+    borderColor: '#ce224d98',
   },
   quickActionIcon: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#ffffff25',
+    backgroundColor: 'rgba(228, 161, 161, 0.25)',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 8,
   },
-  quickActionIconText: {
-    fontSize: 18,
-  },
   quickActionText: {
-    color: '#fff',
+    color: '#FFFFFF',
     fontSize: 12,
-    fontWeight: '600',
-  },
-  statusCardsContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    marginTop: -15,
-    marginBottom: 20,
-    gap: 12,
-  },
-  statusCard: {
-    flex: 1,
-    backgroundColor: '#fff',
-    padding: 20,
-    borderRadius: 15,
-    alignItems: 'center',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-  },
-  statusNumber: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#121a29',
-    marginBottom: 4,
-  },
-  statusLabel: {
-    fontSize: 12,
-    color: '#718096',
     fontWeight: '600',
   },
   avisosSection: {
     flex: 1,
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
     paddingTop: 25,
   },
   avisosSectionHeader: {
@@ -306,52 +305,60 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 20,
   },
+  sectionTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   avisosSectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#121a29',
+    color: '#ffffffb6',
   },
   verTodosButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 6,
-    backgroundColor: '#f8f9fa',
-    borderRadius: 15,
+    backgroundColor: '#4d96dbb6',
+    borderRadius: 16,
+    gap: 4,
   },
   verTodosText: {
     fontSize: 12,
-    color: '#718096',
+    color: '#ffffffff',
     fontWeight: '600',
   },
   avisosScrollView: {
     flex: 1,
   },
   avisoCard: {
-    backgroundColor: '#fff',
-    borderRadius: 15,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
     padding: 16,
     marginBottom: 12,
-    elevation: 3,
     shadowColor: '#000',
-    shadowOpacity: 0.08,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
     shadowRadius: 8,
+    elevation: 3,
     borderLeftWidth: 4,
-    borderLeftColor: '#121a29',
+    borderLeftColor: '#4D97DB',
   },
   avisoHeader: {
     flexDirection: 'row',
     alignItems: 'flex-start',
   },
   avisoIconContainer: {
-    width: 45,
-    height: 45,
-    borderRadius: 22.5,
-    backgroundColor: '#f8f9fa',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
-  },
-  avisoIcon: {
-    fontSize: 20,
   },
   avisoContent: {
     flex: 1,
@@ -359,12 +366,12 @@ const styles = StyleSheet.create({
   avisoTitulo: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#121a29',
+    color: '#121A29',
     marginBottom: 4,
   },
   avisoDescricao: {
     fontSize: 14,
-    color: '#718096',
+    color: '#6B7280',
     lineHeight: 20,
     marginBottom: 12,
   },
@@ -375,21 +382,20 @@ const styles = StyleSheet.create({
   },
   avisoData: {
     fontSize: 12,
-    color: '#9ca3af',
+    color: '#9CA3AF',
     fontWeight: '500',
   },
   prioridadeBadge: {
     paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
   prioridadeText: {
     fontSize: 10,
-    color: '#fff',
+    color: '#FFFFFF',
     fontWeight: '600',
     textTransform: 'uppercase',
   },
-
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -399,10 +405,9 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#718096',
+    color: '#b3b3b3ff',
     fontWeight: '500',
   },
-
   emptyStateContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -410,50 +415,28 @@ const styles = StyleSheet.create({
     paddingVertical: 60,
     paddingHorizontal: 40,
   },
-  emptyStateIcon: {
-    fontSize: 48,
+  emptyStateIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#F1F3F4',
+    justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: 16,
   },
   emptyStateTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#121a29',
+    color: '#3290e9b6',
     marginBottom: 8,
     textAlign: 'center',
   },
   emptyStateDescription: {
     fontSize: 16,
-    color: '#718096',
+    color: '#a2a6adff',
     textAlign: 'center',
     lineHeight: 22,
     marginBottom: 24,
-  },
-  emptyStateButton: {
-    backgroundColor: '#121a29',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 20,
-  },
-  emptyStateButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  adicionarAvisoButton: {
-    backgroundColor: '#f8f9fa',
-    borderWidth: 2,
-    borderColor: '#e2e8f0',
-    borderStyle: 'dashed',
-    borderRadius: 15,
-    paddingVertical: 20,
-    alignItems: 'center',
-    marginTop: 10,
-    marginBottom: 20,
-  },
-  adicionarAvisoText: {
-    color: '#718096',
-    fontSize: 14,
-    fontWeight: '600',
   },
 });
 
