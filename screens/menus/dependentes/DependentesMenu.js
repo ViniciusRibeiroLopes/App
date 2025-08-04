@@ -8,9 +8,14 @@ import {
   StatusBar,
   ActivityIndicator,
   Alert,
+  Dimensions,
 } from 'react-native';
 import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
+import Icon from 'react-native-vector-icons/Ionicons';
+
+const { width } = Dimensions.get('window');
+const isSmallScreen = width < 360;
 
 const Dependentes = ({ navigation }) => {
   const [dependentes, setDependentes] = useState([]);
@@ -97,6 +102,10 @@ const Dependentes = ({ navigation }) => {
     }
   };
 
+  const getAvatarColor = (genero) => {
+    return genero === 'masculino' ? '#4D97DB' : '#9F7AEA';
+  };
+
   const calcularIdade = (dataNascimento) => {
     if (!dataNascimento) return 0;
     
@@ -115,107 +124,124 @@ const Dependentes = ({ navigation }) => {
   const renderDependenteCard = (dependente) => {
     const idade = calcularIdade(dependente.dataNascimento);
     const avatar = getAvatar(dependente.genero, idade);
+    const avatarColor = getAvatarColor(dependente.genero);
 
     return (
-      <TouchableOpacity 
-        key={dependente.id} 
-        style={styles.dependenteCard}
-        onPress={() => navigation.navigate('IndexDependentes', {dependenteId: dependente.id})}
-      >
-        <View style={styles.cardHeader}>
-          <View style={styles.avatarContainer}>
-            <Text style={styles.avatar}>{avatar}</Text>
+      <View key={dependente.id} style={styles.dependenteCard}>
+        <View 
+          style={styles.cardContent}
+        >
+          <View style={styles.cardHeader}>
+            <View style={[styles.avatarContainer, { backgroundColor: `${avatarColor}20` }]}>
+              <Text style={styles.avatar}>{avatar}</Text>
+            </View>
+            
+            <View style={styles.dependenteInfo}>
+              <Text style={styles.nomeDependente}>{dependente.nome}</Text>
+              <View style={styles.parentescoContainer}>
+                <Text style={styles.parentesco}>{dependente.parentesco}</Text>
+                <Text style={styles.idade}>• {idade} anos</Text>
+              </View>
+            </View>
           </View>
-          
-          <View style={styles.dependenteInfo}>
-            <Text style={styles.nomeDependente}>{dependente.nome}</Text>
-            <Text style={styles.parentesco}>
-              {dependente.parentesco} • {idade} anos
-            </Text>
-          </View>
-          
+        </View>
+        <View style={styles.cardActions}>
           <TouchableOpacity 
-            style={styles.moreButton}
+            style={styles.actionButton}
+            onPress={() => navigation.navigate('IndexDependentes', {dependenteId: dependente.id})}
+          >
+            <Icon name="medical-outline" size={16} color="#4D97DB" />
+            <Text style={[styles.actionText, { color: '#4D97DB' }]}>Administrar</Text>
+          </TouchableOpacity>
+
+          {/*<TouchableOpacity 
+            style={styles.actionButton}
             onPress={() => handleEditarDependente(dependente)}
           >
-            <Text style={styles.moreButtonText}>⋯</Text>
+            <Icon name="create-outline" size={16} color="#B0B7C3" />
+            <Text style={styles.actionText}>Editar</Text>
           </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={[styles.actionButton, styles.deleteAction]}
+            onPress={() => handleRemoverDependente(dependente.id)}
+          >
+            <Icon name="trash-outline" size={16} color="#E53E3E" />
+            <Text style={[styles.actionText, { color: '#E53E3E' }]}>Remover</Text>
+          </TouchableOpacity>*/}
         </View>
-      </TouchableOpacity>
+      </View>
     );
   };
 
   const renderEmptyState = () => (
-    <View style={styles.emptyStateContainer}>
+    <View style={styles.emptyContainer}>
       <View style={styles.emptyIconContainer}>
-        <Text style={styles.emptyIcon}>👥</Text>
+        <Icon name="people" size={48} color="#8A8A8A" />
       </View>
       <Text style={styles.emptyTitle}>Nenhum dependente cadastrado</Text>
       <Text style={styles.emptyDescription}>
         Adicione familiares ou pessoas sob seus cuidados para gerenciar seus medicamentos
       </Text>
+      <TouchableOpacity 
+        style={styles.emptyActionButton}
+        onPress={handleAdicionarDependente}
+      >
+        <Icon name="add" size={20} color="#FFFFFF" />
+        <Text style={styles.emptyActionButtonText}>Adicionar Dependente</Text>
+      </TouchableOpacity>
     </View>
   );
 
   const renderLoadingState = () => (
     <View style={styles.loadingContainer}>
-      <ActivityIndicator size="large" color="#121a29" />
+      <ActivityIndicator size="large" color="#4D97DB" />
       <Text style={styles.loadingText}>Carregando dependentes...</Text>
     </View>
   );
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#121a29" />
+      <StatusBar barStyle="light-content" backgroundColor="#121A29" />
       
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity 
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <Text style={styles.backButtonText}>←</Text>
+          <Icon name="chevron-back" size={24} color="#FFFFFF" />
         </TouchableOpacity>
         
-        <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>👥 Dependentes</Text>
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle}>Dependentes</Text>
           <Text style={styles.headerSubtitle}>
-            {dependentes.length} {dependentes.length === 1 ? 'pessoa' : 'pessoas'} sob seus cuidados
+            Veja seus familiares sob seus cuidados
           </Text>
         </View>
-      </View>
-
-      {/* Lista de Dependentes */}
-      <View style={styles.contentContainer}>
-        <ScrollView 
-          style={styles.scrollContainer}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}
+        
+        <TouchableOpacity 
+          style={styles.addButton}
+          onPress={handleAdicionarDependente}
         >
-          {loading ? (
-            renderLoadingState()
-          ) : dependentes.length > 0 ? (
-            <View style={styles.dependentesContainer}>
-              <Text style={styles.sectionTitle}>Seus Dependentes</Text>
-              {dependentes.map(renderDependenteCard)}
-            </View>
-          ) : (
-            renderEmptyState()
-          )}
-        </ScrollView>
-
-        {/* Botão Flutuante para Adicionar */}
-        <View style={styles.fabContainer}>
-          <TouchableOpacity 
-            style={styles.fabButton}
-            onPress={handleAdicionarDependente}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.fabButtonIcon}>+</Text>
-            <Text style={styles.fabButtonText}>Adicionar Dependente</Text>
-          </TouchableOpacity>
-        </View>
+          <Icon name="add" size={24} color="#FFFFFF" />
+        </TouchableOpacity>
       </View>
+
+      <ScrollView 
+        style={styles.content}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
+        {loading ? (
+          renderLoadingState()
+        ) : dependentes.length > 0 ? (
+          <View style={styles.dependentesContainer}>
+            {dependentes.map(renderDependenteCard)}
+          </View>
+        ) : (
+          renderEmptyState()
+        )}
+      </ScrollView>
     </View>
   );
 };
@@ -223,196 +249,139 @@ const Dependentes = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f7fa',
+    backgroundColor: '#2b3241ff',
   },
   header: {
-    backgroundColor: '#121a29',
-    paddingHorizontal: 20,
-    paddingTop: 50,
-    paddingBottom: 25,
     flexDirection: 'row',
     alignItems: 'center',
-    borderBottomLeftRadius: 25,
-    borderBottomRightRadius: 25,
+    justifyContent: 'space-between',
+    backgroundColor: '#121A29',
+    paddingHorizontal: 20,
+    paddingTop: 60,
+    paddingBottom: 20,
   },
   backButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#ffffff15',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 15,
   },
-  backButtonText: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: '600',
-  },
-  headerContent: {
+  headerCenter: {
     flex: 1,
+    alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#fff',
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#FFFFFF',
     marginBottom: 4,
   },
   headerSubtitle: {
     fontSize: 14,
-    color: '#cbd5e0',
+    color: '#8A8A8A',
+    textAlign: 'center',
   },
-  contentContainer: {
-    flex: 1,
-    position: 'relative',
+  addButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#4D97DB',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  scrollContainer: {
+  content: {
     flex: 1,
+    paddingHorizontal: 20,
   },
   scrollContent: {
-    paddingHorizontal: 20,
-    paddingTop: 25,
-    paddingBottom: 120,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#121a29',
-    marginBottom: 15,
+    paddingVertical: 20,
   },
   dependentesContainer: {
     flex: 1,
   },
   dependenteCard: {
-    backgroundColor: '#fff',
+    backgroundColor: '#1E2329',
     borderRadius: 16,
-    padding: 18,
-    marginBottom: 12,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    borderLeftWidth: 4,
-    borderLeftColor: '#4CAF50',
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    overflow: 'hidden',
+  },
+  cardContent: {
+    padding: 20,
   },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
   },
   avatarContainer: {
-    position: 'relative',
-    marginRight: 12,
-  },
-  avatar: {
-    fontSize: 32,
     width: 50,
     height: 50,
-    backgroundColor: '#f8f9fa',
     borderRadius: 25,
-    textAlign: 'center',
-    textAlignVertical: 'center',
-    lineHeight: 50,
-  },
-  statusIndicator: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 14,
-    height: 14,
-    borderRadius: 7,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
     borderWidth: 2,
-    borderColor: '#fff',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
-  statusAtivo: {
-    backgroundColor: '#4CAF50',
-  },
-  statusInativo: {
-    backgroundColor: '#ff4757',
+  avatar: {
+    fontSize: 24,
   },
   dependenteInfo: {
     flex: 1,
   },
   nomeDependente: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
-    color: '#121a29',
-    marginBottom: 3,
+    color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  parentescoContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   parentesco: {
-    fontSize: 13,
-    color: '#718096',
+    fontSize: 14,
+    color: '#4D97DB',
+    fontWeight: '500',
+  },
+  idade: {
+    fontSize: 14,
+    color: '#8A8A8A',
+    marginLeft: 4,
   },
   moreButton: {
-    width: 30,
-    height: 30,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  moreButtonText: {
-    fontSize: 18,
-    color: '#718096',
-  },
-  cardStats: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    marginBottom: 12,
-    backgroundColor: '#f8f9fa',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-  },
-  statItem: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  statNumber: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#121a29',
-    marginBottom: 2,
-  },
-  statTime: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#4CAF50',
-    marginBottom: 2,
-  },
-  statLabel: {
-    fontSize: 11,
-    color: '#718096',
-    textAlign: 'center',
-  },
-  statDivider: {
-    width: 1,
-    height: 25,
-    backgroundColor: '#e2e8f0',
-    marginHorizontal: 12,
-  },
   cardActions: {
     flexDirection: 'row',
-    gap: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.05)',
   },
   actionButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#f8f9fa',
-    paddingVertical: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
+    paddingVertical: 16,
+    borderRightWidth: 1,
+    borderRightColor: 'rgba(255, 255, 255, 0.05)',
   },
-  actionButtonIcon: {
-    fontSize: 14,
-    marginRight: 6,
+  deleteAction: {
+    borderRightWidth: 0,
   },
-  actionButtonText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#121a29',
+  actionText: {
+    fontSize: 13,
+    color: '#B0B7C3',
+    fontWeight: '500',
+    marginLeft: 6,
   },
   loadingContainer: {
     flex: 1,
@@ -423,77 +392,52 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#718096',
+    color: '#b3b3b3ff',
     fontWeight: '500',
   },
-  emptyStateContainer: {
+  emptyContainer: {
     flex: 1,
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: 60,
     paddingHorizontal: 40,
   },
   emptyIconContainer: {
-    width: 100,
-    height: 100,
-    backgroundColor: '#f8f9fa',
-    borderRadius: 50,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
-    borderWidth: 2,
-    borderColor: '#e2e8f0',
-    borderStyle: 'dashed',
-  },
-  emptyIcon: {
-    fontSize: 40,
   },
   emptyTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#121a29',
-    marginBottom: 12,
+    color: '#FFFFFF',
+    marginBottom: 8,
     textAlign: 'center',
   },
   emptyDescription: {
-    fontSize: 15,
-    color: '#718096',
+    fontSize: 14,
+    color: '#8A8A8A',
     textAlign: 'center',
-    lineHeight: 22,
+    lineHeight: 20,
     marginBottom: 30,
   },
-  fabContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-    backgroundColor: 'transparent',
-  },
-  fabButton: {
-    backgroundColor: '#121a29',
-    borderRadius: 25,
-    paddingVertical: 16,
+  emptyActionButton: {
     flexDirection: 'row',
-    justifyContent: 'center',
     alignItems: 'center',
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
+    backgroundColor: '#4D97DB',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 20,
   },
-  fabButtonIcon: {
-    fontSize: 18,
-    color: '#fff',
-    marginRight: 8,
+  emptyActionButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
     fontWeight: '600',
-  },
-  fabButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#fff',
+    marginLeft: 8,
   },
 });
 

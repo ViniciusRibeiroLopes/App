@@ -6,10 +6,18 @@ import {
   TouchableOpacity, 
   ScrollView, 
   Alert,
-  ActivityIndicator
+  ActivityIndicator,
+  Dimensions,
+  StatusBar
 } from 'react-native';
 import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
+import Icon from 'react-native-vector-icons/Ionicons';
+
+const { width } = Dimensions.get('window');
+
+// Breakpoints responsivos
+const isSmallScreen = width < 360;
 
 const HistoricoMenu = ({ navigation }) => {
   const [medicamentosTomados, setMedicamentosTomados] = useState([]);
@@ -182,7 +190,7 @@ const HistoricoMenu = ({ navigation }) => {
           <Text style={styles.medicamentoDosagem}>Dosagem: {medicamento.dosagem}</Text>
         </View>
         <View style={styles.statusIndicator}>
-          <Text style={styles.statusIcon}>✅</Text>
+          <Icon name="checkmark-circle" size={24} color="#10B981" />
         </View>
       </View>
     );
@@ -200,58 +208,75 @@ const HistoricoMenu = ({ navigation }) => {
     );
   };
 
+  const renderLoadingState = () => (
+    <View style={styles.loadingContainer}>
+      <ActivityIndicator size="large" color="#4D97DB" />
+      <Text style={styles.loadingText}>Carregando histórico...</Text>
+    </View>
+  );
+
+  const renderEmptyState = () => (
+    <View style={styles.emptyContainer}>
+      <View style={styles.emptyIconContainer}>
+        <Icon name="document-text" size={isSmallScreen ? 40 : 48} color="#8A8A8A" />
+      </View>
+      <Text style={styles.emptyTitle}>Nenhum registro encontrado</Text>
+      <Text style={styles.emptyDescription}>
+        {filtroSelecionado === 'hoje' 
+          ? 'Você ainda não tomou nenhum medicamento hoje'
+          : `Nenhum medicamento foi registrado no período selecionado`}
+      </Text>
+    </View>
+  );
+
   const gruposPorDia = agruparPorDia();
   const diasOrdenados = Object.keys(gruposPorDia).sort((a, b) => b.localeCompare(a));
 
   return (
     <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#121A29" />
+      
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Text style={styles.backIcon}>←</Text>
-        </TouchableOpacity>
-        
-        <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>📋 Histórico</Text>
-          <Text style={styles.headerSubtitle}>Medicamentos tomados</Text>
+        <View style={styles.headerTop}>
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Icon name="chevron-back" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+          
+          <View style={styles.headerCenter}>
+            <Text style={styles.headerTitle}>Histórico</Text>
+            <Text style={styles.headerSubtitle}>Medicamentos tomados</Text>
+          </View>
+          
+          <View style={styles.headerRight} />
         </View>
-        
-        <View style={styles.headerRight} />
       </View>
 
-      {/* Filtros */}
-      <View style={styles.filtrosWrapper}>
-        {renderFiltros()}
-      </View>
+      {/* Content */}
+      <View style={styles.content}>
+        {/* Filtros */}
+        <View style={styles.filtrosWrapper}>
+          {renderFiltros()}
+        </View>
 
-      {/* Lista de Histórico */}
-      <ScrollView 
-        style={styles.scrollContainer}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
-        {loading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#4CAF50" />
-            <Text style={styles.loadingText}>Carregando histórico...</Text>
-          </View>
-        ) : diasOrdenados.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>📋</Text>
-            <Text style={styles.emptyTitle}>Nenhum registro encontrado</Text>
-            <Text style={styles.emptyDescription}>
-              {filtroSelecionado === 'hoje' 
-                ? 'Você ainda não tomou nenhum medicamento hoje'
-                : `Nenhum medicamento foi registrado no período selecionado`}
-            </Text>
-          </View>
-        ) : (
-          diasOrdenados.map(dia => renderDiaGroup(dia, gruposPorDia[dia]))
-        )}
-      </ScrollView>
+        {/* Lista de Histórico */}
+        <ScrollView 
+          style={styles.scrollContainer}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+        >
+          {loading ? (
+            renderLoadingState()
+          ) : diasOrdenados.length === 0 ? (
+            renderEmptyState()
+          ) : (
+            diasOrdenados.map(dia => renderDiaGroup(dia, gruposPorDia[dia]))
+          )}
+        </ScrollView>
+      </View>
     </View>
   );
 };
@@ -259,111 +284,126 @@ const HistoricoMenu = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f7fa',
+    backgroundColor: '#2b3241ff',
   },
   header: {
+    backgroundColor: '#121A29',
+    paddingHorizontal: isSmallScreen ? 16 : 24,
+    paddingTop: 60,
+    paddingBottom: 30,
+    borderBottomLeftRadius: 25,
+    borderBottomRightRadius: 25,
+  },
+  headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#121a29',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    paddingTop: 50,
+    justifyContent: 'space-between',
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#ffffff15',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  backIcon: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   headerCenter: {
     flex: 1,
     alignItems: 'center',
+    marginHorizontal: 16,
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: isSmallScreen ? 20 : 24,
     fontWeight: '700',
-    color: '#fff',
+    color: '#FFFFFF',
+    marginBottom: 4,
   },
   headerSubtitle: {
-    fontSize: 14,
-    color: '#cbd5e0',
-    marginTop: 2,
+    fontSize: isSmallScreen ? 12 : 14,
+    color: '#8A8A8A',
+    textAlign: 'center',
   },
   headerRight: {
-    width: 40,
+    width: 44,
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: isSmallScreen ? 16 : 24,
+    paddingTop: 25,
   },
   filtrosWrapper: {
-    paddingTop: 20,
+    marginBottom: 20,
   },
   filtrosContainer: {
-    paddingHorizontal: 20,
-    marginBottom: 20,
+    marginBottom: 10,
   },
   filtroButton: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderRadius: 20,
-    backgroundColor: '#fff',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     marginRight: 8,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   filtroButtonActive: {
-    backgroundColor: '#4CAF50',
-    borderColor: '#4CAF50',
+    backgroundColor: '#4D97DB',
+    borderColor: '#4D97DB',
   },
   filtroText: {
     fontSize: 14,
-    color: '#718096',
+    color: '#B0B7C3',
     fontWeight: '600',
   },
   filtroTextActive: {
-    color: '#fff',
+    color: '#FFFFFF',
   },
   scrollContainer: {
     flex: 1,
-    paddingHorizontal: 20,
   },
   scrollContent: {
-    paddingTop: 10,
     paddingBottom: 30,
   },
   loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: 60,
   },
   loadingText: {
+    marginTop: 16,
     fontSize: 16,
-    color: '#718096',
-    marginTop: 12,
+    color: '#b3b3b3ff',
+    fontWeight: '500',
   },
   emptyContainer: {
+    flex: 1,
     alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: 60,
     paddingHorizontal: 40,
   },
-  emptyIcon: {
-    fontSize: 64,
-    marginBottom: 20,
-    opacity: 0.5,
+  emptyIconContainer: {
+    width: isSmallScreen ? 64 : 80,
+    height: isSmallScreen ? 64 : 80,
+    borderRadius: isSmallScreen ? 32 : 40,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
   },
   emptyTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#121a29',
-    marginBottom: 12,
+    fontSize: isSmallScreen ? 18 : 20,
+    fontWeight: '600',
+    color: '#3290e9b6',
+    marginBottom: 8,
     textAlign: 'center',
   },
   emptyDescription: {
-    fontSize: 15,
-    color: '#718096',
+    fontSize: isSmallScreen ? 14 : 16,
+    color: '#a2a6adff',
     textAlign: 'center',
     lineHeight: 22,
   },
@@ -376,38 +416,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     paddingHorizontal: 16,
-    backgroundColor: '#fff',
+    backgroundColor: '#121A29',
     borderRadius: 12,
     marginBottom: 8,
-    elevation: 1,
-    shadowColor: '#000',
-    shadowOpacity: 0.03,
-    shadowRadius: 3,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
   },
   diaData: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#121a29',
+    color: '#FFFFFF',
   },
   diaContador: {
     fontSize: 14,
-    color: '#718096',
+    color: '#B0B7C3',
     fontWeight: '600',
   },
   medicamentoItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: '#121A29',
     padding: 16,
     borderRadius: 12,
     marginBottom: 8,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    borderLeftWidth: 4,
-    borderLeftColor: '#4CAF50',
+    borderWidth: 1,
+    elevation: 3,
   },
   medicamentoInfo: {
     flex: 1,
@@ -421,23 +455,20 @@ const styles = StyleSheet.create({
   medicamentoNome: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#121a29',
+    color: '#FFFFFF',
     flex: 1,
   },
   medicamentoHorario: {
     fontSize: 14,
-    color: '#4CAF50',
+    color: '#4D97DB',
     fontWeight: '600',
   },
   medicamentoDosagem: {
     fontSize: 14,
-    color: '#718096',
+    color: '#B0B7C3',
   },
   statusIndicator: {
     marginLeft: 12,
-  },
-  statusIcon: {
-    fontSize: 20,
   },
 });
 

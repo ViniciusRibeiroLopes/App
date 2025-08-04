@@ -8,14 +8,21 @@ import {
   Alert,
   Dimensions,
   Modal,
-  ActivityIndicator
+  ActivityIndicator,
+  StatusBar
 } from 'react-native';
 import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
-
+import Icon from 'react-native-vector-icons/Ionicons';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import notifee from '@notifee/react-native';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
+
+// Breakpoints responsivos
+const isSmallScreen = width < 360;
+const isMediumScreen = width >= 360 && width < 400;
+const isLargeScreen = width >= 400;
 
 const AlertasScreen = ({ navigation }) => {
   const [alertas, setAlertas] = useState([]);
@@ -99,13 +106,12 @@ const AlertasScreen = ({ navigation }) => {
     setModalVisible(true);
   };
 
-    const cancelarNotificacoesRemedio = async (remedioId, dias) => {
-        for (let dia of dias) {
-            const id = `${remedioId}_${dia}`;
-            await notifee.cancelTriggerNotification(id);
-        }
-    };
-
+  const cancelarNotificacoesRemedio = async (remedioId, dias) => {
+    for (let dia of dias) {
+      const id = `${remedioId}_${dia}`;
+      await notifee.cancelTriggerNotification(id);
+    }
+  };
 
   const excluirAlerta = async () => {
     try {
@@ -192,11 +198,28 @@ const AlertasScreen = ({ navigation }) => {
   };
 
   const renderAlertaCard = (alerta) => (
-    <View key={alerta.id} style={[styles.alertaCard, { borderLeftColor: alerta.cor || '#4CAF50' }]}>
+    <View key={alerta.id} style={[
+      styles.alertaCard, 
+      { 
+        opacity: alerta.ativo !== false ? 1 : 0.6 
+      }
+    ]}>
       <View style={styles.alertaHeader}>
-        <View style={styles.horarioContainer}>
-          <Text style={styles.horarioText}>{alerta.horario}</Text>
-          <Text style={styles.frequenciaText}>{alerta.frequencia}</Text>
+        <View style={styles.alertaMainInfo}>
+          <View style={styles.horarioContainer}>
+            <Text style={styles.horarioText}>{alerta.horario}</Text>
+            {alerta.frequencia && (
+              <Text style={styles.frequenciaText}>{alerta.frequencia}</Text>
+            )}
+          </View>
+          
+          <View style={styles.medicamentoInfo}>
+            <Text style={styles.medicamentoNome}>{alerta.nomeRemedio}</Text>
+            <Text style={styles.dosagem}>Dosagem: {alerta.dosagem}</Text>
+            {alerta.proximaTomada && (
+              <Text style={styles.proximaTomada}>Próxima: {alerta.proximaTomada}</Text>
+            )}
+          </View>
         </View>
         
         <View style={styles.actionsContainer}>
@@ -204,18 +227,12 @@ const AlertasScreen = ({ navigation }) => {
             style={styles.deleteButton}
             onPress={() => confirmarExclusao(alerta)}
           >
-            <Text style={styles.deleteIcon}>🗑️</Text>
+            <Icon name="trash-outline" size={16} color="#E53E3E" />
           </TouchableOpacity>
         </View>
       </View>
 
-      <View style={styles.alertaContent}>
-        <Text style={styles.medicamentoNome}>{alerta.nomeRemedio}</Text>
-        <Text style={styles.dosagem}>Dosagem: {alerta.dosagem}</Text>
-        {alerta.proximaTomada && (
-          <Text style={styles.proximaTomada}>Próxima: {alerta.proximaTomada}</Text>
-        )}
-        
+      <View style={styles.alertaFooter}>
         {alerta.dias ? (
           renderDiasSemana(alerta.dias)
         ) : (
@@ -228,20 +245,23 @@ const AlertasScreen = ({ navigation }) => {
             </View>
           </View>
         )}
+        
       </View>
     </View>
   );
 
   const renderLoadingState = () => (
     <View style={styles.loadingContainer}>
-      <ActivityIndicator size="large" color="#121a29" />
+      <ActivityIndicator size="large" color="#4D97DB" />
       <Text style={styles.loadingText}>Carregando alertas...</Text>
     </View>
   );
 
   const renderEmptyState = () => (
     <View style={styles.emptyContainer}>
-      <Text style={styles.emptyIcon}>⏰</Text>
+      <View style={styles.emptyIconContainer}>
+        <Icon name="alarm" size={isSmallScreen ? 40 : 48} color="#8A8A8A" />
+      </View>
       <Text style={styles.emptyTitle}>Nenhum alerta configurado</Text>
       <Text style={styles.emptyDescription}>
         Toque no botão + para adicionar seu primeiro alerta de medicação
@@ -250,48 +270,62 @@ const AlertasScreen = ({ navigation }) => {
         style={styles.emptyActionButton}
         onPress={() => navigation.navigate('AdicionarAlerta')}
       >
+        <Icon name="add" size={20} color="#FFFFFF" style={styles.emptyActionIcon} />
         <Text style={styles.emptyActionButtonText}>Adicionar Alerta</Text>
       </TouchableOpacity>
     </View>
   );
 
+  const getAlertsStats = () => {
+    const ativos = alertas.filter(alerta => alerta.ativo !== false).length;
+    const inativos = alertas.length - ativos;
+    return { ativos, inativos, total: alertas.length };
+  };
+
+  const stats = getAlertsStats();
+
   return (
     <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#121A29" />
+      
       <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Text style={styles.backIcon}>←</Text>
-        </TouchableOpacity>
-        
-        <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>⏰ Meus Alertas</Text>
-          <Text style={styles.headerSubtitle}>
-            {loading ? 'Carregando...' : `${alertas.length} alertas configurados`}
-          </Text>
+        <View style={styles.headerTop}>
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Icon name="chevron-back" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+          
+          <View style={styles.headerCenter}>
+            <Text style={styles.headerTitle}>Meus Alertas</Text>
+            <Text style={styles.headerSubtitle}>Veja seus lembretes</Text>
+          </View>
+          
+          <TouchableOpacity 
+            style={styles.addButton}
+            onPress={() => navigation.navigate('AdicionarAlerta')}
+          >
+            <Icon name="add" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
         </View>
-        
-        <TouchableOpacity 
-          style={styles.addButton}
-          onPress={() => navigation.navigate('AdicionarAlerta')}
-        >
-          <Text style={styles.addIcon}>+</Text>
-        </TouchableOpacity>
       </View>
 
-      <ScrollView 
-        style={styles.scrollContainer}
-        showsVerticalScrollIndicator={false}
-      >
-        {loading ? (
-          renderLoadingState()
-        ) : alertas.length === 0 ? (
-          renderEmptyState()
-        ) : (
-          alertas.map(renderAlertaCard)
-        )}
-      </ScrollView>
+      <View style={styles.content}>
+        <ScrollView 
+          style={styles.scrollContainer}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+        >
+          {loading ? (
+            renderLoadingState()
+          ) : alertas.length === 0 ? (
+            renderEmptyState()
+          ) : (
+            alertas.map(renderAlertaCard)
+          )}
+        </ScrollView>
+      </View>
 
       <Modal
         animationType="fade"
@@ -301,7 +335,13 @@ const AlertasScreen = ({ navigation }) => {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Excluir Alerta</Text>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalIconContainer}>
+                <Icon name="warning" size={24} color="#E53E3E" />
+              </View>
+              <Text style={styles.modalTitle}>Excluir Alerta</Text>
+            </View>
+            
             <Text style={styles.modalText}>
               Tem certeza que deseja excluir o alerta para "{alertaParaExcluir?.nomeRemedio}"?
             </Text>
@@ -332,66 +372,96 @@ const AlertasScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f7fa',
+    backgroundColor: '#2b3241ff',
   },
   header: {
+    backgroundColor: '#121A29',
+    paddingHorizontal: isSmallScreen ? 16 : 24,
+    paddingTop: 60,
+    paddingBottom: 30,
+    borderBottomLeftRadius: 25,
+    borderBottomRightRadius: 25,
+  },
+  headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#121a29',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    paddingTop: 50,
+    justifyContent: 'space-between',
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#ffffff15',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  backIcon: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   headerCenter: {
     flex: 1,
     alignItems: 'center',
+    marginHorizontal: 16,
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: isSmallScreen ? 20 : 24,
     fontWeight: '700',
-    color: '#fff',
+    color: '#FFFFFF',
+    marginBottom: 4,
   },
   headerSubtitle: {
-    fontSize: 14,
-    color: '#cbd5e0',
-    marginTop: 2,
+    fontSize: isSmallScreen ? 12 : 14,
+    color: '#8A8A8A',
+    textAlign: 'center',
   },
   addButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#4CAF50',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#4D97DB',
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
+    shadowColor: '#4D97DB',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
-  addIcon: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: '600',
+  statsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 16,
+    paddingVertical: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  statNumber: {
+    fontSize: isSmallScreen ? 20 : 24,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: isSmallScreen ? 10 : 12,
+    color: '#8A8A8A',
+    fontWeight: '500',
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: isSmallScreen ? 16 : 24,
+    paddingTop: 25,
   },
   scrollContainer: {
     flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 20,
   },
-
+  scrollContent: {
+    paddingBottom: 20,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -401,115 +471,111 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#718096',
+    color: '#b3b3b3ff',
     fontWeight: '500',
   },
   alertaCard: {
-    backgroundColor: '#fff',
+    backgroundColor: '#121A29',
     borderRadius: 16,
-    padding: 20,
-    marginBottom: 15,
-    borderLeftWidth: 4,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
+    padding: isSmallScreen ? 16 : 20,
+    marginBottom: 16,
+    elevation: 3,
+    borderWidth: 1,
   },
   alertaHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  alertaMainInfo: {
+    flex: 1,
+    marginRight: 16,
   },
   horarioContainer: {
-    flex: 1,
+    marginBottom: 12,
   },
   horarioText: {
-    fontSize: 32,
+    fontSize: isSmallScreen ? 28 : 32,
     fontWeight: '300',
-    color: '#121a29',
+    color: '#FFFFFF',
     fontFamily: 'monospace',
     letterSpacing: -1,
   },
   frequenciaText: {
-    fontSize: 14,
-    color: '#718096',
+    fontSize: isSmallScreen ? 12 : 14,
+    color: '#B0B7C3',
     fontWeight: '500',
     marginTop: -2,
   },
+  medicamentoInfo: {
+    flex: 1,
+  },
+  medicamentoNome: {
+    fontSize: isSmallScreen ? 16 : 18,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  dosagem: {
+    fontSize: isSmallScreen ? 12 : 14,
+    color: '#B0B7C3',
+    marginBottom: 4,
+  },
+  proximaTomada: {
+    fontSize: isSmallScreen ? 12 : 14,
+    color: '#10B981',
+    fontWeight: '500',
+  },
   actionsContainer: {
-    flexDirection: 'row',
+    gap: 8,
     alignItems: 'center',
-    gap: 12,
   },
   toggleButton: {
-    padding: 5,
-  },
-  toggleSwitch: {
-    width: 50,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: '#e2e8f0',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     justifyContent: 'center',
-    paddingHorizontal: 3,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   toggleActive: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#10B981',
   },
-  toggleKnob: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: '#fff',
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-  },
-  toggleKnobActive: {
-    alignSelf: 'flex-end',
+  toggleInactive: {
+    backgroundColor: '#6B7280',
   },
   deleteButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#fee2e2',
+    backgroundColor: 'rgba(229, 62, 62, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(229, 62, 62, 0.3)',
   },
-  deleteIcon: {
-    fontSize: 16,
-  },
-  alertaContent: {
+  alertaFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     borderTopWidth: 1,
-    borderTopColor: '#e2e8f0',
-    paddingTop: 7,
-  },
-  medicamentoNome: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#121a29',
-    marginBottom: 6,
-  },
-  dosagem: {
-    fontSize: 14,
-    color: '#718096',
-    marginBottom: 4,
-  },
-  proximaTomada: {
-    fontSize: 14,
-    color: '#4CAF50',
-    fontWeight: '500',
-    marginBottom: 12,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+    paddingTop: 16,
   },
   diasContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    flex: 1,
     flexWrap: 'wrap',
   },
   diasLabel: {
-    fontSize: 14,
-    color: '#718096',
+    fontSize: isSmallScreen ? 12 : 14,
+    color: '#B0B7C3',
     fontWeight: '500',
     marginRight: 8,
   },
@@ -520,20 +586,20 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   diaChip: {
-    backgroundColor: '#e8f4fd',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    backgroundColor: 'rgba(77, 151, 219, 0.15)',
+    paddingHorizontal: isSmallScreen ? 8 : 10,
+    paddingVertical: isSmallScreen ? 4 : 5,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#bee3f8',
+    borderColor: 'rgba(77, 151, 219, 0.3)',
   },
   diaText: {
-    fontSize: 11,
-    color: '#2b6cb0',
+    fontSize: isSmallScreen ? 10 : 11,
+    color: '#4D97DB',
     fontWeight: '600',
   },
   statusContainer: {
-    alignItems: 'flex-start',
+    alignItems: 'flex-end',
   },
   statusBadge: {
     paddingHorizontal: 10,
@@ -542,40 +608,57 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: 12,
+    color: '#FFFFFF',
     fontWeight: '600',
   },
   emptyContainer: {
+    flex: 1,
     alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: 60,
     paddingHorizontal: 40,
   },
-  emptyIcon: {
-    fontSize: 64,
+  emptyIconContainer: {
+    width: isSmallScreen ? 64 : 80,
+    height: isSmallScreen ? 64 : 80,
+    borderRadius: isSmallScreen ? 32 : 40,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: 16,
-    opacity: 0.5,
   },
   emptyTitle: {
-    fontSize: 18,
+    fontSize: isSmallScreen ? 18 : 20,
     fontWeight: '600',
-    color: '#121a29',
+    color: '#3290e9b6',
     marginBottom: 8,
     textAlign: 'center',
   },
   emptyDescription: {
-    fontSize: 14,
-    color: '#718096',
+    fontSize: isSmallScreen ? 14 : 16,
+    color: '#a2a6adff',
     textAlign: 'center',
-    lineHeight: 20,
+    lineHeight: 22,
     marginBottom: 24,
   },
   emptyActionButton: {
-    backgroundColor: '#121a29',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#4D97DB',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 20,
+    shadowColor: '#4D97DB',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  emptyActionIcon: {
+    marginRight: 8,
   },
   emptyActionButtonText: {
-    color: '#fff',
+    color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '600',
   },
@@ -587,29 +670,48 @@ const styles = StyleSheet.create({
     paddingHorizontal: 30,
   },
   modalContent: {
-    backgroundColor: '#fff',
+    backgroundColor: '#1E2329',
     borderRadius: 20,
     padding: 25,
     width: '100%',
     maxWidth: 350,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 25,
+    elevation: 25,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  modalHeader: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalIconContainer: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(229, 62, 62, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#121a29',
+    color: '#FFFFFF',
     textAlign: 'center',
-    marginBottom: 12,
   },
   modalText: {
     fontSize: 16,
-    color: '#4a5568',
+    color: '#B0B7C3',
     textAlign: 'center',
     marginBottom: 8,
     lineHeight: 22,
   },
   modalSubtext: {
     fontSize: 14,
-    color: '#718096',
+    color: '#8A8A8A',
     textAlign: 'center',
     marginBottom: 25,
   },
@@ -619,25 +721,32 @@ const styles = StyleSheet.create({
   },
   modalCancelButton: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     paddingVertical: 12,
     borderRadius: 12,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   modalCancelText: {
-    color: '#718096',
+    color: '#B0B7C3',
     fontWeight: '600',
     fontSize: 16,
   },
   modalConfirmButton: {
     flex: 1,
-    backgroundColor: '#dc3545',
+    backgroundColor: '#E53E3E',
     paddingVertical: 12,
     borderRadius: 12,
     alignItems: 'center',
+    shadowColor: '#E53E3E',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
   },
   modalConfirmText: {
-    color: '#fff',
+    color: '#FFFFFF',
     fontWeight: '600',
     fontSize: 16,
   },

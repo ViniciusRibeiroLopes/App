@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { 
   View, 
   Text, 
@@ -8,7 +8,10 @@ import {
   Alert,
   Dimensions,
   ActivityIndicator,
-  StatusBar
+  StatusBar,
+  Animated,
+  TouchableWithoutFeedback,
+  Modal
 } from 'react-native';
 import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
@@ -16,13 +19,19 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
+
+// Breakpoints responsivos
+const isSmallScreen = width < 360;
+const isMediumScreen = width >= 360 && width < 400;
+const isLargeScreen = width >= 400;
 
 const Index = ({ navigation }) => {
   const [avisos, setAvisos] = useState([]);
   const [medicamentos, setMedicamentos] = useState([]);
   const [alertas, setAlertas] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [menuVisible, setMenuVisible] = useState(false);
   const [stats, setStats] = useState({
     medicamentosAtivos: 0,
     alertasHoje: 0,
@@ -30,6 +39,7 @@ const Index = ({ navigation }) => {
   });
   
   const user = auth().currentUser;
+  const slideAnim = useRef(new Animated.Value(-250)).current;
 
   useEffect(() => {
     if (!user) {
@@ -76,7 +86,35 @@ const Index = ({ navigation }) => {
     };
   }, [user]);
 
+  const toggleMenu = () => {
+    if (menuVisible) {
+      closeMenu();
+    } else {
+      openMenu();
+    }
+  };
+
+  const openMenu = () => {
+    setMenuVisible(true);
+    Animated.timing(slideAnim, {
+      toValue: 0,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const closeMenu = () => {
+    Animated.timing(slideAnim, {
+      toValue: -250,
+      duration: 300,
+      useNativeDriver: true,
+    }).start(() => {
+      setMenuVisible(false);
+    });
+  };
+
   const handleLogout = async () => {
+    closeMenu();
     Alert.alert(
       'Sair da conta',
       'Tem certeza que deseja sair?',
@@ -96,6 +134,82 @@ const Index = ({ navigation }) => {
       ]
     );
   };
+
+  const renderHamburgerMenu = () => (
+    <Modal
+      visible={menuVisible}
+      transparent={true}
+      animationType="none"
+      onRequestClose={closeMenu}
+    >
+      <TouchableWithoutFeedback onPress={closeMenu}>
+        <View style={styles.modalOverlay}>
+          <TouchableWithoutFeedback>
+            <Animated.View 
+              style={[
+                styles.sideMenu,
+                {
+                  transform: [{ translateX: slideAnim }]
+                }
+              ]}
+            >
+              <View style={styles.menuHeader}>
+                <View style={styles.userInfoContainer}>
+                  <View style={styles.avatarContainer}>
+                    <Icon name="person" size={24} color="#FFFFFF" />
+                  </View>
+                  <View style={styles.userInfo}>
+                    <Text style={styles.userName}>
+                      {user?.displayName || 'Usuário'}
+                    </Text>
+                    <Text style={styles.userEmail}>
+                      {user?.email}
+                    </Text>
+                  </View>
+                </View>
+                <TouchableOpacity style={styles.closeMenuButton} onPress={closeMenu}>
+                  <Icon name="close" size={24} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.menuItems}>
+                <TouchableOpacity style={styles.menuItem} onPress={() => {
+                  closeMenu();
+                  navigation.navigate('Perfil');
+                }}>
+                  <Icon name="person-outline" size={20} color="#fafafaff" />
+                  <Text style={styles.menuItemText}>Meu Perfil</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.menuItem} onPress={() => {
+                  closeMenu();
+                  navigation.navigate('Configuracoes');
+                }}>
+                  <Icon name="settings-outline" size={20} color="#fafafaff" />
+                  <Text style={styles.menuItemText}>Configurações</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.menuItem} onPress={() => {
+                  closeMenu();
+                  navigation.navigate('Ajuda');
+                }}>
+                  <Icon name="help-circle-outline" size={20} color="#fafafaff" />
+                  <Text style={styles.menuItemText}>Ajuda</Text>
+                </TouchableOpacity>
+
+                <View style={styles.menuDivider} />
+
+                <TouchableOpacity style={[styles.menuItem, styles.logoutMenuItem]} onPress={handleLogout}>
+                  <Icon name="log-out-outline" size={20} color="#E53E3E" />
+                  <Text style={[styles.menuItemText, styles.logoutText]}>Sair da conta</Text>
+                </TouchableOpacity>
+              </View>
+            </Animated.View>
+          </TouchableWithoutFeedback>
+        </View>
+      </TouchableWithoutFeedback>
+    </Modal>
+  );
 
   const renderAvisoItem = (aviso) => (
     <TouchableOpacity key={aviso.id} style={styles.avisoCard}>
@@ -126,7 +240,7 @@ const Index = ({ navigation }) => {
   const renderEmptyState = () => (
     <View style={styles.emptyStateContainer}>
       <View style={styles.emptyStateIconContainer}>
-        <Icon name="notifications-off" size={48} color="#8A8A8A" />
+        <Icon name="notifications-off" size={isSmallScreen ? 40 : 48} color="#8A8A8A" />
       </View>
       <Text style={styles.emptyStateTitle}>Nenhum aviso encontrado</Text>
       <Text style={styles.emptyStateDescription}>
@@ -142,73 +256,135 @@ const Index = ({ navigation }) => {
     </View>
   );
 
+  const getQuickActionColumns = () => {
+    if (isSmallScreen) return 2;
+    if (isMediumScreen) return 2;
+    return 4;
+  };
+
+  const renderQuickActions = () => {
+    const columns = getQuickActionColumns();
+    const actions = [
+      {
+        icon: 'alarm',
+        text: 'Alarmes',
+        route: 'AlertasMenu',
+        component: Icon
+      },
+      {
+        icon: 'medication',
+        text: 'Remédios',
+        route: 'RemediosMenu',
+        component: MaterialIcons
+      },
+      {
+        icon: 'user-friends',
+        text: 'Dependentes',
+        route: 'DependentesMenu',
+        component: FontAwesome5
+      },
+      {
+        icon: 'bar-chart',
+        text: 'Histórico',
+        route: 'HistoricoMenu',
+        component: Icon
+      }
+    ];
+
+    if (columns === 2) {
+      return (
+        <View style={styles.quickActionsGrid}>
+          <View style={styles.quickActionsRow}>
+            {actions.slice(0, 2).map((action, index) => (
+              <TouchableOpacity 
+                key={index}
+                style={[styles.quickActionButton, styles.quickActionButtonGrid]}
+                onPress={() => navigation.navigate(action.route)}
+              >
+                <View style={styles.quickActionIcon}>
+                  <action.component 
+                    name={action.icon} 
+                    size={action.component === FontAwesome5 ? 16 : 18} 
+                    color="#FFFFFF" 
+                  />
+                </View>
+                <Text style={styles.quickActionText}>{action.text}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <View style={styles.quickActionsRow}>
+            {actions.slice(2, 4).map((action, index) => (
+              <TouchableOpacity 
+                key={index + 2}
+                style={[styles.quickActionButton, styles.quickActionButtonGrid]}
+                onPress={() => navigation.navigate(action.route)}
+              >
+                <View style={styles.quickActionIcon}>
+                  <action.component 
+                    name={action.icon} 
+                    size={action.component === FontAwesome5 ? 16 : 18} 
+                    color="#FFFFFF" 
+                  />
+                </View>
+                <Text style={styles.quickActionText}>{action.text}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.quickActionsContainer}>
+        {actions.map((action, index) => (
+          <TouchableOpacity 
+            key={index}
+            style={styles.quickActionButton}
+            onPress={() => navigation.navigate(action.route)}
+          >
+            <View style={styles.quickActionIcon}>
+              <action.component 
+                name={action.icon} 
+                size={action.component === FontAwesome5 ? 16 : 18} 
+                color="#FFFFFF" 
+              />
+            </View>
+            <Text style={styles.quickActionText}>{action.text}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    );
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#121A29" />
       
       <View style={styles.header}>
         <View style={styles.headerTop}>
-          <View>
+          <View style={styles.titleContainer}>
             <Text style={styles.title}>PillCheck</Text>
-            <Text style={styles.subtitle}>Olá, {user?.displayName || user?.email?.split('@')[0] || 'Usuário'}</Text>
+            <Text style={styles.subtitle}>
+              Olá, {user?.displayName || user?.email?.split('@')[0] || 'Usuário'}
+            </Text>
           </View>
-          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-            <Icon name="log-out-outline" size={20} color="#FFFFFF" />
+          <TouchableOpacity style={styles.hamburgerButton} onPress={toggleMenu}>
+            <Icon name="menu" size={24} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
 
-        <View style={styles.quickActionsContainer}>
-          <TouchableOpacity 
-            style={styles.quickActionButton}
-            onPress={() => navigation.navigate('AlertasMenu')}
-          >
-            <View style={styles.quickActionIcon}>
-              <Icon name="alarm" size={20} color="#FFFFFF" />
-            </View>
-            <Text style={styles.quickActionText}>Alarmes</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={styles.quickActionButton}
-            onPress={() => navigation.navigate('RemediosMenu')}
-          >
-            <View style={styles.quickActionIcon}>
-              <MaterialIcons name="medication" size={20} color="#FFFFFF" />
-            </View>
-            <Text style={styles.quickActionText}>Remédios</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={styles.quickActionButton}
-            onPress={() => navigation.navigate('DependentesMenu')}
-          >
-            <View style={styles.quickActionIcon}>
-              <FontAwesome5 name="user-friends" size={18} color="#FFFFFF" />
-            </View>
-            <Text style={styles.quickActionText}>Dependentes</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={styles.quickActionButton}
-            onPress={() => navigation.navigate('HistoricoMenu')}
-          >
-            <View style={styles.quickActionIcon}>
-              <Icon name="bar-chart" size={20} color="#FFFFFF" />
-            </View>
-            <Text style={styles.quickActionText}>Histórico</Text>
-          </TouchableOpacity>
-        </View>
+        {renderQuickActions()}
       </View>
 
       <View style={styles.avisosSection}>
         <View style={styles.avisosSectionHeader}>
           <View style={styles.sectionTitleContainer}>
-            <Icon name="notifications" size={20} color="#ffffffb6" />
+            <Icon name="notifications" size={18} color="#ffffffb6" />
             <Text style={styles.avisosSectionTitle}>Avisos e Notificações</Text>
           </View>
           <TouchableOpacity style={styles.verTodosButton}>
             <Text style={styles.verTodosText}>Ver todos</Text>
-            <Icon name="chevron-forward" size={14} color="#ffffffff" />
+            <Icon name="chevron-forward" size={12} color="#ffffffff" />
           </TouchableOpacity>
         </View>
 
@@ -223,8 +399,29 @@ const Index = ({ navigation }) => {
           </ScrollView>
         )}
       </View>
+
+      {renderHamburgerMenu()}
     </View>
   );
+};
+
+// Funções auxiliares (você precisará implementar estas baseado na sua lógica)
+const getPrioridadeCor = (prioridade) => {
+  switch (prioridade) {
+    case 'alta': return '#E53E3E';
+    case 'media': return '#F59E0B';
+    case 'baixa': return '#10B981';
+    default: return '#4D97DB';
+  }
+};
+
+const getTipoIcon = (tipo) => {
+  switch (tipo) {
+    case 'medicamento': return 'medical';
+    case 'alarme': return 'alarm';
+    case 'consulta': return 'calendar';
+    default: return 'information-circle';
+  }
 };
 
 const styles = StyleSheet.create({
@@ -234,7 +431,7 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#121A29',
-    paddingHorizontal: 24,
+    paddingHorizontal: isSmallScreen ? 16 : 24,
     paddingTop: 60,
     paddingBottom: 30,
     borderBottomLeftRadius: 25,
@@ -246,17 +443,20 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: 25,
   },
+  titleContainer: {
+    flex: 1,
+  },
   title: {
-    fontSize: 28,
+    fontSize: isSmallScreen ? 24 : 28,
     fontWeight: '700',
     color: '#FFFFFF',
     marginBottom: 6,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: isSmallScreen ? 14 : 16,
     color: '#8A8A8A',
   },
-  logoutButton: {
+  hamburgerButton: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     width: 44,
     height: 44,
@@ -269,21 +469,34 @@ const styles = StyleSheet.create({
   quickActionsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    gap: isSmallScreen ? 8 : 12,
+  },
+  quickActionsGrid: {
+    gap: 12,
+  },
+  quickActionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     gap: 12,
   },
   quickActionButton: {
     flex: 1,
     alignItems: 'center',
     backgroundColor: '#d03d6298',
-    paddingVertical: 16,
+    paddingVertical: isSmallScreen ? 12 : 16,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: '#ce224d98',
+    minHeight: 80,
+  },
+  quickActionButtonGrid: {
+    flex: 1,
+    minWidth: (width - (isSmallScreen ? 32 : 48) - 12) / 2,
   },
   quickActionIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: isSmallScreen ? 32 : 40,
+    height: isSmallScreen ? 32 : 40,
+    borderRadius: isSmallScreen ? 16 : 20,
     backgroundColor: 'rgba(228, 161, 161, 0.25)',
     justifyContent: 'center',
     alignItems: 'center',
@@ -291,12 +504,13 @@ const styles = StyleSheet.create({
   },
   quickActionText: {
     color: '#FFFFFF',
-    fontSize: 12,
+    fontSize: isSmallScreen ? 10 : 12,
     fontWeight: '600',
+    textAlign: 'center',
   },
   avisosSection: {
     flex: 1,
-    paddingHorizontal: 24,
+    paddingHorizontal: isSmallScreen ? 16 : 24,
     paddingTop: 25,
   },
   avisosSectionHeader: {
@@ -309,9 +523,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    flex: 1,
   },
   avisosSectionTitle: {
-    fontSize: 18,
+    fontSize: isSmallScreen ? 16 : 18,
     fontWeight: '700',
     color: '#ffffffb6',
   },
@@ -353,9 +568,9 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   avisoIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: isSmallScreen ? 36 : 40,
+    height: isSmallScreen ? 36 : 40,
+    borderRadius: isSmallScreen ? 18 : 20,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -364,15 +579,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   avisoTitulo: {
-    fontSize: 16,
+    fontSize: isSmallScreen ? 14 : 16,
     fontWeight: '600',
     color: '#121A29',
     marginBottom: 4,
   },
   avisoDescricao: {
-    fontSize: 14,
+    fontSize: isSmallScreen ? 12 : 14,
     color: '#6B7280',
-    lineHeight: 20,
+    lineHeight: isSmallScreen ? 18 : 20,
     marginBottom: 12,
   },
   avisoFooter: {
@@ -416,27 +631,115 @@ const styles = StyleSheet.create({
     paddingHorizontal: 40,
   },
   emptyStateIconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: isSmallScreen ? 64 : 80,
+    height: isSmallScreen ? 64 : 80,
+    borderRadius: isSmallScreen ? 32 : 40,
     backgroundColor: '#F1F3F4',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
   },
   emptyStateTitle: {
-    fontSize: 20,
+    fontSize: isSmallScreen ? 18 : 20,
     fontWeight: '600',
     color: '#3290e9b6',
     marginBottom: 8,
     textAlign: 'center',
   },
   emptyStateDescription: {
-    fontSize: 16,
+    fontSize: isSmallScreen ? 14 : 16,
     color: '#a2a6adff',
     textAlign: 'center',
     lineHeight: 22,
     marginBottom: 24,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  sideMenu: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 250,
+    backgroundColor: '#2b3241ff',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 2,
+      height: 0,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  menuHeader: {
+    backgroundColor: '#121A29',
+    paddingHorizontal: 20,
+    paddingTop: 60,
+    paddingBottom: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  userInfoContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  avatarContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '2b3241ff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  userInfo: {
+    flex: 1,
+  },
+  userName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: 2,
+  },
+  userEmail: {
+    fontSize: 12,
+    color: '#8A8A8A',
+  },
+  closeMenuButton: {
+    padding: 4,
+  },
+  menuItems: {
+    flex: 1,
+    paddingTop: 20,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1f2941ff',
+  },
+  menuItemText: {
+    fontSize: 16,
+    color: '#fafafaff',
+    marginLeft: 16,
+    fontWeight: '500',
+  },
+  menuDivider: {
+    height: 1,
+    marginVertical: 8,
+    marginHorizontal: 20,
+  },
+  logoutMenuItem: {
+    borderBottomWidth: 0,
+  },
+  logoutText: {
+    color: '#E53E3E',
   },
 });
 
