@@ -204,17 +204,21 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'ios' ? 50 : 30,
   },
   logoContainer: {
+    position: 'absolute',
+    left: '50%',
+    transform: [{ translateX: -300 / 2 }],
     alignItems: 'center',
   },
   logo: {
-    width: isSmallScreen ? width * 0.7 : width * 0.75,
-    height: isSmallScreen ? 200 : 250,
+    marginTop: -30,
+    height: isSmallScreen ? 210 : isMediumScreen ? 260 : 310,
     maxWidth: 300,
   },
   titleContainer: {
     alignItems: 'flex-start',
   },
   welcomeText: {
+    marginTop: 150,
     fontSize: isSmallScreen ? 24 : isMediumScreen ? 26 : 28,
     fontWeight: 'bold',
     color: '#FFFFFF',
@@ -314,7 +318,7 @@ const styles = StyleSheet.create({
   },
   footerContainer: {
     position: 'absolute',
-    bottom: 50,
+    bottom: 30,
     left: isSmallScreen ? 20 : isMediumScreen ? 24 : 28,
     right: isSmallScreen ? 20 : isMediumScreen ? 24 : 28,
     alignItems: 'center',

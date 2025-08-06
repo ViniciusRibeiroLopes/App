@@ -149,7 +149,6 @@ const LoginScreen = () => {
           </TouchableOpacity>
         </View>
 
-        {/* Footer */}
         <View style={styles.footerContainer}>
           <TouchableOpacity onPress={goToRegister} style={styles.registerContainer}>
             <Text style={styles.registerText}>
@@ -174,21 +173,23 @@ const styles = StyleSheet.create({
   },
   headerContainer: {
     paddingTop: Platform.OS === 'ios' ? 50 : 30,
-    paddingBottom: 0,
   },
   logoContainer: {
+    position: 'absolute',
+    left: '50%',
+    transform: [{ translateX: -300 / 2 }],
     alignItems: 'center',
-    marginBottom: 0,
   },
   logo: {
-    width: isSmallScreen ? width * 0.7 : width * 0.75,
-    height: isSmallScreen ? 200 : 250,
+    marginTop: -30,
+    height: isSmallScreen ? 210 : isMediumScreen ? 260 : 310,
     maxWidth: 300,
   },
   titleContainer: {
     alignItems: 'flex-start',
   },
   welcomeText: {
+    marginTop: 150,
     fontSize: isSmallScreen ? 24 : isMediumScreen ? 26 : 28,
     fontWeight: 'bold',
     color: '#FFFFFF',
