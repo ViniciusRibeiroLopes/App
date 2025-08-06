@@ -9,13 +9,21 @@ import {
   Dimensions,
   Modal,
   ActivityIndicator,
-  FlatList
+  FlatList,
+  StatusBar
 } from 'react-native';
 import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
 import notifee from '@notifee/react-native';
+import Icon from 'react-native-vector-icons/Ionicons';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 
 const { width } = Dimensions.get('window');
+
+// Breakpoints responsivos
+const isSmallScreen = width < 360;
+const isMediumScreen = width >= 360 && width < 400;
+const isLargeScreen = width >= 400;
 
 const MenuAvisosScreen = ({ navigation, route }) => {
   const [alertasDependentes, setAlertasDependentes] = useState([]);
@@ -227,21 +235,19 @@ const MenuAvisosScreen = ({ navigation, route }) => {
   };
 
   const renderAlertaCard = ({ item: alerta }) => (
-    <View style={[styles.alertaCard, { borderLeftColor: alerta.cor || '#4CAF50' }]}>
+    <View style={[styles.alertaCard, { borderLeftColor: alerta.cor || '#4D97DB' }]}>
       <View style={styles.alertaHeader}>
         <View style={styles.horarioContainer}>
           <Text style={styles.horarioText}>{alerta.horario}</Text>
           <Text style={styles.frequenciaText}>{alerta.frequencia}</Text>
         </View>
         
-        <View style={styles.actionsContainer}>
-          <TouchableOpacity 
-            style={styles.deleteButton}
-            onPress={() => confirmarExclusao(alerta)}
-          >
-            <Text style={styles.deleteIcon}>🗑️</Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity 
+          style={styles.deleteButton}
+          onPress={() => confirmarExclusao(alerta)}
+        >
+          <Icon name="trash-outline" size={18} color="#E53E3E" />
+        </TouchableOpacity>
       </View>
 
       <View style={styles.alertaContent}>
@@ -269,14 +275,16 @@ const MenuAvisosScreen = ({ navigation, route }) => {
 
   const renderLoadingState = () => (
     <View style={styles.loadingContainer}>
-      <ActivityIndicator size="large" color="#121a29" />
+      <ActivityIndicator size="large" color="#4D97DB" />
       <Text style={styles.loadingText}>Carregando avisos...</Text>
     </View>
   );
 
   const renderEmptyState = () => (
     <View style={styles.emptyContainer}>
-      <Text style={styles.emptyIcon}>⏰</Text>
+      <View style={styles.emptyStateIconContainer}>
+        <Icon name="notifications-off" size={isSmallScreen ? 40 : 48} color="#8A8A8A" />
+      </View>
       <Text style={styles.emptyTitle}>Nenhum aviso configurado</Text>
       <Text style={styles.emptyDescription}>
         Configure alertas de medicamentos para seus dependentes
@@ -292,16 +300,14 @@ const MenuAvisosScreen = ({ navigation, route }) => {
 
   const renderHeader = () => (
     <View style={styles.menuHeader}>
-      <View style={styles.menuSection}>
-        <Text style={styles.menuTitle}>📱 Avisos de {dependente?.nome || dependente?.nomeCompleto || 'Medicamentos'}</Text>
-      </View>
-      
       <View style={styles.quickActions}>
         <TouchableOpacity 
           style={styles.actionCard}
           onPress={() => navigation.navigate('HistoricoDependentes', { dependenteId })}
         >
-          <Text style={styles.actionIcon}>📊</Text>
+          <View style={styles.actionIconContainer}>
+            <MaterialIcons name="history" size={20} color="#FFFFFF" />
+          </View>
           <Text style={styles.actionTitle}>Histórico</Text>
           <Text style={styles.actionSubtitle}>Ver medicações anteriores</Text>
         </TouchableOpacity>
@@ -310,7 +316,9 @@ const MenuAvisosScreen = ({ navigation, route }) => {
           style={styles.actionCard}
           onPress={() => navigation.navigate('AdicionarAlertaDependente', { dependenteId })}
         >
-          <Text style={styles.actionIcon}>➕</Text>
+          <View style={styles.actionIconContainer}>
+            <Icon name="add" size={20} color="#FFFFFF" />
+          </View>
           <Text style={styles.actionTitle}>Novo Aviso</Text>
           <Text style={styles.actionSubtitle}>Configurar medicamento</Text>
         </TouchableOpacity>
@@ -320,17 +328,22 @@ const MenuAvisosScreen = ({ navigation, route }) => {
 
   return (
     <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#121A29" />
+      
       <View style={styles.header}>
         <TouchableOpacity 
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <Text style={styles.backIcon}>←</Text>
+          <Icon name="chevron-back" size={20} color="#FFFFFF" />
         </TouchableOpacity>
         
         <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>💊 {dependente?.nome || dependente?.nomeCompleto || 'Avisos'}</Text>
+          <Text style={styles.headerTitle}>Avisos de {dependente?.nome || dependente?.nomeCompleto || 'Medicamentos'}</Text>
+          <Text style={styles.headerSubtitle}>Administre os alertas do dependente</Text>
         </View>
+        
+        <View style={styles.headerSpacer} />
       </View>
 
       <FlatList
@@ -352,7 +365,11 @@ const MenuAvisosScreen = ({ navigation, route }) => {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Excluir Aviso</Text>
+            <View style={styles.modalHeader}>
+              <Icon name="warning" size={32} color="#E53E3E" />
+              <Text style={styles.modalTitle}>Excluir Aviso</Text>
+            </View>
+            
             <Text style={styles.modalText}>
               Tem certeza que deseja excluir o aviso de "{alertaParaExcluir?.nomeRemedio}" 
               para {alertaParaExcluir?.nomeDependente}?
@@ -384,7 +401,7 @@ const MenuAvisosScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f7fa',
+    backgroundColor: '#2b3241ff',
   },
   flexGrow: {
     flexGrow: 1,
@@ -392,65 +409,50 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#121a29',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    paddingTop: 50,
+    justifyContent: 'space-between',
+    backgroundColor: '#121A29',
+    paddingHorizontal: isSmallScreen ? 16 : 24,
+    paddingTop: 60,
+    paddingBottom: 30,
+    borderBottomLeftRadius: 25,
+    borderBottomRightRadius: 25,
   },
   backButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#ffffff15',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  backIcon: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   headerCenter: {
     flex: 1,
     alignItems: 'center',
+    paddingHorizontal: 10,
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: isSmallScreen ? 20 : 24,
     fontWeight: '700',
-    color: '#fff',
+    color: '#FFFFFF',
+    marginBottom: 4,
   },
-  settingsButton: {
+  headerSubtitle: {
+    fontSize: 14,
+    color: '#8A8A8A',
+    textAlign: 'center',
+  },
+  headerSpacer: {
     width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#ffffff15',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  settingsIcon: {
-    fontSize: 16,
   },
   scrollContainer: {
     flex: 1,
   },
   menuHeader: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingHorizontal: isSmallScreen ? 16 : 24,
+    paddingTop: 25,
     paddingBottom: 10,
-  },
-  menuSection: {
-    marginBottom: 20,
-  },
-  menuTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#121a29',
-    marginBottom: 4,
-  },
-  menuSubtitle: {
-    fontSize: 16,
-    color: '#718096',
-    fontWeight: '500',
   },
   quickActions: {
     flexDirection: 'row',
@@ -459,29 +461,35 @@ const styles = StyleSheet.create({
   },
   actionCard: {
     flex: 1,
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 16,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
     alignItems: 'center',
+    backgroundColor: '#d03d6298',
+    paddingVertical: isSmallScreen ? 16 : 20,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#ce224d98',
+    minHeight: 100,
   },
-  actionIcon: {
-    fontSize: 24,
+  actionIconContainer: {
+    width: isSmallScreen ? 36 : 40,
+    height: isSmallScreen ? 36 : 40,
+    borderRadius: isSmallScreen ? 18 : 20,
+    backgroundColor: 'rgba(228, 161, 161, 0.25)',
+    justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: 8,
   },
   actionTitle: {
-    fontSize: 14,
+    fontSize: isSmallScreen ? 12 : 14,
     fontWeight: '600',
-    color: '#121a29',
+    color: '#FFFFFF',
     marginBottom: 4,
+    textAlign: 'center',
   },
   actionSubtitle: {
-    fontSize: 12,
-    color: '#718096',
+    fontSize: isSmallScreen ? 10 : 12,
+    color: '#ffffffb6',
     textAlign: 'center',
+    lineHeight: 16,
   },
   loadingContainer: {
     flex: 1,
@@ -492,95 +500,86 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#718096',
+    color: '#b3b3b3ff',
     fontWeight: '500',
   },
   alertaCard: {
-    backgroundColor: '#fff',
+    backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: 20,
-    marginHorizontal: 20,
-    marginBottom: 15,
+    padding: 16,
+    marginHorizontal: isSmallScreen ? 16 : 24,
+    marginBottom: 12,
     borderLeftWidth: 4,
-    elevation: 4,
     shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
     shadowOpacity: 0.1,
     shadowRadius: 8,
+    elevation: 3,
   },
   alertaHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
+    marginBottom: 12,
   },
   horarioContainer: {
     flex: 1,
   },
   horarioText: {
-    fontSize: 32,
+    fontSize: isSmallScreen ? 28 : 32,
     fontWeight: '300',
-    color: '#121a29',
+    color: '#121A29',
     fontFamily: 'monospace',
     letterSpacing: -1,
   },
   frequenciaText: {
-    fontSize: 14,
-    color: '#718096',
+    fontSize: isSmallScreen ? 12 : 14,
+    color: '#6B7280',
     fontWeight: '500',
     marginTop: -2,
-  },
-  actionsContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
   },
   deleteButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#fee2e2',
+    backgroundColor: '#FEE2E2',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  deleteIcon: {
-    fontSize: 16,
-  },
   alertaContent: {
     borderTopWidth: 1,
-    borderTopColor: '#e2e8f0',
-    paddingTop: 7,
+    borderTopColor: '#E5E7EB',
+    paddingTop: 12,
   },
   medicamentoNome: {
-    fontSize: 18,
+    fontSize: isSmallScreen ? 16 : 18,
     fontWeight: '600',
-    color: '#121a29',
-    marginBottom: 6,
-  },
-  dependenteNome: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: '#4CAF50',
+    color: '#121A29',
     marginBottom: 6,
   },
   dosagem: {
-    fontSize: 14,
-    color: '#718096',
+    fontSize: isSmallScreen ? 12 : 14,
+    color: '#6B7280',
     marginBottom: 4,
   },
   proximaTomada: {
-    fontSize: 14,
-    color: '#4CAF50',
+    fontSize: isSmallScreen ? 12 : 14,
+    color: '#4D97DB',
     fontWeight: '500',
     marginBottom: 12,
   },
   diasContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
     flexWrap: 'wrap',
   },
   diasLabel: {
-    fontSize: 14,
-    color: '#718096',
+    fontSize: isSmallScreen ? 12 : 14,
+    color: '#6B7280',
     fontWeight: '500',
     marginRight: 8,
   },
@@ -591,16 +590,16 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   diaChip: {
-    backgroundColor: '#e8f4fd',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    backgroundColor: '#EBF8FF',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#bee3f8',
+    borderColor: '#BEE3F8',
   },
   diaText: {
-    fontSize: 11,
-    color: '#2b6cb0',
+    fontSize: 10,
+    color: '#2B6CB0',
     fontWeight: '600',
   },
   emptyContainer: {
@@ -610,67 +609,75 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
   },
-  emptyIcon: {
-    fontSize: 64,
+  emptyStateIconContainer: {
+    width: isSmallScreen ? 64 : 80,
+    height: isSmallScreen ? 64 : 80,
+    borderRadius: isSmallScreen ? 32 : 40,
+    backgroundColor: '#F1F3F4',
+    justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: 16,
-    opacity: 0.5,
   },
   emptyTitle: {
-    fontSize: 18,
+    fontSize: isSmallScreen ? 18 : 20,
     fontWeight: '600',
-    color: '#121a29',
+    color: '#3290e9b6',
     marginBottom: 8,
     textAlign: 'center',
   },
   emptyDescription: {
-    fontSize: 14,
-    color: '#718096',
+    fontSize: isSmallScreen ? 14 : 16,
+    color: '#a2a6adff',
     textAlign: 'center',
-    lineHeight: 20,
+    lineHeight: 22,
     marginBottom: 24,
   },
   emptyActionButton: {
-    backgroundColor: '#121a29',
+    backgroundColor: '#4D97DB',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 20,
   },
   emptyActionButtonText: {
-    color: '#fff',
+    color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '600',
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 30,
   },
   modalContent: {
-    backgroundColor: '#fff',
+    backgroundColor: '#FFFFFF',
     borderRadius: 20,
     padding: 25,
     width: '100%',
     maxWidth: 350,
   },
+  modalHeader: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
   modalTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#121a29',
+    color: '#121A29',
     textAlign: 'center',
-    marginBottom: 12,
+    marginTop: 8,
   },
   modalText: {
     fontSize: 16,
-    color: '#4a5568',
+    color: '#4A5568',
     textAlign: 'center',
     marginBottom: 8,
     lineHeight: 22,
   },
   modalSubtext: {
     fontSize: 14,
-    color: '#718096',
+    color: '#6B7280',
     textAlign: 'center',
     marginBottom: 25,
   },
@@ -680,25 +687,27 @@ const styles = StyleSheet.create({
   },
   modalCancelButton: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#F7FAFC',
     paddingVertical: 12,
     borderRadius: 12,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   modalCancelText: {
-    color: '#718096',
+    color: '#6B7280',
     fontWeight: '600',
     fontSize: 16,
   },
   modalConfirmButton: {
     flex: 1,
-    backgroundColor: '#dc3545',
+    backgroundColor: '#E53E3E',
     paddingVertical: 12,
     borderRadius: 12,
     alignItems: 'center',
   },
   modalConfirmText: {
-    color: '#fff',
+    color: '#FFFFFF',
     fontWeight: '600',
     fontSize: 16,
   },

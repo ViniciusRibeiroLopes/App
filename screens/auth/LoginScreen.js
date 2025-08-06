@@ -9,14 +9,18 @@ import {
   StatusBar,
   KeyboardAvoidingView,
   Platform,
-  ScrollView,
-  ActivityIndicator
+  ActivityIndicator,
+  Image
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import auth from '@react-native-firebase/auth';
 import Icon from 'react-native-vector-icons/FontAwesome';
 
 const { width, height } = Dimensions.get('window');
+
+const isSmallScreen = width < 360;
+const isMediumScreen = width >= 360 && width < 400;
+const isLargeScreen = width >= 400;
 
 const LoginScreen = () => {
   const [email, setEmail] = useState('');
@@ -62,15 +66,22 @@ const LoginScreen = () => {
     >
       <StatusBar barStyle="light-content" backgroundColor="#121A29" />
       
-      <ScrollView 
-        contentContainerStyle={styles.scrollContainer}
-        showsVerticalScrollIndicator={false}
-      >
+      <View style={styles.content}>
+        {/* Header com logo grande */}
         <View style={styles.headerContainer}>
-          <Text style={styles.welcomeText}>Bem-vindo de volta!</Text>
-          <Text style={styles.subtitleText}>Entre na sua conta para continuar</Text>
+          <View style={styles.logoContainer}>
+            <Image
+              source={require('../../images/logoComNome.png')}
+              style={styles.logo}
+              resizeMode="contain"
+            />
+          </View>
+          <View style={styles.titleContainer}>
+            <Text style={styles.welcomeText}>Login</Text>
+          </View>
         </View>
 
+        {/* Formulário */}
         <View style={styles.formContainer}>
           <View style={styles.inputContainer}>
             <Text style={styles.inputLabel}>E-mail</Text>
@@ -116,7 +127,11 @@ const LoginScreen = () => {
             onPress={signIn}
             disabled={isLoading}
           >
-            {isLoading ? <ActivityIndicator size="large" color="#FFFFFF" /> : <Text style={styles.loginButtonText}>Entrar</Text> }
+            {isLoading ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text style={styles.loginButtonText}>Entrar</Text>
+            )}
           </TouchableOpacity>
 
           <View style={styles.dividerContainer}>
@@ -129,13 +144,12 @@ const LoginScreen = () => {
             style={styles.googleButton} 
             onPress={signInWithGoogle}
           >
-            <View>
-              <Icon name="google" size={20} color="#FFFFFF">  </Icon>
-            </View>
+            <Icon name="google" size={16} color="#FFFFFF" />
             <Text style={styles.googleButtonText}>Continuar com Google</Text>
           </TouchableOpacity>
         </View>
 
+        {/* Footer */}
         <View style={styles.footerContainer}>
           <TouchableOpacity onPress={goToRegister} style={styles.registerContainer}>
             <Text style={styles.registerText}>
@@ -144,7 +158,7 @@ const LoginScreen = () => {
             <Text style={styles.registerHighlight}> Criar conta</Text>
           </TouchableOpacity>
         </View>
-      </ScrollView>
+      </View>
     </KeyboardAvoidingView>
   );
 };
@@ -154,45 +168,50 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#121A29',
   },
-  scrollContainer: {
-    flexGrow: 1,
-    justifyContent: 'space-between',
-    paddingHorizontal: 24,
+  content: {
+    height: height,
+    paddingHorizontal: isSmallScreen ? 20 : isMediumScreen ? 24 : 28,
   },
   headerContainer: {
+    paddingTop: Platform.OS === 'ios' ? 50 : 30,
+    paddingBottom: 0,
+  },
+  logoContainer: {
     alignItems: 'center',
-    paddingTop: 180,
+    marginBottom: 0,
+  },
+  logo: {
+    width: isSmallScreen ? width * 0.7 : width * 0.75,
+    height: isSmallScreen ? 200 : 250,
+    maxWidth: 300,
+  },
+  titleContainer: {
+    alignItems: 'flex-start',
   },
   welcomeText: {
-    fontSize: 28,
+    fontSize: isSmallScreen ? 24 : isMediumScreen ? 26 : 28,
     fontWeight: 'bold',
     color: '#FFFFFF',
-    textAlign: 'center',
-  },
-  subtitleText: {
-    fontSize: 16,
-    color: '#8A8A8A',
-    textAlign: 'center',
   },
   formContainer: {
-    flex: 1,
-    justifyContent: 'center',
+    marginTop: 10,
+    marginBottom: 60,
   },
   inputContainer: {
-    marginBottom: 20,
+    marginBottom: 16,
   },
   inputLabel: {
     fontSize: 14,
     fontWeight: '600',
     color: '#FFFFFF',
-    marginBottom: 8,
+    marginBottom: 6,
     marginLeft: 4,
   },
   input: {
-    height: 56,
+    height: 50,
     backgroundColor: '#1E2A3A',
-    borderRadius: 16,
-    paddingHorizontal: 20,
+    borderRadius: 14,
+    paddingHorizontal: 18,
     fontSize: 16,
     color: '#FFFFFF',
     borderWidth: 1,
@@ -211,8 +230,8 @@ const styles = StyleSheet.create({
   },
   forgotPassword: {
     alignSelf: 'flex-end',
-    marginBottom: 32,
-    marginTop: -8,
+    marginBottom: 16,
+    marginTop: -4,
   },
   forgotPasswordText: {
     color: '#4D97DB',
@@ -220,11 +239,12 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   loginButton: {
-    height: 56,
+    height: 52,
     backgroundColor: '#D03D61',
-    borderRadius: 16,
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
+    marginBottom: 16,
     shadowColor: '#D03D61',
     shadowOffset: {
       width: 0,
@@ -247,7 +267,7 @@ const styles = StyleSheet.create({
   dividerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 24,
+    marginBottom: 16,
   },
   dividerLine: {
     flex: 1,
@@ -260,15 +280,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   googleButton: {
-    height: 56,
+    height: 50,
     backgroundColor: '#1E2A3A',
-    borderRadius: 16,
+    borderRadius: 14,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#2A3441',
-    marginBottom: 32,
+    gap: 12,
   },
   googleButtonText: {
     color: '#FFFFFF',
@@ -276,21 +296,25 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   footerContainer: {
-    paddingBottom: 50,
-    paddingTop: 40,
+    position: 'absolute',
+    bottom: 50,
+    left: isSmallScreen ? 20 : isMediumScreen ? 24 : 28,
+    right: isSmallScreen ? 20 : isMediumScreen ? 24 : 28,
     alignItems: 'center',
   },
   registerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
   },
   registerText: {
     color: '#8A8A8A',
-    fontSize: 16,
+    fontSize: 15,
   },
   registerHighlight: {
     color: '#4D97DB',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: 'bold',
   },
 });

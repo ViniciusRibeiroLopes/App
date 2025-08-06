@@ -19,7 +19,6 @@ import notifee from '@notifee/react-native';
 
 const { width, height } = Dimensions.get('window');
 
-// Breakpoints responsivos
 const isSmallScreen = width < 360;
 const isMediumScreen = width >= 360 && width < 400;
 const isLargeScreen = width >= 400;

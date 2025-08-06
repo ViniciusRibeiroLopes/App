@@ -9,11 +9,17 @@ import {
   Alert,
   ActivityIndicator,
   StatusBar,
+  Dimensions,
+  Modal,
 } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
+import Icon from 'react-native-vector-icons/Ionicons';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+
+const { width, height } = Dimensions.get('window');
+const isSmallScreen = width < 360;
 
 const AdicionarDependentes = ({ navigation, route }) => {
   const [loading, setLoading] = useState(false);
@@ -27,6 +33,7 @@ const AdicionarDependentes = ({ navigation, route }) => {
     dataNascimento: new Date(),
   });
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showParentescoModal, setShowParentescoModal] = useState(false);
   const user = auth().currentUser;
   const isEditing = route?.params?.dependente;
 
@@ -46,16 +53,16 @@ const AdicionarDependentes = ({ navigation, route }) => {
   }, [isEditing]);
 
   const parentescoOptions = [
-    'Pai/Mãe',
-    'Avô/Avó',
-    'Filho(a)',
-    'Irmão/Irmã',
-    'Marido/Esposa',
-    'Tio(a)',
-    'Primo(a)',
-    'Sogro(a)',
-    'Genro/Nora',
-    'Outro'
+    { id: 'pai-mae', label: 'Pai/Mãe', icon: 'people' },
+    { id: 'avo-avo', label: 'Avô/Avó', icon: 'people-outline' },
+    { id: 'filho', label: 'Filho(a)', icon: 'person-outline' },
+    { id: 'irmao', label: 'Irmão/Irmã', icon: 'people-circle' },
+    { id: 'esposo', label: 'Marido/Esposa', icon: 'heart' },
+    { id: 'tio', label: 'Tio(a)', icon: 'people' },
+    { id: 'primo', label: 'Primo(a)', icon: 'people-outline' },
+    { id: 'sogro', label: 'Sogro(a)', icon: 'people-circle-outline' },
+    { id: 'genro', label: 'Genro/Nora', icon: 'person-circle' },
+    { id: 'outro', label: 'Outro', icon: 'person-add' }
   ];
 
   const validarFormulario = () => {
@@ -227,9 +234,70 @@ const AdicionarDependentes = ({ navigation, route }) => {
     return data.toLocaleDateString('pt-BR');
   };
 
+  const getParentescoLabel = () => {
+    const parentesco = parentescoOptions.find(p => p.label === formData.parentesco);
+    return parentesco ? parentesco.label : 'Selecionar parentesco';
+  };
+
+  const renderParentescoModal = () => (
+    <Modal
+      visible={showParentescoModal}
+      transparent={true}
+      animationType="slide"
+      onRequestClose={() => setShowParentescoModal(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.pickerModalContent}>
+          <View style={styles.pickerHeader}>
+            <Text style={styles.pickerTitle}>Selecionar Parentesco</Text>
+            <View style={styles.pickerHeaderActions}>
+              <TouchableOpacity 
+                style={styles.modalCloseButton}
+                onPress={() => setShowParentescoModal(false)}
+              >
+                <Icon name="close" size={24} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.customPickerContainer}>
+            <ScrollView style={styles.customPickerScrollView}>
+              {parentescoOptions.map((opcao) => (
+                <TouchableOpacity
+                  key={opcao.id}
+                  style={[
+                    styles.customPickerItem,
+                    formData.parentesco === opcao.label && styles.customPickerItemSelected
+                  ]}
+                  onPress={() => {
+                    setFormData(prev => ({...prev, parentesco: opcao.label}));
+                    setShowParentescoModal(false);
+                  }}
+                >
+                  <View style={styles.customPickerItemContent}>
+                    <Icon name={opcao.icon} size={20} color="#4D97DB" />
+                    <View style={styles.customPickerItemInfo}>
+                      <Text style={styles.customPickerItemText}>{opcao.label}</Text>
+                    </View>
+                  </View>
+                  {formData.parentesco === opcao.label && (
+                    <Icon name="checkmark-circle" size={20} color="#10B981" />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+
   const renderGeneroSelector = () => (
-    <View style={styles.inputGroup}>
-      <Text style={styles.label}>👤 Gênero</Text>
+    <View style={styles.section}>
+      <View style={styles.sectionHeader}>
+        <Icon name="person" size={20} color="#4D97DB" />
+        <Text style={styles.sectionTitle}>Gênero</Text>
+      </View>
       <View style={styles.generoContainer}>
         <TouchableOpacity
           style={[
@@ -238,7 +306,13 @@ const AdicionarDependentes = ({ navigation, route }) => {
           ]}
           onPress={() => setFormData(prev => ({...prev, genero: 'masculino'}))}
         >
-          <Text style={styles.generoEmoji}>👨</Text>
+          <View style={styles.generoIconContainer}>
+            <Icon 
+              name="man" 
+              size={24} 
+              color={formData.genero === 'masculino' ? '#FFFFFF' : '#4D97DB'} 
+            />
+          </View>
           <Text style={[
             styles.generoText,
             formData.genero === 'masculino' && styles.generoTextSelected
@@ -254,7 +328,13 @@ const AdicionarDependentes = ({ navigation, route }) => {
           ]}
           onPress={() => setFormData(prev => ({...prev, genero: 'feminino'}))}
         >
-          <Text style={styles.generoEmoji}>👩</Text>
+          <View style={styles.generoIconContainer}>
+            <Icon 
+              name="woman" 
+              size={24} 
+              color={formData.genero === 'feminino' ? '#FFFFFF' : '#4D97DB'} 
+            />
+          </View>
           <Text style={[
             styles.generoText,
             formData.genero === 'feminino' && styles.generoTextSelected
@@ -268,155 +348,220 @@ const AdicionarDependentes = ({ navigation, route }) => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#121a29" />
+      <StatusBar barStyle="light-content" backgroundColor="#121A29" />
       
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity 
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <Text style={styles.backButtonText}>←</Text>
+          <Icon name="chevron-back" size={24} color="#FFFFFF" />
         </TouchableOpacity>
         
-        <View style={styles.headerContent}>
+        <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>
-            {isEditing ? '✏️ Editar Dependente' : '👥 Novo Dependente'}
+            {isEditing ? 'Editar Dependente' : 'Novo Dependente'}
           </Text>
           <Text style={styles.headerSubtitle}>
             {isEditing ? 'Atualize as informações' : 'Cadastre uma pessoa sob seus cuidados'}
           </Text>
         </View>
+        
+        <View style={styles.headerRight} />
       </View>
 
       <ScrollView 
-        style={styles.scrollContainer}
+        style={styles.content}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Nome Completo */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>👤 Nome Completo</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Digite o nome completo"
-            placeholderTextColor="#999"
-            value={formData.nomeCompleto}
-            onChangeText={(text) => setFormData(prev => ({...prev, nomeCompleto: text}))}
-          />
-        </View>
-
-        {/* Email */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>📧 Email</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Digite o email"
-            placeholderTextColor="#999"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            value={formData.email}
-            onChangeText={(text) => setFormData(prev => ({...prev, email: text}))}
-          />
-        </View>
-
-        {/* Gênero */}
-        {renderGeneroSelector()}
-
-        {/* Senhas (apenas se não estiver editando) */}
-        {!isEditing && (
-          <>
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>🔒 Senha</Text>
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Icon name="person-outline" size={20} color="#4D97DB" />
+            <Text style={styles.sectionTitle}>Nome Completo</Text>
+          </View>
+          
+          <View style={styles.inputContainer}>
+            <View style={styles.inputContent}>
+              <View style={styles.iconContainer}>
+                <Icon name="person-outline" size={18} color="#4D97DB" />
+              </View>
               <TextInput
-                style={styles.input}
-                placeholder="Digite a senha (mín. 6 caracteres)"
-                placeholderTextColor="#999"
-                secureTextEntry
-                value={formData.senha}
-                onChangeText={(text) => setFormData(prev => ({...prev, senha: text}))}
+                style={styles.textInput}
+                placeholder="Digite o nome completo"
+                placeholderTextColor="#6B7280"
+                value={formData.nomeCompleto}
+                onChangeText={(text) => setFormData(prev => ({...prev, nomeCompleto: text}))}
+                autoCapitalize="words"
               />
             </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>🔒 Confirmar Senha</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Digite a senha novamente"
-                placeholderTextColor="#999"
-                secureTextEntry
-                value={formData.confirmarSenha}
-                onChangeText={(text) => setFormData(prev => ({...prev, confirmarSenha: text}))}
-              />
-            </View>
-          </>
-        )}
-
-        {/* Parentesco */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>👨‍👩‍👧‍👦 Parentesco</Text>
-          <View style={styles.pickerContainer}>
-            <Picker
-              selectedValue={formData.parentesco}
-              onValueChange={(itemValue) => setFormData(prev => ({...prev, parentesco: itemValue}))}
-              style={styles.picker}
-              dropdownIconColor="#121a29"
-            >
-              <Picker.Item label="Selecione o parentesco" value="" color="#999" />
-              {parentescoOptions.map(opcao => (
-                <Picker.Item key={opcao} label={opcao} value={opcao} />
-              ))}
-            </Picker>
           </View>
         </View>
 
-        {/* Data de Nascimento */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>📅 Data de Nascimento</Text>
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Icon name="mail-outline" size={20} color="#4D97DB" />
+            <Text style={styles.sectionTitle}>Email</Text>
+          </View>
+          
+          <View style={styles.inputContainer}>
+            <View style={styles.inputContent}>
+              <View style={styles.iconContainer}>
+                <Icon name="mail-outline" size={18} color="#4D97DB" />
+              </View>
+              <TextInput
+                style={styles.textInput}
+                placeholder="Digite o email"
+                placeholderTextColor="#6B7280"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                value={formData.email}
+                onChangeText={(text) => setFormData(prev => ({...prev, email: text}))}
+              />
+            </View>
+          </View>
+        </View>
+
+        {renderGeneroSelector()}
+
+        {!isEditing && (
+          <>
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Icon name="lock-closed-outline" size={20} color="#4D97DB" />
+                <Text style={styles.sectionTitle}>Senha</Text>
+              </View>
+              
+              <View style={styles.inputContainer}>
+                <View style={styles.inputContent}>
+                  <View style={styles.iconContainer}>
+                    <Icon name="lock-closed-outline" size={18} color="#4D97DB" />
+                  </View>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="Mínimo 6 caracteres"
+                    placeholderTextColor="#6B7280"
+                    secureTextEntry
+                    value={formData.senha}
+                    onChangeText={(text) => setFormData(prev => ({...prev, senha: text}))}
+                  />
+                </View>
+              </View>
+            </View>
+          </>
+        )}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Icon name="people-outline" size={20} color="#4D97DB" />
+            <Text style={styles.sectionTitle}>Parentesco</Text>
+          </View>
+          
           <TouchableOpacity 
-            style={styles.dateButton}
-            onPress={() => setShowDatePicker(true)}
+            style={styles.inputContainer}
+            onPress={() => setShowParentescoModal(true)}
           >
-            <Text style={styles.dateButtonText}>
-              {formatarData(formData.dataNascimento)}
-            </Text>
-            <Text style={styles.dateIcon}>📅</Text>
+            <View style={styles.inputContent}>
+              <View style={styles.iconContainer}>
+                <Icon name="people-outline" size={18} color="#4D97DB" />
+              </View>
+              <Text style={[
+                styles.inputText,
+                !formData.parentesco && styles.inputPlaceholder
+              ]}>
+                {getParentescoLabel()}
+              </Text>
+              <Icon name="chevron-down" size={20} color="#8A8A8A" />
+            </View>
           </TouchableOpacity>
         </View>
 
-        {/* Botão Salvar */}
+        {/* Data de Nascimento */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Icon name="calendar-outline" size={20} color="#4D97DB" />
+            <Text style={styles.sectionTitle}>Data de Nascimento</Text>
+          </View>
+          
+          <TouchableOpacity 
+            style={styles.dateContainer}
+            onPress={() => setShowDatePicker(true)}
+          >
+            <View style={styles.dateContent}>
+              <View style={styles.iconContainer}>
+                <Icon name="calendar-outline" size={18} color="#4D97DB" />
+              </View>
+              <Text style={styles.dateText}>
+                {formatarData(formData.dataNascimento)}
+              </Text>
+              <Icon name="chevron-down" size={20} color="#8A8A8A" />
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.infoCard}>
+          <View style={styles.infoHeader}>
+            <Icon name="information-circle" size={20} color="#4D97DB" />
+            <Text style={styles.infoTitle}>Informações Importantes</Text>
+          </View>
+          <View style={styles.infoContent}>
+            <View style={styles.infoItem}>
+              <Icon name="checkmark-circle" size={16} color="#10B981" />
+              <Text style={styles.infoText}>
+                Uma conta será criada automaticamente para o dependente
+              </Text>
+            </View>
+            <View style={styles.infoItem}>
+              <Icon name="information-circle-outline" size={16} color="#F59E0B" />
+              <Text style={styles.infoText}>
+                O login NÃO será feito automaticamente no dispositivo
+              </Text>
+            </View>
+            <View style={styles.infoItem}>
+              <Icon name="key" size={16} color="#6366F1" />
+              <Text style={styles.infoText}>
+                O dependente poderá acessar com email e senha fornecidos
+              </Text>
+            </View>
+            <View style={styles.infoItem}>
+              <Icon name="medical" size={16} color="#EC4899" />
+              <Text style={styles.infoText}>
+                Você gerenciará os medicamentos desta pessoa
+              </Text>
+            </View>
+          </View>
+        </View>
+
         <TouchableOpacity 
-          style={[styles.saveButton, loading && styles.saveButtonDisabled]}
+          style={[
+            styles.saveButton,
+            loading && styles.saveButtonDisabled
+          ]}
           onPress={salvarDependente}
           disabled={loading}
+          activeOpacity={0.8}
         >
           {loading ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <>
-              <Text style={styles.saveButtonIcon}>
-                {isEditing ? '✓' : '+'}
-              </Text>
+            <View style={styles.loadingContent}>
+              <ActivityIndicator size="small" color="#FFFFFF" />
               <Text style={styles.saveButtonText}>
-                {isEditing ? 'ATUALIZAR DEPENDENTE' : 'CADASTRAR DEPENDENTE'}
+                {isEditing ? 'Atualizando...' : 'Cadastrando...'}
               </Text>
-            </>
+            </View>
+          ) : (
+            <View style={styles.buttonContent}>
+              <Icon 
+                name={isEditing ? "checkmark-circle" : "person-add"} 
+                size={20} 
+                color="#FFFFFF" 
+              />
+              <Text style={styles.saveButtonText}>
+                {isEditing ? 'Atualizar Dependente' : 'Cadastrar Dependente'}
+              </Text>
+            </View>
           )}
         </TouchableOpacity>
-
-        {/* Informações importantes */}
-        <View style={styles.infoCard}>
-          <Text style={styles.infoTitle}>ℹ️ Informações Importantes</Text>
-          <Text style={styles.infoText}>
-            • Uma conta será criada automaticamente para o dependente via API{'\n'}
-            • O login NÃO será feito automaticamente no dispositivo{'\n'}
-            • O dependente poderá acessar o app com o email e senha fornecidos{'\n'}
-            • Você será responsável por gerenciar os medicamentos desta pessoa
-          </Text>
-        </View>
       </ScrollView>
 
-      {/* Date Picker */}
       {showDatePicker && (
         <DateTimePicker
           value={formData.dataNascimento}
@@ -426,6 +571,8 @@ const AdicionarDependentes = ({ navigation, route }) => {
           maximumDate={new Date()}
         />
       )}
+
+      {renderParentescoModal()}
     </View>
   );
 };
@@ -433,76 +580,106 @@ const AdicionarDependentes = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f7fa',
+    backgroundColor: '#2b3241ff',
   },
   header: {
-    backgroundColor: '#121a29',
-    paddingHorizontal: 20,
-    paddingTop: 50,
-    paddingBottom: 25,
-    flexDirection: 'row',
-    alignItems: 'center',
+    backgroundColor: '#121A29',
+    paddingHorizontal: isSmallScreen ? 16 : 24,
+    paddingTop: 60,
+    paddingBottom: 30,
     borderBottomLeftRadius: 25,
     borderBottomRightRadius: 25,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#ffffff15',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 15,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
-  backButtonText: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: '600',
-  },
-  headerContent: {
+  headerCenter: {
     flex: 1,
+    alignItems: 'center',
+    marginHorizontal: 16,
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: isSmallScreen ? 20 : 24,
     fontWeight: '700',
-    color: '#fff',
+    color: '#FFFFFF',
     marginBottom: 4,
   },
   headerSubtitle: {
-    fontSize: 14,
-    color: '#cbd5e0',
+    fontSize: isSmallScreen ? 12 : 14,
+    color: '#8A8A8A',
+    textAlign: 'center',
   },
-  scrollContainer: {
+  headerRight: {
+    width: 44,
+  },
+  content: {
     flex: 1,
+    paddingHorizontal: isSmallScreen ? 16 : 24,
   },
   scrollContent: {
-    paddingHorizontal: 20,
     paddingTop: 25,
-    paddingBottom: 40,
+    paddingBottom: 30,
   },
-  inputGroup: {
-    marginBottom: 20,
+  section: {
+    marginBottom: 25,
   },
-  label: {
-    fontSize: 16,
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 8,
+  },
+  sectionTitle: {
+    fontSize: isSmallScreen ? 16 : 18,
     fontWeight: '600',
-    color: '#121a29',
-    marginBottom: 8,
+    color: '#FFFFFF',
   },
-  input: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
-    color: '#121a29',
+  inputContainer: {
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  inputContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+  },
+  iconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(77, 151, 219, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  textInput: {
+    fontSize: 16,
+    color: '#FFFFFF',
+    fontWeight: '500',
+    flex: 1,
+  },
+  inputText: {
+    fontSize: 16,
+    color: '#FFFFFF',
+    fontWeight: '500',
+    flex: 1,
+  },
+  inputPlaceholder: {
+    color: '#8A8A8A',
+    fontWeight: '400',
   },
   generoContainer: {
     flexDirection: 'row',
@@ -510,124 +687,193 @@ const styles = StyleSheet.create({
   },
   generoOption: {
     flex: 1,
-    flexDirection: 'row',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    paddingVertical: 20,
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#e2e8f0',
-    backgroundColor: '#fff',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
   },
   generoOptionSelected: {
-    borderColor: '#121a29',
-    backgroundColor: '#121a29',
+    backgroundColor: '#4D97DB',
+    borderColor: '#4D97DB',
   },
-  generoEmoji: {
-    fontSize: 20,
-    marginRight: 8,
+  generoIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(77, 151, 219, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
   },
   generoText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#718096',
+    color: '#FFFFFF',
   },
   generoTextSelected: {
-    color: '#fff',
+    color: '#FFFFFF',
   },
-  pickerContainer: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
+  dateContainer: {
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
+    borderColor: 'rgba(255, 255, 255, 0.12)',
   },
-  picker: {
-    height: 50,
-    color: '#121a29',
-  },
-  dateButton: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
+  dateContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 14,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-  },
-  dateButtonText: {
-    fontSize: 16,
-    color: '#121a29',
-  },
-  dateIcon: {
-    fontSize: 18,
-  },
-  saveButton: {
-    backgroundColor: '#121a29',
-    borderRadius: 25,
     paddingVertical: 16,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    marginTop: 10,
-    marginBottom: 20,
   },
-  saveButtonDisabled: {
-    backgroundColor: '#718096',
-  },
-  saveButtonIcon: {
-    fontSize: 18,
-    color: '#fff',
-    marginRight: 8,
-    fontWeight: '600',
-  },
-  saveButtonText: {
+  dateText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
+    color: '#FFFFFF',
+    fontWeight: '500',
+    flex: 1,
   },
   infoCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: 'rgba(77, 151, 219, 0.08)',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 25,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
-    borderLeftWidth: 4,
-    borderLeftColor: '#2196F3',
+    borderColor: 'rgba(77, 151, 219, 0.2)',
+  },
+  infoHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 8,
   },
   infoTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#121a29',
-    marginBottom: 8,
+    color: '#FFFFFF',
+  },
+  infoContent: {
+    gap: 12,
+  },
+  infoItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
   },
   infoText: {
     fontSize: 14,
-    color: '#718096',
+    color: '#D1D5DB',
+    flex: 1,
     lineHeight: 20,
   },
+  saveButton: {
+    backgroundColor: '#4D97DB',
+    borderRadius: 20,
+    paddingVertical: 18,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  saveButtonDisabled: {
+    backgroundColor: '#6B7280',
+  },
+  buttonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  loadingContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  saveButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  // Estilos do Modal Picker (do primeiro código)
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'flex-end',
+  },
+  pickerModalContent: {
+    backgroundColor: '#2b3241ff',
+    borderTopLeftRadius: 25,
+    borderTopRightRadius: 25,
+    maxHeight: height * 0.7,
+    borderTopWidth: 1,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  pickerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
+    paddingVertical: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  pickerHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  pickerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  modalCloseButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  customPickerContainer: {
+    paddingHorizontal: 24,
+    paddingVertical: 20,
+    maxHeight: 300,
+  },
+  customPickerScrollView: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  customPickerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  customPickerItemSelected: {
+    backgroundColor: 'rgba(77, 151, 219, 0.1)',
+  },
+  customPickerItemContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  customPickerItemInfo: {
+    flex: 1,
+  },
+  customPickerItemText: {
+    fontSize: 16,
+    color: '#FFFFFF',
+    fontWeight: '500',
+  }
 });
 
 export default AdicionarDependentes;

@@ -37,7 +37,7 @@ const NextButton = ({ percentage, scrollTo }) => {
             cy={center}
             r={radius}
             strokeWidth={strokeWidth}
-            fill="white"
+            fill="#121A29"
           />
           <AnimatedCircle
             stroke="#F4338F"
@@ -48,7 +48,7 @@ const NextButton = ({ percentage, scrollTo }) => {
             strokeDasharray={circumference}
             strokeDashoffset={strokeDashoffset}
             strokeLinecap="round"
-            fill="white"
+            fill="#121A29"
           />
         </G>
       </Svg>

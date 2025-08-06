@@ -306,6 +306,7 @@ const RemediosScreen = ({ navigation }) => {
         
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>Meus Remédios</Text>
+          <Text style={styles.headerSubtitle}>Veja seus remédios cadastrados</Text>
         </View>
         
         <TouchableOpacity 
@@ -330,7 +331,6 @@ const RemediosScreen = ({ navigation }) => {
         )}
       </ScrollView>
 
-      {/* Modal Excluir */}
       <Modal
         animationType="fade"
         transparent={true}
@@ -367,7 +367,6 @@ const RemediosScreen = ({ navigation }) => {
         </View>
       </Modal>
 
-      {/* Modal Tomar */}
       <Modal
         animationType="fade"
         transparent={true}
@@ -435,9 +434,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: '#121A29',
-    paddingHorizontal: 20,
+    paddingHorizontal: isSmallScreen ? 16 : 24,
     paddingTop: 60,
-    paddingBottom: 20,
+    paddingBottom: 30,
+    borderBottomLeftRadius: 25,
+    borderBottomRightRadius: 25,
   },
   backButton: {
     width: 40,
@@ -452,9 +453,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: '600',
+    fontSize: isSmallScreen ? 20 : 24,
+    fontWeight: '700',
     color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  headerSubtitle: {
+    fontSize: isSmallScreen ? 12 : 14,
+    color: '#8A8A8A',
+    textAlign: 'center',
   },
   addButton: {
     width: 40,

@@ -405,7 +405,7 @@ const Index = ({ navigation }) => {
   );
 };
 
-// Funções auxiliares (você precisará implementar estas baseado na sua lógica)
+
 const getPrioridadeCor = (prioridade) => {
   switch (prioridade) {
     case 'alta': return '#E53E3E';

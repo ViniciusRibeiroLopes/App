@@ -67,6 +67,7 @@ export default OnBoarding;
 
 const styles = StyleSheet.create({
     container: {
+        backgroundColor: '#121A29',
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
