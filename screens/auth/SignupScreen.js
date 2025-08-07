@@ -94,7 +94,6 @@ const RegisterScreen = () => {
       <StatusBar barStyle="light-content" backgroundColor="#121A29" />
       
       <View style={styles.content}>
-        {/* Header com logo grande */}
         <View style={styles.headerContainer}>
           <View style={styles.logoContainer}>
             <Image

@@ -239,7 +239,6 @@ const MenuAvisosScreen = ({ navigation, route }) => {
       <View style={styles.alertaHeader}>
         <View style={styles.horarioContainer}>
           <Text style={styles.horarioText}>{alerta.horario}</Text>
-          <Text style={styles.frequenciaText}>{alerta.frequencia}</Text>
         </View>
         
         <TouchableOpacity 
@@ -250,25 +249,23 @@ const MenuAvisosScreen = ({ navigation, route }) => {
         </TouchableOpacity>
       </View>
 
-      <View style={styles.alertaContent}>
+      <View>
         <Text style={styles.medicamentoNome}>{alerta.nomeRemedio}</Text>
         <Text style={styles.dosagem}>Dosagem: {alerta.dosagem}</Text>
-        {alerta.proximaTomada && (
-          <Text style={styles.proximaTomada}>Próxima: {alerta.proximaTomada}</Text>
-        )}
-        
-        {alerta.dias ? (
-          renderDiasSemana(alerta.dias)
-        ) : (
-          <View style={styles.diasContainer}>
-            <Text style={styles.diasLabel}>Dias:</Text>
-            <View style={styles.diasChips}>
-              <View style={styles.diaChip}>
-                <Text style={styles.diaText}>Todos os dias</Text>
+        <View style={styles.alertaContent}>
+          {alerta.dias ? (
+            renderDiasSemana(alerta.dias)
+          ) : (
+            <View style={styles.diasContainer}>
+              <Text style={styles.diasLabel}>Dias:</Text>
+              <View style={styles.diasChips}>
+                <View style={styles.diaChip}>
+                  <Text style={styles.diaText}>Todos os dias</Text>
+                </View>
               </View>
             </View>
-          </View>
-        )}
+          )}
+        </View>
       </View>
     </View>
   );
@@ -504,19 +501,11 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   alertaCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#121A29',
     borderRadius: 16,
     padding: 16,
     marginHorizontal: isSmallScreen ? 16 : 24,
     marginBottom: 12,
-    borderLeftWidth: 4,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
     elevation: 3,
   },
   alertaHeader: {
@@ -531,7 +520,7 @@ const styles = StyleSheet.create({
   horarioText: {
     fontSize: isSmallScreen ? 28 : 32,
     fontWeight: '300',
-    color: '#121A29',
+    color: '#ffffff',
     fontFamily: 'monospace',
     letterSpacing: -1,
   },
@@ -551,13 +540,14 @@ const styles = StyleSheet.create({
   },
   alertaContent: {
     borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
+    borderTopColor: '#8a8a8aff',
     paddingTop: 12,
+    marginTop: 12,
   },
   medicamentoNome: {
     fontSize: isSmallScreen ? 16 : 18,
     fontWeight: '600',
-    color: '#121A29',
+    color: '#ffffffff',
     marginBottom: 6,
   },
   dosagem: {
@@ -567,7 +557,7 @@ const styles = StyleSheet.create({
   },
   proximaTomada: {
     fontSize: isSmallScreen ? 12 : 14,
-    color: '#4D97DB',
+    color: '#b4b4b4ff',
     fontWeight: '500',
     marginBottom: 12,
   },

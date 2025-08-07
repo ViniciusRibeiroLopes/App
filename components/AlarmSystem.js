@@ -26,8 +26,14 @@ import Sound from 'react-native-sound';
 import BackgroundTimer from 'react-native-background-timer';
 import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
+import Icon from 'react-native-vector-icons/Ionicons';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 
 const { width, height } = Dimensions.get('window');
+
+const isSmallScreen = width < 360;
+const isMediumScreen = width >= 360 && width < 400;
+const isLargeScreen = width >= 400;
 
 const diasSemana = [
   { abrev: 'Dom', completo: 'Domingo' },
@@ -39,9 +45,10 @@ const diasSemana = [
   { abrev: 'Sáb', completo: 'Sábado' }
 ];
 
-const AlarmOverlay = ({ visible, onDismiss, onSnooze, alarmData }) => {
+const AlarmOverlay = ({ visible, onDismiss, alarmData }) => {
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const bounceAnim = useRef(new Animated.Value(0)).current;
+  const rotateAnim = useRef(new Animated.Value(0)).current;
   const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
@@ -49,26 +56,36 @@ const AlarmOverlay = ({ visible, onDismiss, onSnooze, alarmData }) => {
       const pulseAnimation = Animated.loop(
         Animated.sequence([
           Animated.timing(pulseAnim, {
-            toValue: 1.2,
-            duration: 800,
+            toValue: 1.3,
+            duration: 1000,
             useNativeDriver: true,
           }),
           Animated.timing(pulseAnim, {
             toValue: 1,
-            duration: 800,
+            duration: 1000,
             useNativeDriver: true,
           }),
         ])
       );
+
       const bounceAnimation = Animated.spring(bounceAnim, {
         toValue: 1,
-        tension: 100,
+        tension: 50,
         friction: 8,
         useNativeDriver: true,
       });
 
+      const rotateAnimation = Animated.loop(
+        Animated.timing(rotateAnim, {
+          toValue: 1,
+          duration: 2000,
+          useNativeDriver: true,
+        })
+      );
+
       pulseAnimation.start();
       bounceAnimation.start();
+      rotateAnimation.start();
 
       const timeInterval = setInterval(() => {
         setCurrentTime(new Date());
@@ -76,10 +93,12 @@ const AlarmOverlay = ({ visible, onDismiss, onSnooze, alarmData }) => {
 
       return () => {
         pulseAnimation.stop();
+        rotateAnimation.stop();
         clearInterval(timeInterval);
       };
     } else {
       bounceAnim.setValue(0);
+      rotateAnim.setValue(0);
     }
   }, [visible]);
 
@@ -88,6 +107,11 @@ const AlarmOverlay = ({ visible, onDismiss, onSnooze, alarmData }) => {
   const formatarHorario = (date) => {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
   };
+
+  const rotate = rotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
 
   return (
     <Modal
@@ -105,6 +129,10 @@ const AlarmOverlay = ({ visible, onDismiss, onSnooze, alarmData }) => {
             { transform: [{ scale: pulseAnim }] }
           ]} 
         />
+        
+        <View style={styles.decorativeCircle1} />
+        <View style={styles.decorativeCircle2} />
+        <View style={styles.decorativeCircle3} />
 
         <Animated.View 
           style={[
@@ -112,70 +140,76 @@ const AlarmOverlay = ({ visible, onDismiss, onSnooze, alarmData }) => {
             { transform: [{ scale: bounceAnim }] }
           ]}
         >
+          {/* Ícone principal rotativo */}
           <View style={styles.alarmIconContainer}>
-            <Text style={styles.alarmIcon}>⏰</Text>
-            <Text style={styles.alarmTitle}>ALARME</Text>
+            <Animated.View style={[
+              styles.iconWrapper,
+              { transform: [{ rotate }] }
+            ]}>
+              <Icon name="alarm" size={isSmallScreen ? 70 : 90} color="#FFFFFF" />
+            </Animated.View>
+            <Text style={styles.alarmTitle}>ALARME ATIVO</Text>
+            <Text style={styles.alarmSubtitle}>Hora do seu medicamento</Text>
           </View>
 
-          <View style={styles.medicationInfo}>
-            <Text style={styles.medicationTitle}>
-              Hora do Medicamento!
+          {/* Horário atual grande */}
+          <View style={styles.timeContainer}>
+            <Text style={styles.currentTime}>
+              {formatarHorario(currentTime)}
             </Text>
-            <View style={styles.medicationCard}>
-              <Text style={styles.medicationName}>
-                💊 {alarmData.remedioNome}
-              </Text>
-              <Text style={styles.medicationDose}>
-                📋 {alarmData.dosagem}
-              </Text>
-              <Text style={styles.medicationTime}>
-                🕐 {alarmData.horario}
-              </Text>
-            </View>
+            <Text style={styles.timeLabel}>Horário atual</Text>
           </View>
 
-          <Text style={styles.currentTime}>
-            {formatarHorario(currentTime)}
-          </Text>
-
-          <View style={styles.actionButtons}>
-            <TouchableOpacity
-              style={styles.dismissButton}
-              onPress={onDismiss}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.dismissButtonText}>
-                ✓ MEDICAMENTO TOMADO
-              </Text>
-            </TouchableOpacity>
-
-            <View style={styles.snoozeButtons}>
-              <TouchableOpacity
-                style={styles.snoozeButton}
-                onPress={() => onSnooze(5)}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.snoozeButtonText}>
-                  💤 5 min
+          {/* Card do medicamento */}
+          <View style={styles.medicationCard}>
+            <View style={styles.medicationHeader}>
+              <MaterialIcons name="medication" size={24} color="#4D97DB" />
+              <Text style={styles.medicationTitle}>Medicamento</Text>
+            </View>
+            
+            <View style={styles.medicationDetails}>
+              <View style={styles.medicationRow}>
+                <Icon name="medical" size={16} color="#10B981" />
+                <Text style={styles.medicationName}>
+                  {alarmData.remedioNome}
                 </Text>
-              </TouchableOpacity>
+              </View>
               
-              <TouchableOpacity
-                style={styles.snoozeButton}
-                onPress={() => onSnooze(10)}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.snoozeButtonText}>
-                  💤 10 min
+              <View style={styles.medicationRow}>
+                <Icon name="fitness" size={16} color="#F59E0B" />
+                <Text style={styles.medicationDose}>
+                  {alarmData.dosagem}
                 </Text>
-              </TouchableOpacity>
+              </View>
+              
+              <View style={styles.medicationRow}>
+                <Icon name="time" size={16} color="#6366F1" />
+                <Text style={styles.medicationTime}>
+                  Horário: {alarmData.horario}
+                </Text>
+              </View>
             </View>
           </View>
 
+          {/* Botão principal */}
+          <TouchableOpacity
+            style={styles.dismissButton}
+            onPress={onDismiss}
+            activeOpacity={0.8}
+          >
+            <View style={styles.buttonContent}>
+              <Icon name="checkmark-circle" size={24} color="#FFFFFF" />
+              <Text style={styles.dismissButtonText}>
+                MEDICAMENTO TOMADO
+              </Text>
+            </View>
+          </TouchableOpacity>
+
+          {/* Indicadores pulsantes */}
           <View style={styles.indicators}>
-            <View style={styles.indicator} />
-            <View style={styles.indicator} />
-            <View style={styles.indicator} />
+            <Animated.View style={[styles.indicator, { opacity: pulseAnim }]} />
+            <Animated.View style={[styles.indicator, { opacity: pulseAnim }]} />
+            <Animated.View style={[styles.indicator, { opacity: pulseAnim }]} />
           </View>
         </Animated.View>
       </View>
@@ -183,59 +217,13 @@ const AlarmOverlay = ({ visible, onDismiss, onSnooze, alarmData }) => {
   );
 };
 
-const SnoozeOverlay = ({ visible, timeLeft, onCancel }) => {
-  if (!visible) return null;
-
-  const formatTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  return (
-    <Modal
-      visible={visible}
-      animationType="fade"
-      transparent={false}
-      statusBarTranslucent
-    >
-      <StatusBar hidden />
-      <View style={styles.snoozeContainer}>
-        <View style={styles.snoozeContent}>
-          <Text style={styles.snoozeIcon}>😴</Text>
-          <Text style={styles.snoozeTitle}>Soneca Ativa</Text>
-          <Text style={styles.snoozeTimer}>
-            {formatTime(timeLeft)}
-          </Text>
-          <Text style={styles.snoozeSubtitle}>
-            O alarme tocará novamente em breve
-          </Text>
-          <TouchableOpacity
-            style={styles.cancelSnoozeButton}
-            onPress={onCancel}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.cancelSnoozeButtonText}>
-              Cancelar Soneca
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </Modal>
-  );
-};
-
 const AlarmSystem = () => {
   const [showAlarm, setShowAlarm] = useState(false);
-  const [showSnooze, setShowSnooze] = useState(false);
   const [currentAlarm, setCurrentAlarm] = useState(null);
-  const [snoozeTimeLeft, setSnoozeTimeLeft] = useState(0);
   const [appState, setAppState] = useState(AppState.currentState);
   
   const alarmSound = useRef(null);
   const checkAlarmInterval = useRef(null);
-  const snoozeTimeout = useRef(null);
-  const snoozeInterval = useRef(null);
 
   const uid = auth().currentUser?.uid;
 
@@ -296,8 +284,7 @@ const AlarmSystem = () => {
         
         if (alarm.horario <= currentTime && 
             alarm.dias.includes(currentDay) &&
-            !showAlarm && 
-            !showSnooze) 
+            !showAlarm) 
         {
             const today = new Date();
             today.setHours(0, 0, 0, 0);
@@ -380,45 +367,6 @@ const AlarmSystem = () => {
     setCurrentAlarm(null);
   };
 
-  const snoozeAlarm = (minutes) => {
-    stopAlarmSound();
-    setShowAlarm(false);
-    setShowSnooze(true);
-    setSnoozeTimeLeft(minutes * 60);
-    
-
-    snoozeTimeout.current = setTimeout(() => {
-      setShowSnooze(false);
-      setSnoozeTimeLeft(0);
-      if (currentAlarm) {
-        triggerAlarm(currentAlarm);
-      }
-    }, minutes * 60 * 1000);
-
-    snoozeInterval.current = setInterval(() => {
-      setSnoozeTimeLeft(prev => {
-        if (prev <= 1) {
-          clearInterval(snoozeInterval.current);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-  };
-
-  const cancelSnooze = () => {
-    if (snoozeTimeout.current) {
-      clearTimeout(snoozeTimeout.current);
-    }
-    if (snoozeInterval.current) {
-      clearInterval(snoozeInterval.current);
-    }
-    
-    setShowSnooze(false);
-    setSnoozeTimeLeft(0);
-    setCurrentAlarm(null);
-  };
-
   const logMedicationTaken = async () => {
     if (currentAlarm && uid) {
       try {
@@ -446,12 +394,6 @@ const AlarmSystem = () => {
   const cleanup = () => {
     if (checkAlarmInterval.current) {
       BackgroundTimer.clearInterval(checkAlarmInterval.current);
-    }
-    if (snoozeTimeout.current) {
-      clearTimeout(snoozeTimeout.current);
-    }
-    if (snoozeInterval.current) {
-      clearInterval(snoozeInterval.current);
     }
     stopAlarmSound();
   };
@@ -490,7 +432,7 @@ const AlarmSystem = () => {
       await notifee.createTriggerNotification(
         {
           title: 'Hora de tomar o remédio',
-          body: `Dosagem: ${dosagem}`,
+          body: `Dosagem: ${alarmData.dosagem}`,
           android: {
             channelId: 'alarm-channel',
             category: AndroidCategory.ALARM,
@@ -518,211 +460,197 @@ const AlarmSystem = () => {
     }
   };
 
-
   if (!uid) return null;
 
   return (
-    <>
-      <AlarmOverlay
-        visible={showAlarm}
-        onDismiss={dismissAlarm}
-        onSnooze={snoozeAlarm}
-        alarmData={currentAlarm}
-      />
-      
-      <SnoozeOverlay
-        visible={showSnooze}
-        timeLeft={snoozeTimeLeft}
-        onCancel={cancelSnooze}
-      />
-    </>
+    <AlarmOverlay
+      visible={showAlarm}
+      onDismiss={dismissAlarm}
+      alarmData={currentAlarm}
+    />
   );
 };
 
 const styles = StyleSheet.create({
   alarmContainer: {
     flex: 1,
-    backgroundColor: '#d32f2f',
+    backgroundColor: '#121A29',
     justifyContent: 'center',
     alignItems: 'center',
+    position: 'relative',
   },
   pulseEffect: {
     position: 'absolute',
-    width: width * 2,
-    height: width * 2,
-    borderRadius: width,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    width: width * 1.5,
+    height: width * 1.5,
+    borderRadius: width * 0.75,
+    backgroundColor: 'rgba(77, 151, 219, 0.1)',
+  },
+  decorativeCircle1: {
+    position: 'absolute',
+    top: height * 0.1,
+    right: width * 0.1,
+    width: isSmallScreen ? 60 : 80,
+    height: isSmallScreen ? 60 : 80,
+    borderRadius: isSmallScreen ? 30 : 40,
+    backgroundColor: 'rgba(77, 151, 219, 0.15)',
+  },
+  decorativeCircle2: {
+    position: 'absolute',
+    bottom: height * 0.15,
+    left: width * 0.1,
+    width: isSmallScreen ? 40 : 60,
+    height: isSmallScreen ? 40 : 60,
+    borderRadius: isSmallScreen ? 20 : 30,
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+  },
+  decorativeCircle3: {
+    position: 'absolute',
+    top: height * 0.3,
+    left: width * 0.05,
+    width: isSmallScreen ? 30 : 50,
+    height: isSmallScreen ? 30 : 50,
+    borderRadius: isSmallScreen ? 15 : 25,
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
   },
   contentContainer: {
     alignItems: 'center',
-    paddingHorizontal: 30,
+    paddingHorizontal: isSmallScreen ? 20 : 30,
     zIndex: 10,
+    width: '100%',
   },
   alarmIconContainer: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: isSmallScreen ? 30 : 40,
   },
-  alarmIcon: {
-    fontSize: 100,
-    marginBottom: 10,
+  iconWrapper: {
+    width: isSmallScreen ? 120 : 140,
+    height: isSmallScreen ? 120 : 140,
+    borderRadius: isSmallScreen ? 60 : 70,
+    backgroundColor: 'rgba(77, 151, 219, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: 'rgba(77, 151, 219, 0.4)',
   },
   alarmTitle: {
-    fontSize: 28,
-    color: '#ffffff',
-    fontWeight: 'bold',
-    letterSpacing: 4,
+    fontSize: isSmallScreen ? 20 : 24,
+    color: '#FFFFFF',
+    fontWeight: '700',
+    letterSpacing: 2,
+    marginBottom: 4,
   },
-  medicationInfo: {
+  alarmSubtitle: {
+    fontSize: isSmallScreen ? 14 : 16,
+    color: '#8A8A8A',
+    fontWeight: '500',
+  },
+  timeContainer: {
     alignItems: 'center',
-    marginBottom: 30,
-  },
-  medicationTitle: {
-    fontSize: 32,
-    color: '#ffffff',
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  medicationCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    marginBottom: isSmallScreen ? 25 : 30,
+    backgroundColor: 'rgba(77, 151, 219, 0.1)',
+    paddingVertical: isSmallScreen ? 20 : 25,
+    paddingHorizontal: isSmallScreen ? 30 : 40,
     borderRadius: 20,
-    padding: 25,
-    alignItems: 'center',
-    minWidth: width * 0.8,
-  },
-  medicationName: {
-    fontSize: 24,
-    color: '#ffffff',
-    fontWeight: 'bold',
-    marginBottom: 10,
-    textAlign: 'center',
-  },
-  medicationDose: {
-    fontSize: 20,
-    color: '#ffffff',
-    marginBottom: 10,
-    textAlign: 'center',
-  },
-  medicationTime: {
-    fontSize: 18,
-    color: '#ffffff',
-    textAlign: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(77, 151, 219, 0.3)',
   },
   currentTime: {
-    fontSize: 24,
-    color: '#ffffff',
+    fontSize: isSmallScreen ? 36 : 48,
+    color: '#FFFFFF',
     fontFamily: 'monospace',
-    marginBottom: 40,
-    opacity: 0.8,
+    fontWeight: '300',
+    letterSpacing: -1,
   },
-  actionButtons: {
+  timeLabel: {
+    fontSize: isSmallScreen ? 12 : 14,
+    color: '#4D97DB',
+    fontWeight: '500',
+    marginTop: 4,
+  },
+  medicationCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 20,
+    padding: isSmallScreen ? 20 : 25,
+    marginBottom: isSmallScreen ? 30 : 40,
     width: '100%',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  medicationHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: 16,
+    gap: 8,
+  },
+  medicationTitle: {
+    fontSize: isSmallScreen ? 16 : 18,
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  medicationDetails: {
+    gap: 12,
+  },
+  medicationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  medicationName: {
+    fontSize: isSmallScreen ? 16 : 18,
+    color: '#FFFFFF',
+    fontWeight: '600',
+    flex: 1,
+  },
+  medicationDose: {
+    fontSize: isSmallScreen ? 14 : 16,
+    color: '#D1D5DB',
+    fontWeight: '500',
+    flex: 1,
+  },
+  medicationTime: {
+    fontSize: isSmallScreen ? 14 : 16,
+    color: '#D1D5DB',
+    fontWeight: '500',
+    flex: 1,
   },
   dismissButton: {
-    backgroundColor: '#4caf50',
-    paddingVertical: 20,
-    paddingHorizontal: 40,
+    backgroundColor: '#10B981',
+    paddingVertical: isSmallScreen ? 16 : 20,
+    paddingHorizontal: isSmallScreen ? 30 : 40,
     borderRadius: 25,
-    marginBottom: 20,
-    minWidth: width * 0.8,
+    width: '100%',
     elevation: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
-    shadowRadius: 5,
+    shadowRadius: 8,
+    borderWidth: 2,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+  },
+  buttonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
   },
   dismissButtonText: {
-    color: '#ffffff',
-    fontSize: 20,
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-  snoozeButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: '100%',
-  },
-  snoozeButton: {
-    backgroundColor: '#ff9800',
-    paddingVertical: 15,
-    paddingHorizontal: 30,
-    borderRadius: 20,
-    flex: 0.45,
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-  },
-  snoozeButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: 'bold',
-    textAlign: 'center',
+    color: '#FFFFFF',
+    fontSize: isSmallScreen ? 16 : 18,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   indicators: {
     flexDirection: 'row',
-    marginTop: 30,
+    marginTop: isSmallScreen ? 25 : 30,
+    gap: 12,
   },
   indicator: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: 'rgba(255, 255, 255, 0.6)',
-    marginHorizontal: 5,
-  },
-
-  // Estilos da Soneca
-  snoozeContainer: {
-    flex: 1,
-    backgroundColor: '#ff9800',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  snoozeContent: {
-    alignItems: 'center',
-    paddingHorizontal: 30,
-  },
-  snoozeIcon: {
-    fontSize: 80,
-    marginBottom: 20,
-  },
-  snoozeTitle: {
-    fontSize: 28,
-    color: '#ffffff',
-    fontWeight: 'bold',
-    marginBottom: 20,
-  },
-  snoozeTimer: {
-    fontSize: 48,
-    color: '#ffffff',
-    fontFamily: 'monospace',
-    fontWeight: 'bold',
-    marginBottom: 20,
-  },
-  snoozeSubtitle: {
-    fontSize: 18,
-    color: '#ffffff',
-    textAlign: 'center',
-    marginBottom: 40,
-    opacity: 0.9,
-  },
-  cancelSnoozeButton: {
-    backgroundColor: '#ffffff',
-    paddingVertical: 15,
-    paddingHorizontal: 30,
-    borderRadius: 25,
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-  },
-  cancelSnoozeButtonText: {
-    color: '#ff9800',
-    fontSize: 18,
-    fontWeight: 'bold',
+    width: isSmallScreen ? 8 : 10,
+    height: isSmallScreen ? 8 : 10,
+    borderRadius: isSmallScreen ? 4 : 5,
+    backgroundColor: '#4D97DB',
   },
 });
 

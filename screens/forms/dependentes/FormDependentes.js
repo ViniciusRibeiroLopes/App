@@ -27,7 +27,6 @@ const AdicionarDependentes = ({ navigation, route }) => {
     nomeCompleto: '',
     email: '',
     senha: '',
-    confirmarSenha: '',
     parentesco: '',
     genero: '',
     dataNascimento: new Date(),
@@ -44,7 +43,6 @@ const AdicionarDependentes = ({ navigation, route }) => {
         nomeCompleto: dep.nome || dep.nomeCompleto || '',
         email: dep.email || '',
         senha: '',
-        confirmarSenha: '',
         parentesco: dep.parentesco || '',
         genero: dep.genero || '',
         dataNascimento: dep.dataNascimento?.toDate ? dep.dataNascimento.toDate() : new Date(),
@@ -66,7 +64,7 @@ const AdicionarDependentes = ({ navigation, route }) => {
   ];
 
   const validarFormulario = () => {
-    const { nomeCompleto, email, senha, confirmarSenha, parentesco, genero } = formData;
+    const { nomeCompleto, email, senha, parentesco, genero } = formData;
 
     if (!nomeCompleto.trim()) {
       Alert.alert('Erro', 'Nome completo é obrigatório.');
@@ -97,11 +95,6 @@ const AdicionarDependentes = ({ navigation, route }) => {
 
       if (senha.length < 6) {
         Alert.alert('Erro', 'A senha deve ter pelo menos 6 caracteres.');
-        return false;
-      }
-
-      if (senha !== confirmarSenha) {
-        Alert.alert('Erro', 'As senhas não coincidem.');
         return false;
       }
     }
@@ -142,7 +135,6 @@ const AdicionarDependentes = ({ navigation, route }) => {
     } catch (error) {
       console.error('Erro na API:', error);
       
-      // Tratamento de erros específicos
       let mensagemErro = 'Não foi possível criar o usuário.';
       
       if (error.message.includes('email-already-in-use') || error.message.includes('already exists')) {
