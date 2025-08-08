@@ -10,8 +10,8 @@ import {
   Dimensions,
   Platform,
 } from 'react-native';
-import OnBoardingItem from './OnBoardingItem'; // ou o caminho correto
-import slides from '../slides'; // ajuste o caminho conforme sua estrutura
+import OnBoardingItem from './OnBoardingItem';
+import slides from '../slides';
 
 const {width} = Dimensions.get('window');
 
@@ -20,21 +20,18 @@ const OnBoarding = ({navigation}) => {
   const scrollX = useRef(new Animated.Value(0)).current;
   const slidesRef = useRef(null);
 
-  // Animações do fundo
   const backgroundAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   console.log('OnBoarding renderizando, slides:', slides);
 
   useEffect(() => {
-    // Animação de entrada
     Animated.timing(fadeAnim, {
       toValue: 1,
       duration: 1000,
       useNativeDriver: true,
     }).start();
 
-    // Animação infinita do fundo
     const backgroundAnimation = Animated.loop(
       Animated.sequence([
         Animated.timing(backgroundAnim, {
@@ -66,7 +63,6 @@ const OnBoarding = ({navigation}) => {
     if (currentIndex < slides.length - 1) {
       slidesRef.current.scrollToIndex({index: currentIndex + 1});
     } else {
-      // Navegar para tela de login quando terminar
       navigation.navigate('Login');
     }
   };
@@ -88,7 +84,6 @@ const OnBoarding = ({navigation}) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Fundo animado */}
       <Animated.View
         style={[
           styles.backgroundCircle,

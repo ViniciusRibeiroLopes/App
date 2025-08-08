@@ -34,7 +34,6 @@ const OnBoardingItem = ({item}) => {
             onAnimationFailure={handleAnimationFailure}
           />
         ) : (
-          // Fallback se a animação falhar
           <View style={styles.animationFallback}>
             <Text style={styles.fallbackEmoji}>
               {item.id === '1' ? '💊' : item.id === '2' ? '👨‍👩‍👧‍👦' : '🏥'}

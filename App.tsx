@@ -3,6 +3,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import auth, { FirebaseAuthTypes } from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import FastImage from 'react-native-fast-image';
 
 import OnBoarding from './components/OnBoarding';
@@ -35,38 +36,107 @@ export default function App() {
   const [isDependentUser, setIsDependentUser] = useState<boolean | null>(null);
   const [firebaseReady, setFirebaseReady] = useState(false);
   const [gifDone, setGifDone] = useState(false);
+  const [initialAuthCheck, setInitialAuthCheck] = useState(true);
+  
+  const [isWaitingForLoginAnimation, setIsWaitingForLoginAnimation] = useState(false);
 
   useEffect(() => {
     const unsubscribe = auth().onAuthStateChanged(async (_user) => {
+      if (initialAuthCheck) {
+        setInitialAuthCheck(false);
+        setUser(_user);
+        
+        if (_user) {
+          await processUserData(_user);
+        } else {
+          setProfileExists(null);
+          setIsDependentUser(null);
+        }
+        
+        setFirebaseReady(true);
+        return;
+      }
+
+      if (!user && _user) {
+        console.log('🎯 Usuário fez login manual, aguardando animação Lottie...');
+        setIsWaitingForLoginAnimation(true);
+        
+        await AsyncStorage.setItem('waitingForLoginAnimation', 'true');
+        
+        checkForAnimationCompletion();
+      }
+      
       setUser(_user);
 
-      if (_user) {
-        try {
-          const userDoc = await firestore().collection('users').doc(_user.uid).get();
-          setProfileExists(userDoc.exists);
-
-          const dependentUserQuery = await firestore()
-            .collection('users_dependentes')
-            .where('dependenteUid', '==', _user.uid)
-            .get();
-
-          setIsDependentUser(!dependentUserQuery.empty);
-
-        } catch (error) {
-          console.error('Erro ao verificar usuário:', error);
-          setProfileExists(false);
-          setIsDependentUser(false);
-        }
-      } else {
+      if (_user && !isWaitingForLoginAnimation) {
+        await processUserData(_user);
+      } else if (!_user) {
         setProfileExists(null);
         setIsDependentUser(null);
+        setIsWaitingForLoginAnimation(false);
+        await AsyncStorage.removeItem('waitingForLoginAnimation');
+        await AsyncStorage.removeItem('loginAnimationCompleted');
       }
 
       setFirebaseReady(true);
     });
 
     return unsubscribe;
-  }, []);
+  }, [user, isWaitingForLoginAnimation, initialAuthCheck]);
+
+  const checkForAnimationCompletion = async () => {
+    const checkInterval = setInterval(async () => {
+      try {
+        const animationCompleted = await AsyncStorage.getItem('loginAnimationCompleted');
+        
+        if (animationCompleted === 'true') {
+          console.log('✅ Animação Lottie concluída, processando dados do usuário...');
+          
+          setIsWaitingForLoginAnimation(false);
+          
+          await AsyncStorage.removeItem('waitingForLoginAnimation');
+          await AsyncStorage.removeItem('loginAnimationCompleted');
+          
+          if (user) {
+            await processUserData(user);
+          }
+          
+          clearInterval(checkInterval);
+        }
+      } catch (error) {
+        console.error('Erro ao verificar conclusão da animação:', error);
+      }
+    }, 500);
+
+    setTimeout(() => {
+      clearInterval(checkInterval);
+      if (isWaitingForLoginAnimation) {
+        console.log('⚠️ Timeout da animação - prosseguindo...');
+        setIsWaitingForLoginAnimation(false);
+        AsyncStorage.removeItem('waitingForLoginAnimation');
+        AsyncStorage.removeItem('loginAnimationCompleted');
+      }
+    }, 10000);
+  };
+
+  const processUserData = async (_user: FirebaseAuthTypes.User) => {
+    try {
+      const userDoc = await firestore().collection('users').doc(_user.uid).get();
+      setProfileExists(userDoc.exists);
+
+      const dependentUserQuery = await firestore()
+        .collection('users_dependentes')
+        .where('dependenteUid', '==', _user.uid)
+        .get();
+
+      setIsDependentUser(!dependentUserQuery.empty);
+
+    } catch (error) {
+      console.error('Erro ao verificar usuário:', error);
+      setProfileExists(false);
+      setIsDependentUser(false);
+    }
+  };
 
   useEffect(() => {
     const gifDuration = 3000;
@@ -94,7 +164,7 @@ export default function App() {
     <>
       <NavigationContainer>
         <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {user ? (
+        {user && !isWaitingForLoginAnimation ? (
           isDependentUser ? (
             <Stack.Screen name="IndexTelaDependente" component={IndexTelaDependente} />
           ) : (

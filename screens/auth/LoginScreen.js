@@ -14,10 +14,14 @@ import {
   Animated,
   ScrollView,
   SafeAreaView,
+  Modal,
+  Alert,
 } from 'react-native';
 import {useNavigation} from '@react-navigation/native';
 import auth from '@react-native-firebase/auth';
 import Icon from 'react-native-vector-icons/FontAwesome';
+import LottieView from 'lottie-react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const {width, height} = Dimensions.get('window');
 
@@ -31,19 +35,19 @@ const LoginScreen = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
+  const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
 
-  // Animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
   const logoScaleAnim = useRef(new Animated.Value(0.8)).current;
   const buttonScaleAnim = useRef(new Animated.Value(1)).current;
   const googleButtonScaleAnim = useRef(new Animated.Value(1)).current;
   const backgroundAnim = useRef(new Animated.Value(0)).current;
+  const lottieRef = useRef(null);
 
   const navigation = useNavigation();
 
   useEffect(() => {
-    // Entrada suave dos elementos
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -63,7 +67,6 @@ const LoginScreen = () => {
       }),
     ]).start();
 
-    // Animação infinita do fundo
     const backgroundAnimation = Animated.loop(
       Animated.sequence([
         Animated.timing(backgroundAnim, {
@@ -90,13 +93,63 @@ const LoginScreen = () => {
     });
   };
 
+  const showSuccessAnimationOverlay = () => {
+    console.log('🎯 Iniciando modal de sucesso');
+    setShowSuccessAnimation(true);
+  };
+
+  const handleLottieAnimationFinish = async () => {
+    console.log('🎬 Animação Lottie finalizada!');
+    
+    try {
+      await AsyncStorage.setItem('loginAnimationCompleted', 'true');
+      console.log('✅ AsyncStorage atualizado - animação concluída');
+    } catch (error) {
+      console.error('Erro ao salvar no AsyncStorage:', error);
+    }
+    
+    setTimeout(() => {
+      console.log('⏰ Fechando modal de sucesso');
+      setShowSuccessAnimation(false);
+    }, 500);
+  };
+
+  useEffect(() => {
+    if (showSuccessAnimation) {
+      console.log('📺 Modal está visível, verificando Lottie...');
+      
+      const debugTimer = setTimeout(() => {
+        console.log('🔍 Verificando ref do Lottie:', lottieRef.current);
+        if (lottieRef.current) {
+          console.log('✅ Ref encontrada, tentando reproduzir...');
+          try {
+            lottieRef.current.play();
+          } catch (error) {
+            console.error('❌ Erro ao reproduzir Lottie:', error);
+          }
+        } else {
+          console.log('❌ Ref do Lottie não encontrada');
+        }
+      }, 500);
+      
+      const fallbackTimer = setTimeout(async () => {
+        console.log('⚠️ Fallback timer - finalizando');
+        await handleLottieAnimationFinish();
+      }, 3000);
+      
+      return () => {
+        clearTimeout(debugTimer);
+        clearTimeout(fallbackTimer);
+      };
+    }
+  }, [showSuccessAnimation]);
+
   const signIn = async () => {
     if (!email || !password) {
-      console.log('Por favor, preencha todos os campos');
+      Alert.alert('Campos obrigatórios', 'Por favor, preencha todos os campos');
       return;
     }
 
-    // Animação do botão durante loading
     Animated.sequence([
       Animated.timing(buttonScaleAnim, {
         toValue: 0.95,
@@ -111,18 +164,41 @@ const LoginScreen = () => {
     ]).start();
 
     setIsLoading(true);
+    
     try {
-      await auth().signInWithEmailAndPassword(email, password);
-      console.log('Usuário logado!');
-    } catch (error) {
-      console.log('Erro no login:', error);
-    } finally {
+      const userCredential = await auth().signInWithEmailAndPassword(email, password);
+      console.log('Login realizado com sucesso:', userCredential.user.email);
+      
       setIsLoading(false);
+      
+      showSuccessAnimationOverlay();
+      
+    } catch (error) {
+      console.log('Erro no login:', error.code, error.message);
+      setIsLoading(false);
+      
+      let errorMessage = 'Erro no login. Tente novamente.';
+      
+      switch (error.code) {
+        case 'auth/user-not-found':
+          errorMessage = 'Usuário não encontrado.';
+          break;
+        case 'auth/wrong-password':
+          errorMessage = 'Senha incorreta.';
+          break;
+        case 'auth/invalid-email':
+          errorMessage = 'Email inválido.';
+          break;
+        case 'auth/too-many-requests':
+          errorMessage = 'Muitas tentativas. Tente mais tarde.';
+          break;
+      }
+      
+      Alert.alert('Erro no Login', errorMessage);
     }
   };
 
   const signInWithGoogle = () => {
-    // Animação do botão Google
     Animated.sequence([
       Animated.timing(googleButtonScaleAnim, {
         toValue: 0.95,
@@ -136,14 +212,13 @@ const LoginScreen = () => {
       }),
     ]).start();
 
-    console.log('Ainda vai vir');
+    Alert.alert('Em breve', 'Login com Google será implementado em breve.');
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#121A29" />
 
-      {/* Fundo animado */}
       <Animated.View
         style={[
           styles.backgroundCircle,
@@ -190,7 +265,6 @@ const LoginScreen = () => {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled">
-          {/* Logo no topo */}
           <Animated.View
             style={[
               styles.logoContainer,
@@ -206,7 +280,6 @@ const LoginScreen = () => {
             />
           </Animated.View>
 
-          {/* Conteúdo principal */}
           <Animated.View
             style={[
               styles.content,
@@ -215,10 +288,8 @@ const LoginScreen = () => {
                 transform: [{translateY: slideAnim}],
               },
             ]}>
-            {/* Título */}
             <Text style={styles.welcomeText}>Bem-vindo de volta!</Text>
 
-            {/* Formulário */}
             <View style={styles.formContainer}>
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>E-mail</Text>
@@ -232,6 +303,7 @@ const LoginScreen = () => {
                   onFocus={() => setEmailFocused(true)}
                   onBlur={() => setEmailFocused(false)}
                   autoCapitalize="none"
+                  editable={!isLoading && !showSuccessAnimation}
                 />
               </View>
 
@@ -246,10 +318,13 @@ const LoginScreen = () => {
                   onChangeText={setPassword}
                   onFocus={() => setPasswordFocused(true)}
                   onBlur={() => setPasswordFocused(false)}
+                  editable={!isLoading && !showSuccessAnimation}
                 />
               </View>
 
-              <TouchableOpacity style={styles.forgotPassword}>
+              <TouchableOpacity 
+                style={styles.forgotPassword}
+                disabled={isLoading || showSuccessAnimation}>
                 <Text style={styles.forgotPasswordText}>Esqueceu a senha?</Text>
               </TouchableOpacity>
 
@@ -257,10 +332,10 @@ const LoginScreen = () => {
                 <TouchableOpacity
                   style={[
                     styles.loginButton,
-                    isLoading && styles.loginButtonDisabled,
+                    (isLoading || showSuccessAnimation) && styles.loginButtonDisabled,
                   ]}
                   onPress={signIn}
-                  disabled={isLoading}>
+                  disabled={isLoading || showSuccessAnimation}>
                   {isLoading ? (
                     <ActivityIndicator size="small" color="#FFFFFF" />
                   ) : (
@@ -278,8 +353,12 @@ const LoginScreen = () => {
               <Animated.View
                 style={{transform: [{scale: googleButtonScaleAnim}]}}>
                 <TouchableOpacity
-                  style={styles.googleButton}
-                  onPress={signInWithGoogle}>
+                  style={[
+                    styles.googleButton,
+                    (isLoading || showSuccessAnimation) && styles.buttonDisabled
+                  ]}
+                  onPress={signInWithGoogle}
+                  disabled={isLoading || showSuccessAnimation}>
                   <Icon name="google" size={16} color="#FFFFFF" />
                   <Text style={styles.googleButtonText}>
                     Continuar com Google
@@ -288,11 +367,11 @@ const LoginScreen = () => {
               </Animated.View>
             </View>
 
-            {/* Footer */}
             <View style={styles.footerContainer}>
               <TouchableOpacity
                 onPress={goToRegister}
-                style={styles.registerContainer}>
+                style={styles.registerContainer}
+                disabled={isLoading || showSuccessAnimation}>
                 <Text style={styles.registerText}>Não tem uma conta?</Text>
                 <Text style={styles.registerHighlight}> Criar conta</Text>
               </TouchableOpacity>
@@ -300,6 +379,29 @@ const LoginScreen = () => {
           </Animated.View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {showSuccessAnimation && (
+        <Modal
+          visible={true}
+          transparent={true}
+          animationType="fade"
+          statusBarTranslucent={true}
+          hardwareAccelerated={true}>
+          <View style={styles.successOverlay}>
+            <View style={styles.darkBackground} />
+              <LottieView
+                ref={lottieRef}
+                source={require('../../assets/animations/success.json')}
+                style={styles.lottieAnimation}
+                loop={false}
+                autoPlay={true}
+                onAnimationFinish={handleLottieAnimationFinish}
+                speed={1.0}
+                resizeMode="contain"
+              />
+          </View>
+        </Modal>
+      )}
     </SafeAreaView>
   );
 };
@@ -472,6 +574,9 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
   footerContainer: {
     alignItems: 'center',
     marginTop: 30,
@@ -495,6 +600,56 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: 0.3,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
+  },
+  
+  successOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  darkBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)', 
+  },
+  successOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  darkBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+  },
+  lottieDebugContainer: {
+    width: 400,
+    height: 400,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 20,
+    borderWidth: 2,
+  },
+  lottieAnimation: {
+    width: 200,
+    height: 200,
+  },
+  debugText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 10,
+  },
+  debugText2: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    marginTop: 10,
   },
 });
 
