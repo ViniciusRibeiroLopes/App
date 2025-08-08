@@ -1,25 +1,27 @@
-import React, { useState } from 'react';
-import { 
-  View, 
-  Text, 
-  TextInput, 
-  TouchableOpacity, 
-  StyleSheet, 
+import React, {useState, useEffect, useRef} from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
   Dimensions,
   StatusBar,
   KeyboardAvoidingView,
   Platform,
   Alert,
   Image,
-  ActivityIndicator
+  ActivityIndicator,
+  Animated,
+  ScrollView,
+  SafeAreaView,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import {useNavigation} from '@react-navigation/native';
 import auth from '@react-native-firebase/auth';
 import Icon from 'react-native-vector-icons/FontAwesome';
 
-const { width, height } = Dimensions.get('window');
+const {width, height} = Dimensions.get('window');
 
-// Breakpoints responsivos
 const isSmallScreen = width < 360;
 const isMediumScreen = width >= 360 && width < 400;
 const isLargeScreen = width >= 400;
@@ -31,12 +33,61 @@ const RegisterScreen = () => {
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
 
+  // Animations
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
+  const logoScaleAnim = useRef(new Animated.Value(0.8)).current;
+  const buttonScaleAnim = useRef(new Animated.Value(1)).current;
+  const googleButtonScaleAnim = useRef(new Animated.Value(1)).current;
+  const backgroundAnim = useRef(new Animated.Value(0)).current;
+
   const navigation = useNavigation();
+
+  useEffect(() => {
+    // Entrada suave dos elementos
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 1000,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.spring(logoScaleAnim, {
+        toValue: 1,
+        tension: 50,
+        friction: 7,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // Animação infinita do fundo
+    const backgroundAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(backgroundAnim, {
+          toValue: 1,
+          duration: 4000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(backgroundAnim, {
+          toValue: 0,
+          duration: 4000,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    backgroundAnimation.start();
+
+    return () => backgroundAnimation.stop();
+  }, [backgroundAnim, fadeAnim, logoScaleAnim, slideAnim]);
 
   const goToLogin = () => {
     navigation.reset({
       index: 0,
-      routes: [{ name: 'Login' }],
+      routes: [{name: 'Login'}],
     });
   };
 
@@ -59,15 +110,32 @@ const RegisterScreen = () => {
   const signUp = async () => {
     if (!validateForm()) return;
 
+    // Animação do botão durante loading
+    Animated.sequence([
+      Animated.timing(buttonScaleAnim, {
+        toValue: 0.95,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(buttonScaleAnim, {
+        toValue: 1,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
     setIsLoading(true);
     try {
-      const userCredential = await auth().createUserWithEmailAndPassword(email, password);
+      const userCredential = await auth().createUserWithEmailAndPassword(
+        email,
+        password,
+      );
       console.log('Usuário criado com sucesso:', userCredential);
     } catch (error) {
       console.error('Erro ao criar conta:', error);
-      
+
       let errorMessage = 'Erro inesperado ao criar conta';
-      
+
       if (error.code === 'auth/email-already-in-use') {
         errorMessage = 'Este email já possui uma conta!';
       } else if (error.code === 'auth/invalid-email') {
@@ -75,7 +143,7 @@ const RegisterScreen = () => {
       } else if (error.code === 'auth/weak-password') {
         errorMessage = 'A senha é muito fraca!';
       }
-      
+
       Alert.alert('Erro', errorMessage);
     } finally {
       setIsLoading(false);
@@ -83,110 +151,187 @@ const RegisterScreen = () => {
   };
 
   const signUpWithGoogle = () => {
+    // Animação do botão Google
+    Animated.sequence([
+      Animated.timing(googleButtonScaleAnim, {
+        toValue: 0.95,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(googleButtonScaleAnim, {
+        toValue: 1,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
     console.log('Algum dia');
   };
 
   return (
-    <KeyboardAvoidingView 
-      style={styles.container} 
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
+    <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#121A29" />
-      
-      <View style={styles.content}>
-        <View style={styles.headerContainer}>
-          <View style={styles.logoContainer}>
+
+      {/* Fundo animado */}
+      <Animated.View
+        style={[
+          styles.backgroundCircle,
+          {
+            opacity: backgroundAnim.interpolate({
+              inputRange: [0, 1],
+              outputRange: [0.05, 0.15],
+            }),
+            transform: [
+              {
+                scale: backgroundAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [1, 1.2],
+                }),
+              },
+            ],
+          },
+        ]}
+      />
+      <Animated.View
+        style={[
+          styles.backgroundCircle2,
+          {
+            opacity: backgroundAnim.interpolate({
+              inputRange: [0, 1],
+              outputRange: [0.1, 0.05],
+            }),
+            transform: [
+              {
+                scale: backgroundAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [1.2, 1],
+                }),
+              },
+            ],
+          },
+        ]}
+      />
+
+      <KeyboardAvoidingView
+        style={styles.keyboardContainer}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled">
+          {/* Logo no topo */}
+          <Animated.View
+            style={[
+              styles.logoContainer,
+              {
+                transform: [{scale: logoScaleAnim}],
+                opacity: fadeAnim,
+              },
+            ]}>
             <Image
               source={require('../../images/logoComNome.png')}
               style={styles.logo}
               resizeMode="contain"
             />
-          </View>
-          <View style={styles.titleContainer}>
-            <Text style={styles.welcomeText}>Criar Conta</Text>
-          </View>
-        </View>
+          </Animated.View>
 
-        {/* Formulário */}
-        <View style={styles.formContainer}>
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>E-mail</Text>
-            <TextInput
-              style={[
-                styles.input,
-                emailFocused && styles.inputFocused
-              ]}
-              placeholder="Digite seu e-mail"
-              placeholderTextColor="#8A8A8A"
-              keyboardType="email-address"
-              value={email}
-              onChangeText={setEmail}
-              onFocus={() => setEmailFocused(true)}
-              onBlur={() => setEmailFocused(false)}
-              autoCapitalize="none"
-            />
-          </View>
+          {/* Conteúdo principal */}
+          <Animated.View
+            style={[
+              styles.content,
+              {
+                opacity: fadeAnim,
+                transform: [{translateY: slideAnim}],
+              },
+            ]}>
+            {/* Título */}
+            <Text style={styles.welcomeText}>Vamos começar?</Text>
 
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Senha</Text>
-            <TextInput
-              style={[
-                styles.input,
-                passwordFocused && styles.inputFocused
-              ]}
-              placeholder="Crie uma senha (mín. 6 caracteres)"
-              placeholderTextColor="#8A8A8A"
-              secureTextEntry
-              value={password}
-              onChangeText={setPassword}
-              onFocus={() => setPasswordFocused(true)}
-              onBlur={() => setPasswordFocused(false)}
-            />
-          </View>
+            {/* Formulário */}
+            <View style={styles.formContainer}>
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>E-mail</Text>
+                <TextInput
+                  style={[styles.input, emailFocused && styles.inputFocused]}
+                  placeholder="Digite seu e-mail"
+                  placeholderTextColor="#8A8A8A"
+                  keyboardType="email-address"
+                  value={email}
+                  onChangeText={setEmail}
+                  onFocus={() => setEmailFocused(true)}
+                  onBlur={() => setEmailFocused(false)}
+                  autoCapitalize="none"
+                />
+              </View>
 
-          <TouchableOpacity 
-            style={[styles.registerButton, isLoading && styles.registerButtonDisabled]} 
-            onPress={signUp}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <Text style={styles.registerButtonText}>Criar Conta</Text>
-            )}
-          </TouchableOpacity>
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Senha</Text>
+                <TextInput
+                  style={[styles.input, passwordFocused && styles.inputFocused]}
+                  placeholder="Crie uma senha (mín. 6 caracteres)"
+                  placeholderTextColor="#8A8A8A"
+                  secureTextEntry
+                  value={password}
+                  onChangeText={setPassword}
+                  onFocus={() => setPasswordFocused(true)}
+                  onBlur={() => setPasswordFocused(false)}
+                />
+              </View>
 
-          <View style={styles.dividerContainer}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>ou</Text>
-            <View style={styles.dividerLine} />
-          </View>
+              <Animated.View style={{transform: [{scale: buttonScaleAnim}]}}>
+                <TouchableOpacity
+                  style={[
+                    styles.registerButton,
+                    isLoading && styles.registerButtonDisabled,
+                  ]}
+                  onPress={signUp}
+                  disabled={isLoading}>
+                  {isLoading ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.registerButtonText}>Criar Conta</Text>
+                  )}
+                </TouchableOpacity>
+              </Animated.View>
 
-          <TouchableOpacity 
-            style={styles.googleButton} 
-            onPress={signUpWithGoogle}
-          >
-            <Icon name="google" size={16} color="#FFFFFF" />
-            <Text style={styles.googleButtonText}>Continuar com Google</Text>
-          </TouchableOpacity>
-        </View>
+              <View style={styles.dividerContainer}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>ou</Text>
+                <View style={styles.dividerLine} />
+              </View>
 
-        <View style={styles.footerContainer}>
-          <TouchableOpacity onPress={goToLogin} style={styles.loginContainer}>
-            <Text style={styles.loginText}>
-              Já possui uma conta? 
-            </Text>
-            <Text style={styles.loginHighlight}> Entrar</Text>
-          </TouchableOpacity>
-          
-          <Text style={styles.termsText}>
-            Ao criar uma conta, você concorda com nossos{'\n'}
-            <Text style={styles.termsLink}>Termos de Uso</Text> e{' '}
-            <Text style={styles.termsLink}>Política de Privacidade</Text>
-          </Text>
-        </View>
-      </View>
-    </KeyboardAvoidingView>
+              <Animated.View
+                style={{transform: [{scale: googleButtonScaleAnim}]}}>
+                <TouchableOpacity
+                  style={styles.googleButton}
+                  onPress={signUpWithGoogle}>
+                  <Icon name="google" size={16} color="#FFFFFF" />
+                  <Text style={styles.googleButtonText}>
+                    Continuar com Google
+                  </Text>
+                </TouchableOpacity>
+              </Animated.View>
+            </View>
+
+            {/* Footer */}
+            <View style={styles.footerContainer}>
+              <TouchableOpacity
+                onPress={goToLogin}
+                style={styles.loginContainer}>
+                <Text style={styles.loginText}>Já possui uma conta?</Text>
+                <Text style={styles.loginHighlight}> Entrar</Text>
+              </TouchableOpacity>
+
+              <Text style={styles.termsText}>
+                Ao criar uma conta, você concorda com nossos{'\n'}
+                <Text style={styles.termsLink}>Termos de Uso</Text> e{' '}
+                <Text style={styles.termsLink}>Política de Privacidade</Text>
+              </Text>
+            </View>
+          </Animated.View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 };
 
@@ -195,56 +340,81 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#121A29',
   },
-  content: {
-    height: height,
-    paddingHorizontal: isSmallScreen ? 20 : isMediumScreen ? 24 : 28,
+  keyboardContainer: {
+    flex: 1,
   },
-  headerContainer: {
-    paddingTop: Platform.OS === 'ios' ? 50 : 30,
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: isSmallScreen ? 16 : isMediumScreen ? 18 : 20,
+  },
+  backgroundCircle: {
+    position: 'absolute',
+    width: width * 2,
+    height: width * 2,
+    borderRadius: width,
+    backgroundColor: '#4D97DB',
+    top: -width * 0.8,
+    left: -width * 0.5,
+  },
+  backgroundCircle2: {
+    position: 'absolute',
+    width: width * 1.5,
+    height: width * 1.5,
+    borderRadius: width * 0.75,
+    backgroundColor: '#D03D61',
+    bottom: -width * 0.6,
+    right: -width * 0.4,
   },
   logoContainer: {
-    position: 'absolute',
-    left: '50%',
-    transform: [{ translateX: -300 / 2 }],
     alignItems: 'center',
+    paddingTop: Platform.OS === 'ios' ? 20 : 30,
+    marginBottom: -10,
   },
   logo: {
-    marginTop: -30,
-    height: isSmallScreen ? 210 : isMediumScreen ? 260 : 310,
-    maxWidth: 300,
+    height: isSmallScreen ? 200 : isMediumScreen ? 220 : 240,
+    maxWidth: 250,
   },
-  titleContainer: {
-    alignItems: 'flex-start',
+  content: {
+    alignItems: 'center',
+    paddingBottom: 40,
   },
   welcomeText: {
-    marginTop: 150,
-    fontSize: isSmallScreen ? 24 : isMediumScreen ? 26 : 28,
+    fontSize: isSmallScreen ? 24 : isMediumScreen ? 28 : 32,
     fontWeight: 'bold',
     color: '#FFFFFF',
+    textAlign: 'center',
+    marginBottom: 20,
+    marginTop: -20,
+    letterSpacing: 0.5,
+    fontFamily: 'Georgia',
   },
   formContainer: {
-    marginTop: 10,
-    marginBottom: 60,
+    maxWidth: 400,
+    width: '100%',
   },
   inputContainer: {
     marginBottom: 16,
   },
   inputLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    marginBottom: 6,
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#E1E7ED',
+    marginBottom: 10,
     marginLeft: 4,
+    letterSpacing: 0.3,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   input: {
-    height: 50,
+    height: 56,
     backgroundColor: '#1E2A3A',
     borderRadius: 14,
-    paddingHorizontal: 18,
+    paddingHorizontal: 20,
     fontSize: 16,
     color: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#2A3441',
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
+    fontWeight: '400',
   },
   inputFocused: {
     borderColor: '#4D97DB',
@@ -253,12 +423,12 @@ const styles = StyleSheet.create({
       width: 0,
       height: 0,
     },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    elevation: 6,
   },
   registerButton: {
-    height: 52,
+    height: 56,
     backgroundColor: '#D03D61',
     borderRadius: 14,
     justifyContent: 'center',
@@ -270,7 +440,7 @@ const styles = StyleSheet.create({
       width: 0,
       height: 4,
     },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.25,
     shadowRadius: 8,
     elevation: 6,
   },
@@ -281,8 +451,10 @@ const styles = StyleSheet.create({
   },
   registerButtonText: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: 'bold',
+    letterSpacing: 0.5,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   dividerContainer: {
     flexDirection: 'row',
@@ -295,12 +467,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#2A3441',
   },
   dividerText: {
-    marginHorizontal: 16,
+    marginHorizontal: 20,
     color: '#8A8A8A',
     fontSize: 14,
+    fontWeight: '400',
+    letterSpacing: 0.3,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   googleButton: {
-    height: 50,
+    height: 56,
     backgroundColor: '#1E2A3A',
     borderRadius: 14,
     flexDirection: 'row',
@@ -314,13 +489,12 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '500',
+    letterSpacing: 0.3,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   footerContainer: {
-    position: 'absolute',
-    bottom: 30,
-    left: isSmallScreen ? 20 : isMediumScreen ? 24 : 28,
-    right: isSmallScreen ? 20 : isMediumScreen ? 24 : 28,
     alignItems: 'center',
+    marginTop: 30,
   },
   loginContainer: {
     flexDirection: 'row',
@@ -332,11 +506,16 @@ const styles = StyleSheet.create({
   loginText: {
     color: '#8A8A8A',
     fontSize: 15,
+    fontWeight: '400',
+    letterSpacing: 0.2,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   loginHighlight: {
     color: '#4D97DB',
     fontSize: 15,
-    fontWeight: 'bold',
+    fontWeight: '600',
+    letterSpacing: 0.3,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   termsText: {
     color: '#6A6A6A',
@@ -344,6 +523,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 16,
     paddingHorizontal: 10,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
+    letterSpacing: 0.2,
   },
   termsLink: {
     color: '#4D97DB',
