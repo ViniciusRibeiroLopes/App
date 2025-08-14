@@ -1,31 +1,31 @@
-import React, { useEffect, useState } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  TouchableOpacity, 
-  ScrollView, 
+import React, {useEffect, useState} from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
   Alert,
   ActivityIndicator,
   Dimensions,
-  StatusBar
+  StatusBar,
 } from 'react-native';
 import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
 import Icon from 'react-native-vector-icons/Ionicons';
 
-const { width } = Dimensions.get('window');
+const {width} = Dimensions.get('window');
 
 // Breakpoints responsivos
 const isSmallScreen = width < 360;
 
-const HistoricoMedicamentosScreen = ({ navigation, route }) => {
+const HistoricoMedicamentosScreen = ({navigation, route}) => {
   const [medicamentosTomados, setMedicamentosTomados] = useState([]);
   const [dependente, setDependente] = useState(null);
   const [loading, setLoading] = useState(true);
   const [filtroSelecionado, setFiltroSelecionado] = useState('todos');
   const user = auth().currentUser;
-  const { dependenteId } = route.params || {};
+  const {dependenteId} = route.params || {};
 
   useEffect(() => {
     if (!user || !dependenteId) {
@@ -45,7 +45,7 @@ const HistoricoMedicamentosScreen = ({ navigation, route }) => {
         if (dependenteDoc.exists) {
           const dependenteData = {
             id: dependenteDoc.id,
-            ...dependenteDoc.data()
+            ...dependenteDoc.data(),
           };
           setDependente(dependenteData);
           return dependenteData;
@@ -56,13 +56,16 @@ const HistoricoMedicamentosScreen = ({ navigation, route }) => {
         }
       } catch (error) {
         console.error('Erro ao buscar dependente:', error);
-        Alert.alert('Erro', 'Não foi possível carregar os dados do dependente.');
+        Alert.alert(
+          'Erro',
+          'Não foi possível carregar os dados do dependente.',
+        );
         navigation.goBack();
         return null;
       }
     };
 
-    const buscarHistorico = async (dependenteData) => {
+    const buscarHistorico = async dependenteData => {
       if (!dependenteData) {
         setLoading(false);
         return;
@@ -82,20 +85,20 @@ const HistoricoMedicamentosScreen = ({ navigation, route }) => {
 
               const medicamentosData = snapshot.docs.map(doc => ({
                 id: doc.id,
-                ...doc.data()
+                ...doc.data(),
               }));
 
               const medicamentosComDetalhes = await Promise.all(
-                medicamentosData.map(async (medicamento) => {
+                medicamentosData.map(async medicamento => {
                   let nomeRemedio = medicamento.remedioNome || 'Medicamento';
-                  
+
                   if (medicamento.remedioId) {
                     try {
                       const remedioDoc = await firestore()
                         .collection('remedios')
                         .doc(medicamento.remedioId)
                         .get();
-                      
+
                       if (remedioDoc.exists) {
                         const remedioData = remedioDoc.data();
                         nomeRemedio = remedioData.nome || nomeRemedio;
@@ -104,28 +107,38 @@ const HistoricoMedicamentosScreen = ({ navigation, route }) => {
                       console.error('Erro ao buscar remédio:', error);
                     }
                   }
-                  
+
                   return {
                     ...medicamento,
                     remedioNome: nomeRemedio,
-                    nomeDependente: dependenteData.nome || dependenteData.nomeCompleto || 'Dependente'
+                    nomeDependente:
+                      dependenteData.nome ||
+                      dependenteData.nomeCompleto ||
+                      'Dependente',
                   };
-                })
+                }),
               );
 
               // Aplicar filtro
               let medicamentosFiltrados = medicamentosComDetalhes;
-              
+
               if (filtroSelecionado !== 'todos') {
                 const dataFiltro = obterDataFiltro();
                 console.log('Filtro de data:', dataFiltro);
-                
-                medicamentosFiltrados = medicamentosFiltrados.filter(medicamento => {
-                  const diaMedicamento = medicamento.dia;
-                  const passaFiltro = diaMedicamento >= dataFiltro.inicio && diaMedicamento <= dataFiltro.fim;
-                  console.log(`${diaMedicamento} passa no filtro (${dataFiltro.inicio} - ${dataFiltro.fim}):`, passaFiltro);
-                  return passaFiltro;
-                });
+
+                medicamentosFiltrados = medicamentosFiltrados.filter(
+                  medicamento => {
+                    const diaMedicamento = medicamento.dia;
+                    const passaFiltro =
+                      diaMedicamento >= dataFiltro.inicio &&
+                      diaMedicamento <= dataFiltro.fim;
+                    console.log(
+                      `${diaMedicamento} passa no filtro (${dataFiltro.inicio} - ${dataFiltro.fim}):`,
+                      passaFiltro,
+                    );
+                    return passaFiltro;
+                  },
+                );
               }
 
               // Ordenar
@@ -149,7 +162,7 @@ const HistoricoMedicamentosScreen = ({ navigation, route }) => {
             console.error('Erro ao buscar histórico:', error);
             Alert.alert('Erro', 'Não foi possível carregar os dados.');
             setLoading(false);
-          }
+          },
         );
 
       return unsubscribe;
@@ -175,47 +188,51 @@ const HistoricoMedicamentosScreen = ({ navigation, route }) => {
 
   const obterDataFiltro = () => {
     const hoje = new Date();
-    const inicioHoje = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
-    
+    const inicioHoje = new Date(
+      hoje.getFullYear(),
+      hoje.getMonth(),
+      hoje.getDate(),
+    );
+
     switch (filtroSelecionado) {
       case 'hoje':
         return {
           inicio: inicioHoje.toISOString().split('T')[0],
-          fim: inicioHoje.toISOString().split('T')[0]
+          fim: inicioHoje.toISOString().split('T')[0],
         };
       case 'ontem':
         const ontem = new Date(inicioHoje);
         ontem.setDate(ontem.getDate() - 1);
         return {
           inicio: ontem.toISOString().split('T')[0],
-          fim: ontem.toISOString().split('T')[0]
+          fim: ontem.toISOString().split('T')[0],
         };
       case 'semana':
         const inicioSemana = new Date(inicioHoje);
         inicioSemana.setDate(inicioSemana.getDate() - 7);
         return {
           inicio: inicioSemana.toISOString().split('T')[0],
-          fim: inicioHoje.toISOString().split('T')[0]
+          fim: inicioHoje.toISOString().split('T')[0],
         };
       case 'mes':
         const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
         return {
           inicio: inicioMes.toISOString().split('T')[0],
-          fim: inicioHoje.toISOString().split('T')[0]
+          fim: inicioHoje.toISOString().split('T')[0],
         };
       default:
-        return { inicio: null, fim: null };
+        return {inicio: null, fim: null};
     }
   };
 
-  const formatarData = (dataString) => {
+  const formatarData = dataString => {
     const data = new Date(dataString + 'T00:00:00');
     const hoje = new Date();
     const ontem = new Date(hoje);
     ontem.setDate(ontem.getDate() - 1);
 
     const dataFormatada = data.toLocaleDateString('pt-BR');
-    
+
     if (data.toDateString() === hoje.toDateString()) {
       return `Hoje, ${dataFormatada}`;
     } else if (data.toDateString() === ontem.toDateString()) {
@@ -239,10 +256,10 @@ const HistoricoMedicamentosScreen = ({ navigation, route }) => {
 
   const renderFiltros = () => {
     const filtros = [
-      { key: 'todos', label: 'Todos' },
-      { key: 'hoje', label: 'Hoje' },
-      { key: 'semana', label: '7 dias' },
-      { key: 'mes', label: '30 dias' }
+      {key: 'todos', label: 'Todos'},
+      {key: 'hoje', label: 'Hoje'},
+      {key: 'semana', label: '7 dias'},
+      {key: 'mes', label: '30 dias'},
     ];
 
     return (
@@ -253,14 +270,14 @@ const HistoricoMedicamentosScreen = ({ navigation, route }) => {
               key={filtro.key}
               style={[
                 styles.filtroButton,
-                filtroSelecionado === filtro.key && styles.filtroButtonActive
+                filtroSelecionado === filtro.key && styles.filtroButtonActive,
               ]}
-              onPress={() => setFiltroSelecionado(filtro.key)}
-            >
-              <Text style={[
-                styles.filtroText,
-                filtroSelecionado === filtro.key && styles.filtroTextActive
-              ]}>
+              onPress={() => setFiltroSelecionado(filtro.key)}>
+              <Text
+                style={[
+                  styles.filtroText,
+                  filtroSelecionado === filtro.key && styles.filtroTextActive,
+                ]}>
                 {filtro.label}
               </Text>
             </TouchableOpacity>
@@ -270,15 +287,19 @@ const HistoricoMedicamentosScreen = ({ navigation, route }) => {
     );
   };
 
-  const renderMedicamentoItem = (medicamento) => {
+  const renderMedicamentoItem = medicamento => {
     return (
       <View key={medicamento.id} style={styles.medicamentoItem}>
         <View style={styles.medicamentoInfo}>
           <View style={styles.medicamentoHeader}>
-            <Text style={styles.medicamentoNome}>{medicamento.remedioNome}</Text>
+            <Text style={styles.medicamentoNome}>
+              {medicamento.remedioNome}
+            </Text>
             <Text style={styles.medicamentoHorario}>{medicamento.horario}</Text>
           </View>
-          <Text style={styles.medicamentoDosagem}>Dosagem: {medicamento.dosagem}</Text>
+          <Text style={styles.medicamentoDosagem}>
+            Dosagem: {medicamento.dosagem}
+          </Text>
         </View>
         <View style={styles.statusIndicator}>
           <Icon name="checkmark-circle" size={24} color="#10B981" />
@@ -292,7 +313,10 @@ const HistoricoMedicamentosScreen = ({ navigation, route }) => {
       <View key={dia} style={styles.diaGroup}>
         <View style={styles.diaHeader}>
           <Text style={styles.diaData}>{formatarData(dia)}</Text>
-          <Text style={styles.diaContador}>{medicamentos.length} medicamento{medicamentos.length !== 1 ? 's' : ''}</Text>
+          <Text style={styles.diaContador}>
+            {medicamentos.length} medicamento
+            {medicamentos.length !== 1 ? 's' : ''}
+          </Text>
         </View>
         {medicamentos.map(medicamento => renderMedicamentoItem(medicamento))}
       </View>
@@ -309,40 +333,49 @@ const HistoricoMedicamentosScreen = ({ navigation, route }) => {
   const renderEmptyState = () => (
     <View style={styles.emptyContainer}>
       <View style={styles.emptyIconContainer}>
-        <Icon name="document-text" size={isSmallScreen ? 40 : 48} color="#8A8A8A" />
+        <Icon
+          name="document-text"
+          size={isSmallScreen ? 40 : 48}
+          color="#8A8A8A"
+        />
       </View>
       <Text style={styles.emptyTitle}>Nenhum registro encontrado</Text>
       <Text style={styles.emptyDescription}>
-        {filtroSelecionado === 'hoje' 
-          ? `${dependente?.nome || dependente?.nomeCompleto} ainda não tomou nenhum medicamento hoje`
-          : `Nenhum medicamento foi registrado para ${dependente?.nome || dependente?.nomeCompleto} no período selecionado`}
+        {filtroSelecionado === 'hoje'
+          ? `${
+              dependente?.nome || dependente?.nomeCompleto
+            } ainda não tomou nenhum medicamento hoje`
+          : `Nenhum medicamento foi registrado para ${
+              dependente?.nome || dependente?.nomeCompleto
+            } no período selecionado`}
       </Text>
     </View>
   );
 
   const gruposPorDia = agruparPorDia();
-  const diasOrdenados = Object.keys(gruposPorDia).sort((a, b) => b.localeCompare(a));
+  const diasOrdenados = Object.keys(gruposPorDia).sort((a, b) =>
+    b.localeCompare(a),
+  );
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#121A29" />
-      
+
       <View style={styles.header}>
         <View style={styles.headerTop}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
+            onPress={() => navigation.goBack()}>
             <Icon name="chevron-back" size={24} color="#FFFFFF" />
           </TouchableOpacity>
-          
+
           <View style={styles.headerCenter}>
             <Text style={styles.headerTitle}>Histórico</Text>
             <Text style={styles.headerSubtitle}>
               {dependente?.nome || dependente?.nomeCompleto || 'Dependente'}
             </Text>
           </View>
-          
+
           <View style={styles.headerRight} />
         </View>
       </View>
@@ -350,23 +383,18 @@ const HistoricoMedicamentosScreen = ({ navigation, route }) => {
       {/* Content */}
       <View style={styles.content}>
         {/* Filtros */}
-        <View style={styles.filtrosWrapper}>
-          {renderFiltros()}
-        </View>
+        <View style={styles.filtrosWrapper}>{renderFiltros()}</View>
 
         {/* Lista de Histórico */}
-        <ScrollView 
+        <ScrollView
           style={styles.scrollContainer}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}
-        >
-          {loading ? (
-            renderLoadingState()
-          ) : diasOrdenados.length === 0 ? (
-            renderEmptyState()
-          ) : (
-            diasOrdenados.map(dia => renderDiaGroup(dia, gruposPorDia[dia]))
-          )}
+          contentContainerStyle={styles.scrollContent}>
+          {loading
+            ? renderLoadingState()
+            : diasOrdenados.length === 0
+            ? renderEmptyState()
+            : diasOrdenados.map(dia => renderDiaGroup(dia, gruposPorDia[dia]))}
         </ScrollView>
       </View>
     </View>
@@ -533,7 +561,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 8,
     borderWidth: 1,
-    elevation: 3,
   },
   medicamentoInfo: {
     flex: 1,
