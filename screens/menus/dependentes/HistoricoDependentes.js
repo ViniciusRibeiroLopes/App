@@ -585,6 +585,7 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
+    marginTop: isMediumScreen ? -30 : 0,
   },
   headerTop: {
     paddingTop: Platform.OS === 'ios' ? 15 : 25,
@@ -595,8 +596,8 @@ const styles = StyleSheet.create({
   },
   backButton: {
     backgroundColor: 'rgba(255, 255, 255, 0.12)',
-    width: 44,
-    height: 44,
+    width: isMediumScreen ? 38 : 44,
+    height: isMediumScreen ? 38 : 44,
     borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
@@ -616,7 +617,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
   },
   headerTitle: {
-    fontSize: isSmallScreen ? 20 : 24,
+    fontSize: isMediumScreen ? 22 : 24,
     fontWeight: '700',
     color: '#FFFFFF',
     marginBottom: 4,
@@ -624,7 +625,7 @@ const styles = StyleSheet.create({
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
   },
   headerSubtitle: {
-    fontSize: isSmallScreen ? 12 : 14,
+    fontSize: isMediumScreen ? 13 : 14,
     color: '#94a3b8',
     fontWeight: '500',
     letterSpacing: 0.3,

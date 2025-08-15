@@ -236,7 +236,6 @@ const Index = ({navigation}) => {
                   <Text style={styles.menuItemText}>Ajuda</Text>
                 </TouchableOpacity>
 
-                <View style={styles.menuDivider} />
 
                 <TouchableOpacity
                   style={[styles.menuItem, styles.logoutMenuItem]}
@@ -314,7 +313,6 @@ const Index = ({navigation}) => {
 
   const getQuickActionColumns = () => {
     if (isSmallScreen) return 2;
-    if (isMediumScreen) return 2;
     return 4;
   };
 
@@ -445,8 +443,6 @@ const Index = ({navigation}) => {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#121A29" />
-
-      {/* Círculos de fundo animados */}
       <Animated.View
         style={[
           styles.backgroundCircle,
@@ -608,6 +604,7 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
+    marginTop: isSmallScreen ? -30 : isMediumScreen ? -20 : -5,
   },
   headerTop: {
     paddingTop: Platform.OS === 'ios' ? 15 : 25,
@@ -620,7 +617,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   title: {
-    fontSize: isSmallScreen ? 24 : 28,
+    fontSize: isMediumScreen ? 24 : 28,
     fontWeight: '700',
     color: '#FFFFFF',
     marginBottom: 6,
@@ -636,8 +633,8 @@ const styles = StyleSheet.create({
   },
   hamburgerButton: {
     backgroundColor: 'rgba(255, 255, 255, 0.12)',
-    width: 44,
-    height: 44,
+    width: isMediumScreen ? 38 : 44,
+    height: isMediumScreen ? 38 : 44,
     borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
@@ -700,7 +697,7 @@ const styles = StyleSheet.create({
   },
   quickActionText: {
     color: '#e2e8f0',
-    fontSize: isSmallScreen ? 10 : 12,
+    fontSize: isSmallScreen ? 10 : isMediumScreen ? 10 : 12,
     fontWeight: '600',
     textAlign: 'center',
     letterSpacing: 0.2,
@@ -742,7 +739,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(77, 151, 219, 0.25)',
   },
   verTodosText: {
-    fontSize: 12,
+    fontSize: isMediumScreen ? 10 : 12,
     color: '#e2e8f0',
     fontWeight: '600',
     letterSpacing: 0.2,
@@ -891,7 +888,7 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     width: 250,
-    backgroundColor: 'rgba(30, 41, 59, 0.95)',
+    backgroundColor: 'rgba(30, 41, 59, 1)',
     shadowColor: '#000',
     shadowOffset: {
       width: 2,

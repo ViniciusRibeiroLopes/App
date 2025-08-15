@@ -174,7 +174,6 @@ const OnBoarding = ({navigation}) => {
         />
 
         <View style={styles.bottomContainer}>
-          {/* Indicadores de paginação */}
           <View style={styles.pagination}>
             {slides.map((_, i) => {
               const inputRange = [(i - 1) * width, i * width, (i + 1) * width];
@@ -206,7 +205,6 @@ const OnBoarding = ({navigation}) => {
             })}
           </View>
 
-          {/* Botões */}
           <View style={styles.buttonContainer}>
             <TouchableOpacity onPress={skip} style={styles.skipButton}>
               <Text style={styles.skipText}>Pular</Text>

@@ -438,11 +438,11 @@ const styles = StyleSheet.create({
   },
   logoContainer: {
     alignItems: 'center',
-    paddingTop: Platform.OS === 'ios' ? 20 : 30,
+    paddingTop: isSmallScreen ? 5 : isMediumScreen ? 10 : 20,
     marginBottom: -10,
   },
   logo: {
-    height: isSmallScreen ? 200 : isMediumScreen ? 220 : 240,
+    height: isSmallScreen ? 180 : isMediumScreen ? 200 : 240,
     maxWidth: 250,
   },
   content: {
@@ -450,7 +450,7 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   welcomeText: {
-    fontSize: isSmallScreen ? 24 : isMediumScreen ? 28 : 32,
+    fontSize: isSmallScreen ? 22 : isMediumScreen ? 26 : 32,
     fontWeight: 'bold',
     color: '#FFFFFF',
     textAlign: 'center',

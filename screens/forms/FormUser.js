@@ -581,8 +581,8 @@ const styles = StyleSheet.create({
     minHeight: 60,
   },
   backButton: {
-    width: 44,
-    height: 44,
+    width: isMediumScreen ? 38 : 44,
+    height: isMediumScreen ? 38 : 44,
     borderRadius: 22,
     backgroundColor: '#1E2A3A',
     justifyContent: 'center',
