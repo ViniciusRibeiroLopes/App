@@ -425,7 +425,6 @@ const MenuAvisosScreen = ({navigation, route}) => {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#121A29" />
 
-      {/* Círculos de fundo animados */}
       <Animated.View
         style={[
           styles.backgroundCircle,
@@ -482,7 +481,7 @@ const MenuAvisosScreen = ({navigation, route}) => {
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>
             Avisos de{' '}
-            {dependente?.nome || dependente?.nomeCompleto || 'Medicamentos'}
+            {dependente?.nome || dependente?.nomeCompleto}
           </Text>
           <Text style={styles.headerSubtitle}>
             Administre os alertas do dependente
@@ -580,7 +579,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     backgroundColor: 'rgba(30, 41, 59, 0.95)',
     paddingHorizontal: isSmallScreen ? 16 : 24,
-    paddingTop: Platform.OS === 'ios' ? 20 : 30,
+    paddingTop: Platform.OS === 'ios' ? 50 : 60,
     paddingBottom: 30,
     borderBottomLeftRadius: 25,
     borderBottomRightRadius: 25,

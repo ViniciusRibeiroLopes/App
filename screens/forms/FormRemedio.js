@@ -547,7 +547,6 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.3,
     shadowRadius: 12,
-    elevation: 8,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
   },
@@ -567,7 +566,6 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 3,
   },
   headerCenter: {
     flex: 1,
@@ -640,7 +638,6 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.15,
     shadowRadius: 8,
-    elevation: 3,
   },
   inputContent: {
     flexDirection: 'row',
@@ -710,7 +707,6 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.3,
     shadowRadius: 8,
-    elevation: 6,
   },
   saveButtonDisabled: {
     backgroundColor: '#64748b',
@@ -754,7 +750,6 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.3,
     shadowRadius: 12,
-    elevation: 8,
   },
   modalHeader: {
     flexDirection: 'row',

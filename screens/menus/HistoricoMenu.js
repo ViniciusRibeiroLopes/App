@@ -394,29 +394,11 @@ const HistoricoMenu = ({navigation}) => {
           <View style={styles.headerCenter}>
             <Text style={styles.headerTitle}>Histórico</Text>
             <Text style={styles.headerSubtitle}>
-              {stats.totalMedicamentos} medicamentos • {stats.totalDias} dias
+              Veja seu histórico de medicamentos
             </Text>
           </View>
 
           <View style={styles.headerRight} />
-        </View>
-
-        {/* Stats cards */}
-        <View style={styles.statsContainer}>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{stats.medicamentosHoje}</Text>
-            <Text style={styles.statLabel}>Hoje</Text>
-          </View>
-
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{stats.totalDias}</Text>
-            <Text style={styles.statLabel}>Dias</Text>
-          </View>
-
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{stats.totalMedicamentos}</Text>
-            <Text style={styles.statLabel}>Total</Text>
-          </View>
         </View>
       </Animated.View>
 
@@ -488,8 +470,8 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: 'rgba(30, 41, 59, 0.95)',
     paddingHorizontal: isSmallScreen ? 16 : 24,
-    paddingTop: Platform.OS === 'ios' ? 20 : 30,
-    paddingBottom: 30,
+    paddingTop: Platform.OS === 'ios' ? 30 : 40,
+    paddingBottom: 15,
     borderBottomLeftRadius: 25,
     borderBottomRightRadius: 25,
     shadowColor: '#000',

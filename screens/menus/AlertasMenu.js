@@ -411,7 +411,7 @@ const AlertasScreen = ({navigation}) => {
           <View style={styles.headerCenter}>
             <Text style={styles.headerTitle}>Meus Alertas</Text>
             <Text style={styles.headerSubtitle}>
-              {stats.total} alertas • {stats.ativos} ativos
+              {stats.total} alerta(s)
             </Text>
           </View>
 
@@ -420,24 +420,6 @@ const AlertasScreen = ({navigation}) => {
             onPress={() => navigation.navigate('AdicionarAlerta')}>
             <Icon name="add" size={24} color="#FFFFFF" />
           </TouchableOpacity>
-        </View>
-
-        {/* Stats cards */}
-        <View style={styles.statsContainer}>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{stats.ativos}</Text>
-            <Text style={styles.statLabel}>Ativos</Text>
-          </View>
-
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{stats.inativos}</Text>
-            <Text style={styles.statLabel}>Inativos</Text>
-          </View>
-
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{stats.total}</Text>
-            <Text style={styles.statLabel}>Total</Text>
-          </View>
         </View>
       </Animated.View>
 
@@ -536,8 +518,8 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: 'rgba(30, 41, 59, 0.95)',
     paddingHorizontal: isSmallScreen ? 16 : 24,
-    paddingTop: Platform.OS === 'ios' ? 20 : 30,
-    paddingBottom: 30,
+    paddingTop: Platform.OS === 'ios' ? 30 : 40,
+    paddingBottom: 15,
     borderBottomLeftRadius: 25,
     borderBottomRightRadius: 25,
     shadowColor: '#000',

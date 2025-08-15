@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,10 @@ import {
   StatusBar,
   Dimensions,
   Modal,
+  Animated,
+  TouchableWithoutFeedback,
+  Platform,
+  SafeAreaView,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import firestore from '@react-native-firebase/firestore';
@@ -19,7 +23,10 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 
 const { width, height } = Dimensions.get('window');
+
 const isSmallScreen = width < 360;
+const isMediumScreen = width >= 360 && width < 400;
+const isLargeScreen = width >= 400;
 
 const AdicionarDependentes = ({ navigation, route }) => {
   const [loading, setLoading] = useState(false);
@@ -35,6 +42,46 @@ const AdicionarDependentes = ({ navigation, route }) => {
   const [showParentescoModal, setShowParentescoModal] = useState(false);
   const user = auth().currentUser;
   const isEditing = route?.params?.dependente;
+
+  // Animações
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideUpAnim = useRef(new Animated.Value(30)).current;
+  const backgroundAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // Animações iniciais
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideUpAnim, {
+        toValue: 0,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // Animação de fundo contínua
+    const backgroundAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(backgroundAnim, {
+          toValue: 1,
+          duration: 8000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(backgroundAnim, {
+          toValue: 0,
+          duration: 8000,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    backgroundAnimation.start();
+
+    return () => backgroundAnimation.stop();
+  }, [backgroundAnim, fadeAnim, slideUpAnim]);
 
   React.useEffect(() => {
     if (isEditing) {
@@ -238,56 +285,83 @@ const AdicionarDependentes = ({ navigation, route }) => {
       animationType="slide"
       onRequestClose={() => setShowParentescoModal(false)}
     >
-      <View style={styles.modalOverlay}>
-        <View style={styles.pickerModalContent}>
-          <View style={styles.pickerHeader}>
-            <Text style={styles.pickerTitle}>Selecionar Parentesco</Text>
-            <View style={styles.pickerHeaderActions}>
-              <TouchableOpacity 
-                style={styles.modalCloseButton}
-                onPress={() => setShowParentescoModal(false)}
-              >
-                <Icon name="close" size={24} color="#FFFFFF" />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <View style={styles.customPickerContainer}>
-            <ScrollView style={styles.customPickerScrollView}>
-              {parentescoOptions.map((opcao) => (
-                <TouchableOpacity
-                  key={opcao.id}
-                  style={[
-                    styles.customPickerItem,
-                    formData.parentesco === opcao.label && styles.customPickerItemSelected
-                  ]}
-                  onPress={() => {
-                    setFormData(prev => ({...prev, parentesco: opcao.label}));
-                    setShowParentescoModal(false);
-                  }}
-                >
-                  <View style={styles.customPickerItemContent}>
-                    <Icon name={opcao.icon} size={20} color="#4D97DB" />
-                    <View style={styles.customPickerItemInfo}>
-                      <Text style={styles.customPickerItemText}>{opcao.label}</Text>
-                    </View>
+      <TouchableWithoutFeedback onPress={() => setShowParentescoModal(false)}>
+        <View style={styles.modalOverlay}>
+          <TouchableWithoutFeedback>
+            <View style={styles.pickerModalContent}>
+              <View style={styles.pickerHeader}>
+                <View style={styles.pickerHeaderLeft}>
+                  <View style={styles.pickerIconContainer}>
+                    <Icon name="people" size={20} color="#4D97DB" />
                   </View>
-                  {formData.parentesco === opcao.label && (
-                    <Icon name="checkmark-circle" size={20} color="#10B981" />
-                  )}
+                  <Text style={styles.pickerTitle}>Selecionar Parentesco</Text>
+                </View>
+                <TouchableOpacity 
+                  style={styles.modalCloseButton}
+                  onPress={() => setShowParentescoModal(false)}
+                >
+                  <Icon name="close" size={20} color="#FFFFFF" />
                 </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
+              </View>
+
+              <ScrollView style={styles.customPickerScrollView}>
+                {parentescoOptions.map((opcao) => (
+                  <TouchableOpacity
+                    key={opcao.id}
+                    style={[
+                      styles.customPickerItem,
+                      formData.parentesco === opcao.label && styles.customPickerItemSelected
+                    ]}
+                    onPress={() => {
+                      setFormData(prev => ({...prev, parentesco: opcao.label}));
+                      setShowParentescoModal(false);
+                    }}
+                  >
+                    <View style={styles.customPickerItemContent}>
+                      <View style={[
+                        styles.customPickerIconContainer,
+                        formData.parentesco === opcao.label && styles.customPickerIconContainerSelected
+                      ]}>
+                        <Icon 
+                          name={opcao.icon} 
+                          size={18} 
+                          color={formData.parentesco === opcao.label ? "#FFFFFF" : "#4D97DB"} 
+                        />
+                      </View>
+                      <Text style={[
+                        styles.customPickerItemText,
+                        formData.parentesco === opcao.label && styles.customPickerItemTextSelected
+                      ]}>
+                        {opcao.label}
+                      </Text>
+                    </View>
+                    {formData.parentesco === opcao.label && (
+                      <Icon name="checkmark-circle" size={20} color="#10B981" />
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          </TouchableWithoutFeedback>
         </View>
-      </View>
+      </TouchableWithoutFeedback>
     </Modal>
   );
 
   const renderGeneroSelector = () => (
-    <View style={styles.section}>
+    <Animated.View 
+      style={[
+        styles.section,
+        {
+          opacity: fadeAnim,
+          transform: [{translateY: slideUpAnim}],
+        },
+      ]}
+    >
       <View style={styles.sectionHeader}>
-        <Icon name="person" size={20} color="#4D97DB" />
+        <View style={styles.sectionIconContainer}>
+          <Icon name="person" size={18} color="#4D97DB" />
+        </View>
         <Text style={styles.sectionTitle}>Gênero</Text>
       </View>
       <View style={styles.generoContainer}>
@@ -297,8 +371,12 @@ const AdicionarDependentes = ({ navigation, route }) => {
             formData.genero === 'masculino' && styles.generoOptionSelected
           ]}
           onPress={() => setFormData(prev => ({...prev, genero: 'masculino'}))}
+          activeOpacity={0.8}
         >
-          <View style={styles.generoIconContainer}>
+          <View style={[
+            styles.generoIconContainer,
+            formData.genero === 'masculino' && styles.generoIconContainerSelected
+          ]}>
             <Icon 
               name="man" 
               size={24} 
@@ -319,8 +397,12 @@ const AdicionarDependentes = ({ navigation, route }) => {
             formData.genero === 'feminino' && styles.generoOptionSelected
           ]}
           onPress={() => setFormData(prev => ({...prev, genero: 'feminino'}))}
+          activeOpacity={0.8}
         >
-          <View style={styles.generoIconContainer}>
+          <View style={[
+            styles.generoIconContainer,
+            formData.genero === 'feminino' && styles.generoIconContainerSelected
+          ]}>
             <Icon 
               name="woman" 
               size={24} 
@@ -335,17 +417,66 @@ const AdicionarDependentes = ({ navigation, route }) => {
           </Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </Animated.View>
   );
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#121A29" />
       
-      <View style={styles.header}>
+      {/* Círculos de fundo animados */}
+      <Animated.View
+        style={[
+          styles.backgroundCircle,
+          {
+            opacity: backgroundAnim.interpolate({
+              inputRange: [0, 1],
+              outputRange: [0.03, 0.08],
+            }),
+            transform: [
+              {
+                scale: backgroundAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [1, 1.1],
+                }),
+              },
+            ],
+          },
+        ]}
+      />
+      <Animated.View
+        style={[
+          styles.backgroundCircle2,
+          {
+            opacity: backgroundAnim.interpolate({
+              inputRange: [0, 1],
+              outputRange: [0.05, 0.03],
+            }),
+            transform: [
+              {
+                scale: backgroundAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [1.1, 1],
+                }),
+              },
+            ],
+          },
+        ]}
+      />
+      
+      <Animated.View 
+        style={[
+          styles.header,
+          {
+            opacity: fadeAnim,
+            transform: [{translateY: slideUpAnim}],
+          },
+        ]}
+      >
         <TouchableOpacity 
           style={styles.backButton}
           onPress={() => navigation.goBack()}
+          activeOpacity={0.8}
         >
           <Icon name="chevron-back" size={24} color="#FFFFFF" />
         </TouchableOpacity>
@@ -360,51 +491,71 @@ const AdicionarDependentes = ({ navigation, route }) => {
         </View>
         
         <View style={styles.headerRight} />
-      </View>
+      </Animated.View>
 
       <ScrollView 
         style={styles.content}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        <View style={styles.section}>
+        <Animated.View 
+          style={[
+            styles.section,
+            {
+              opacity: fadeAnim,
+              transform: [{translateY: slideUpAnim}],
+            },
+          ]}
+        >
           <View style={styles.sectionHeader}>
-            <Icon name="person-outline" size={20} color="#4D97DB" />
+            <View style={styles.sectionIconContainer}>
+              <Icon name="person-outline" size={18} color="#4D97DB" />
+            </View>
             <Text style={styles.sectionTitle}>Nome Completo</Text>
           </View>
           
           <View style={styles.inputContainer}>
             <View style={styles.inputContent}>
-              <View style={styles.iconContainer}>
+              <View style={styles.inputIconContainer}>
                 <Icon name="person-outline" size={18} color="#4D97DB" />
               </View>
               <TextInput
                 style={styles.textInput}
                 placeholder="Digite o nome completo"
-                placeholderTextColor="#6B7280"
+                placeholderTextColor="#64748b"
                 value={formData.nomeCompleto}
                 onChangeText={(text) => setFormData(prev => ({...prev, nomeCompleto: text}))}
                 autoCapitalize="words"
               />
             </View>
           </View>
-        </View>
+        </Animated.View>
 
-        <View style={styles.section}>
+        <Animated.View 
+          style={[
+            styles.section,
+            {
+              opacity: fadeAnim,
+              transform: [{translateY: slideUpAnim}],
+            },
+          ]}
+        >
           <View style={styles.sectionHeader}>
-            <Icon name="mail-outline" size={20} color="#4D97DB" />
+            <View style={styles.sectionIconContainer}>
+              <Icon name="mail-outline" size={18} color="#4D97DB" />
+            </View>
             <Text style={styles.sectionTitle}>Email</Text>
           </View>
           
           <View style={styles.inputContainer}>
             <View style={styles.inputContent}>
-              <View style={styles.iconContainer}>
+              <View style={styles.inputIconContainer}>
                 <Icon name="mail-outline" size={18} color="#4D97DB" />
               </View>
               <TextInput
                 style={styles.textInput}
                 placeholder="Digite o email"
-                placeholderTextColor="#6B7280"
+                placeholderTextColor="#64748b"
                 keyboardType="email-address"
                 autoCapitalize="none"
                 value={formData.email}
@@ -412,48 +563,68 @@ const AdicionarDependentes = ({ navigation, route }) => {
               />
             </View>
           </View>
-        </View>
+        </Animated.View>
 
         {renderGeneroSelector()}
 
         {!isEditing && (
-          <>
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Icon name="lock-closed-outline" size={20} color="#4D97DB" />
-                <Text style={styles.sectionTitle}>Senha</Text>
+          <Animated.View 
+            style={[
+              styles.section,
+              {
+                opacity: fadeAnim,
+                transform: [{translateY: slideUpAnim}],
+              },
+            ]}
+          >
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionIconContainer}>
+                <Icon name="lock-closed-outline" size={18} color="#4D97DB" />
               </View>
-              
-              <View style={styles.inputContainer}>
-                <View style={styles.inputContent}>
-                  <View style={styles.iconContainer}>
-                    <Icon name="lock-closed-outline" size={18} color="#4D97DB" />
-                  </View>
-                  <TextInput
-                    style={styles.textInput}
-                    placeholder="Mínimo 6 caracteres"
-                    placeholderTextColor="#6B7280"
-                    secureTextEntry
-                    value={formData.senha}
-                    onChangeText={(text) => setFormData(prev => ({...prev, senha: text}))}
-                  />
+              <Text style={styles.sectionTitle}>Senha</Text>
+            </View>
+            
+            <View style={styles.inputContainer}>
+              <View style={styles.inputContent}>
+                <View style={styles.inputIconContainer}>
+                  <Icon name="lock-closed-outline" size={18} color="#4D97DB" />
                 </View>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="Mínimo 6 caracteres"
+                  placeholderTextColor="#64748b"
+                  secureTextEntry
+                  value={formData.senha}
+                  onChangeText={(text) => setFormData(prev => ({...prev, senha: text}))}
+                />
               </View>
             </View>
-          </>
+          </Animated.View>
         )}
-        <View style={styles.section}>
+
+        <Animated.View 
+          style={[
+            styles.section,
+            {
+              opacity: fadeAnim,
+              transform: [{translateY: slideUpAnim}],
+            },
+          ]}
+        >
           <View style={styles.sectionHeader}>
-            <Icon name="people-outline" size={20} color="#4D97DB" />
+            <View style={styles.sectionIconContainer}>
+              <Icon name="people-outline" size={18} color="#4D97DB" />
+            </View>
             <Text style={styles.sectionTitle}>Parentesco</Text>
           </View>
           
           <TouchableOpacity 
             style={styles.inputContainer}
             onPress={() => setShowParentescoModal(true)}
+            activeOpacity={0.8}
           >
             <View style={styles.inputContent}>
-              <View style={styles.iconContainer}>
+              <View style={styles.inputIconContainer}>
                 <Icon name="people-outline" size={18} color="#4D97DB" />
               </View>
               <Text style={[
@@ -462,96 +633,131 @@ const AdicionarDependentes = ({ navigation, route }) => {
               ]}>
                 {getParentescoLabel()}
               </Text>
-              <Icon name="chevron-down" size={20} color="#8A8A8A" />
+              <Icon name="chevron-down" size={20} color="#64748b" />
             </View>
           </TouchableOpacity>
-        </View>
+        </Animated.View>
 
-        {/* Data de Nascimento */}
-        <View style={styles.section}>
+        <Animated.View 
+          style={[
+            styles.section,
+            {
+              opacity: fadeAnim,
+              transform: [{translateY: slideUpAnim}],
+            },
+          ]}
+        >
           <View style={styles.sectionHeader}>
-            <Icon name="calendar-outline" size={20} color="#4D97DB" />
+            <View style={styles.sectionIconContainer}>
+              <Icon name="calendar-outline" size={18} color="#4D97DB" />
+            </View>
             <Text style={styles.sectionTitle}>Data de Nascimento</Text>
           </View>
           
           <TouchableOpacity 
-            style={styles.dateContainer}
+            style={styles.inputContainer}
             onPress={() => setShowDatePicker(true)}
+            activeOpacity={0.8}
           >
-            <View style={styles.dateContent}>
-              <View style={styles.iconContainer}>
+            <View style={styles.inputContent}>
+              <View style={styles.inputIconContainer}>
                 <Icon name="calendar-outline" size={18} color="#4D97DB" />
               </View>
-              <Text style={styles.dateText}>
+              <Text style={styles.inputText}>
                 {formatarData(formData.dataNascimento)}
               </Text>
-              <Icon name="chevron-down" size={20} color="#8A8A8A" />
+              <Icon name="chevron-down" size={20} color="#64748b" />
             </View>
           </TouchableOpacity>
-        </View>
+        </Animated.View>
 
-        <View style={styles.infoCard}>
+        <Animated.View 
+          style={[
+            styles.infoCard,
+            {
+              opacity: fadeAnim,
+              transform: [{translateY: slideUpAnim}],
+            },
+          ]}
+        >
           <View style={styles.infoHeader}>
-            <Icon name="information-circle" size={20} color="#4D97DB" />
+            <View style={styles.infoIconContainer}>
+              <Icon name="information-circle" size={18} color="#4D97DB" />
+            </View>
             <Text style={styles.infoTitle}>Informações Importantes</Text>
           </View>
           <View style={styles.infoContent}>
             <View style={styles.infoItem}>
-              <Icon name="checkmark-circle" size={16} color="#10B981" />
+              <View style={styles.infoItemIconContainer}>
+                <Icon name="checkmark-circle" size={14} color="#10B981" />
+              </View>
               <Text style={styles.infoText}>
                 Uma conta será criada automaticamente para o dependente
               </Text>
             </View>
             <View style={styles.infoItem}>
-              <Icon name="information-circle-outline" size={16} color="#F59E0B" />
+              <View style={styles.infoItemIconContainer}>
+                <Icon name="information-circle-outline" size={14} color="#F59E0B" />
+              </View>
               <Text style={styles.infoText}>
                 O login NÃO será feito automaticamente no dispositivo
               </Text>
             </View>
             <View style={styles.infoItem}>
-              <Icon name="key" size={16} color="#6366F1" />
+              <View style={styles.infoItemIconContainer}>
+                <Icon name="key" size={14} color="#6366F1" />
+              </View>
               <Text style={styles.infoText}>
                 O dependente poderá acessar com email e senha fornecidos
               </Text>
             </View>
             <View style={styles.infoItem}>
-              <Icon name="medical" size={16} color="#EC4899" />
+              <View style={styles.infoItemIconContainer}>
+                <MaterialIcons name="medication" size={14} color="#EC4899" />
+              </View>
               <Text style={styles.infoText}>
                 Você gerenciará os medicamentos desta pessoa
               </Text>
             </View>
           </View>
-        </View>
+        </Animated.View>
 
-        <TouchableOpacity 
-          style={[
-            styles.saveButton,
-            loading && styles.saveButtonDisabled
-          ]}
-          onPress={salvarDependente}
-          disabled={loading}
-          activeOpacity={0.8}
+        <Animated.View 
+          style={{
+            opacity: fadeAnim,
+            transform: [{translateY: slideUpAnim}],
+          }}
         >
-          {loading ? (
-            <View style={styles.loadingContent}>
-              <ActivityIndicator size="small" color="#FFFFFF" />
-              <Text style={styles.saveButtonText}>
-                {isEditing ? 'Atualizando...' : 'Cadastrando...'}
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.buttonContent}>
-              <Icon 
-                name={isEditing ? "checkmark-circle" : "person-add"} 
-                size={20} 
-                color="#FFFFFF" 
-              />
-              <Text style={styles.saveButtonText}>
-                {isEditing ? 'Atualizar Dependente' : 'Cadastrar Dependente'}
-              </Text>
-            </View>
-          )}
-        </TouchableOpacity>
+          <TouchableOpacity 
+            style={[
+              styles.saveButton,
+              loading && styles.saveButtonDisabled
+            ]}
+            onPress={salvarDependente}
+            disabled={loading}
+            activeOpacity={0.8}
+          >
+            {loading ? (
+              <View style={styles.loadingContent}>
+                <ActivityIndicator size="small" color="#FFFFFF" />
+                <Text style={styles.saveButtonText}>
+                  {isEditing ? 'Atualizando...' : 'Cadastrando...'}
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.buttonContent}>
+                <Icon 
+                  name={isEditing ? "checkmark-circle" : "person-add"} 
+                  size={20} 
+                  color="#FFFFFF" 
+                />
+                <Text style={styles.saveButtonText}>
+                  {isEditing ? 'Atualizar Dependente' : 'Cadastrar Dependente'}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </Animated.View>
       </ScrollView>
 
       {showDatePicker && (
@@ -565,35 +771,69 @@ const AdicionarDependentes = ({ navigation, route }) => {
       )}
 
       {renderParentescoModal()}
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#2b3241ff',
+    backgroundColor: '#121A29',
+  },
+  backgroundCircle: {
+    position: 'absolute',
+    width: width * 2,
+    height: width * 2,
+    borderRadius: width,
+    backgroundColor: '#4D97DB',
+    top: -width * 0.8,
+    left: -width * 0.5,
+  },
+  backgroundCircle2: {
+    position: 'absolute',
+    width: width * 1.5,
+    height: width * 1.5,
+    borderRadius: width * 0.75,
+    backgroundColor: '#10B981',
+    bottom: -width * 0.6,
+    right: -width * 0.4,
   },
   header: {
-    backgroundColor: '#121A29',
+    backgroundColor: 'rgba(30, 41, 59, 0.95)',
     paddingHorizontal: isSmallScreen ? 16 : 24,
-    paddingTop: 60,
-    paddingBottom: 30,
+    paddingTop: Platform.OS === 'ios' ? 40 : 50,
+    paddingBottom: 15,
     borderBottomLeftRadius: 25,
     borderBottomRightRadius: 25,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   backButton: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   headerCenter: {
     flex: 1,
@@ -605,11 +845,16 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
     marginBottom: 4,
+    letterSpacing: -0.5,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
   },
   headerSubtitle: {
     fontSize: isSmallScreen ? 12 : 14,
-    color: '#8A8A8A',
+    color: '#94a3b8',
     textAlign: 'center',
+    fontWeight: '500',
+    letterSpacing: 0.3,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   headerRight: {
     width: 44,
@@ -631,46 +876,67 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     gap: 8,
   },
+  sectionIconContainer: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(77, 151, 219, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   sectionTitle: {
     fontSize: isSmallScreen ? 16 : 18,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontWeight: '700',
+    color: '#e2e8f0',
+    letterSpacing: 0.3,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
   },
   inputContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 16,
+    backgroundColor: 'rgba(30, 41, 59, 0.8)',
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
+    borderColor: 'rgba(51, 65, 85, 0.6)',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
   },
   inputContent: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingVertical: 18,
+    gap: 12,
   },
-  iconContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+  inputIconContainer: {
+    width: isSmallScreen ? 32 : 36,
+    height: isSmallScreen ? 32 : 36,
+    borderRadius: isSmallScreen ? 16 : 18,
     backgroundColor: 'rgba(77, 151, 219, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
   },
   textInput: {
-    fontSize: 16,
-    color: '#FFFFFF',
+    fontSize: isSmallScreen ? 14 : 16,
+    color: '#f8fafc',
     fontWeight: '500',
     flex: 1,
+    letterSpacing: 0.2,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   inputText: {
-    fontSize: 16,
-    color: '#FFFFFF',
+    fontSize: isSmallScreen ? 14 : 16,
+    color: '#f8fafc',
     fontWeight: '500',
     flex: 1,
+    letterSpacing: 0.2,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   inputPlaceholder: {
-    color: '#8A8A8A',
+    color: '#64748b',
     fontWeight: '400',
   },
   generoContainer: {
@@ -679,59 +945,71 @@ const styles = StyleSheet.create({
   },
   generoOption: {
     flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 16,
+    backgroundColor: 'rgba(30, 41, 59, 0.8)',
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
+    borderColor: 'rgba(51, 65, 85, 0.6)',
     paddingVertical: 20,
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
   },
   generoOptionSelected: {
     backgroundColor: '#4D97DB',
     borderColor: '#4D97DB',
+    shadowColor: '#4D97DB',
+    shadowOpacity: 0.3,
   },
   generoIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: isSmallScreen ? 40 : 48,
+    height: isSmallScreen ? 40 : 48,
+    borderRadius: isSmallScreen ? 20 : 24,
     backgroundColor: 'rgba(77, 151, 219, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  generoIconContainerSelected: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
   generoText: {
-    fontSize: 14,
+    fontSize: isSmallScreen ? 12 : 14,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: '#e2e8f0',
+    letterSpacing: 0.2,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   generoTextSelected: {
     color: '#FFFFFF',
   },
-  dateContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
-  },
-  dateContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-  },
-  dateText: {
-    fontSize: 16,
-    color: '#FFFFFF',
-    fontWeight: '500',
-    flex: 1,
-  },
   infoCard: {
-    backgroundColor: 'rgba(77, 151, 219, 0.08)',
-    borderRadius: 16,
+    backgroundColor: 'rgba(30, 41, 59, 0.8)',
+    borderRadius: 18,
     padding: 20,
     marginBottom: 25,
     borderWidth: 1,
-    borderColor: 'rgba(77, 151, 219, 0.2)',
+    borderColor: 'rgba(51, 65, 85, 0.6)',
+    borderLeftWidth: 4,
+    borderLeftColor: '#4D97DB',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
   },
   infoHeader: {
     flexDirection: 'row',
@@ -739,10 +1017,20 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     gap: 8,
   },
+  infoIconContainer: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(77, 151, 219, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   infoTitle: {
-    fontSize: 16,
+    fontSize: isSmallScreen ? 14 : 16,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: '#f8fafc',
+    letterSpacing: 0.2,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   infoContent: {
     gap: 12,
@@ -752,11 +1040,22 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: 8,
   },
+  infoItemIconContainer: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 1,
+  },
   infoText: {
-    fontSize: 14,
-    color: '#D1D5DB',
+    fontSize: isSmallScreen ? 12 : 14,
+    color: '#94a3b8',
     flex: 1,
     lineHeight: 20,
+    letterSpacing: 0.1,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   saveButton: {
     backgroundColor: '#4D97DB',
@@ -764,9 +1063,21 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
     alignItems: 'center',
     marginTop: 10,
+    shadowColor: '#4D97DB',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(77, 151, 219, 0.3)',
   },
   saveButtonDisabled: {
-    backgroundColor: '#6B7280',
+    backgroundColor: '#64748b',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    borderColor: 'rgba(100, 116, 139, 0.3)',
   },
   buttonContent: {
     flexDirection: 'row',
@@ -780,25 +1091,32 @@ const styles = StyleSheet.create({
   },
   saveButtonText: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: isSmallScreen ? 14 : 16,
     fontWeight: '700',
     letterSpacing: 0.5,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
-  // Estilos do Modal Picker (do primeiro código)
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: 'flex-end',
   },
   pickerModalContent: {
-    backgroundColor: '#2b3241ff',
+    backgroundColor: 'rgba(30, 41, 59, 0.95)',
     borderTopLeftRadius: 25,
     borderTopRightRadius: 25,
     maxHeight: height * 0.7,
     borderTopWidth: 1,
     borderLeftWidth: 1,
     borderRightWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: 'rgba(51, 65, 85, 0.6)',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: -4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
   },
   pickerHeader: {
     flexDirection: 'row',
@@ -807,38 +1125,42 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 20,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    borderBottomColor: 'rgba(51, 65, 85, 0.6)',
   },
-  pickerHeaderActions: {
+  pickerHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 8,
+    flex: 1,
+  },
+  pickerIconContainer: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(77, 151, 219, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   pickerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontSize: isSmallScreen ? 16 : 18,
+    fontWeight: '700',
+    color: '#f8fafc',
+    letterSpacing: 0.3,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
   },
   modalCloseButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  customPickerContainer: {
-    paddingHorizontal: 24,
-    paddingVertical: 20,
-    maxHeight: 300,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
   },
   customPickerScrollView: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
   },
   customPickerItem: {
     flexDirection: 'row',
@@ -847,10 +1169,14 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+    borderBottomColor: 'rgba(51, 65, 85, 0.3)',
+    borderRadius: 12,
+    marginBottom: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.02)',
   },
   customPickerItemSelected: {
-    backgroundColor: 'rgba(77, 151, 219, 0.1)',
+    backgroundColor: 'rgba(77, 151, 219, 0.15)',
+    borderBottomColor: 'rgba(77, 151, 219, 0.3)',
   },
   customPickerItemContent: {
     flexDirection: 'row',
@@ -858,14 +1184,24 @@ const styles = StyleSheet.create({
     gap: 12,
     flex: 1,
   },
-  customPickerItemInfo: {
-    flex: 1,
+  customPickerIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(77, 151, 219, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  customPickerIconContainerSelected: {
+    backgroundColor: '#4D97DB',
   },
   customPickerItemText: {
-    fontSize: 16,
-    color: '#FFFFFF',
+    fontSize: isSmallScreen ? 14 : 16,
+    color: '#e2e8f0',
     fontWeight: '500',
-  }
+    letterSpacing: 0.2,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
+  },
 });
 
 export default AdicionarDependentes;

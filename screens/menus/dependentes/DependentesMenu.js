@@ -209,16 +209,6 @@ const Dependentes = ({navigation}) => {
                 </View>
               </View>
             </View>
-
-            <TouchableOpacity
-              style={styles.moreButton}
-              onPress={() =>
-                navigation.navigate('IndexDependentes', {
-                  dependenteId: dependente.id,
-                })
-              }>
-              <Icon name="chevron-forward" size={20} color="#10B981" />
-            </TouchableOpacity>
           </View>
         </View>
 
@@ -290,7 +280,6 @@ const Dependentes = ({navigation}) => {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#121A29" />
 
-      {/* Círculos de fundo animados */}
       <Animated.View
         style={[
           styles.backgroundCircle,
