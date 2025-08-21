@@ -28,15 +28,18 @@ const isMediumScreen = width >= 360 && width < 400;
 const isLargeScreen = width >= 400;
 
 const Index = ({navigation}) => {
-  const [avisos, setAvisos] = useState([]);
   const [medicamentos, setMedicamentos] = useState([]);
-  const [alertas, setAlertas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [menuVisible, setMenuVisible] = useState(false);
+  const [currentTime, setCurrentTime] = useState(new Date());
   const [stats, setStats] = useState({
     medicamentosAtivos: 0,
     alertasHoje: 0,
     dependentes: 0,
+    nextMedication: null,
+    nextMedicationTomorrow: null,
+    hasAlarmsOtherDays: false,
+    totalAlarms: 0,
   });
 
   const user = auth().currentUser;
@@ -44,6 +47,17 @@ const Index = ({navigation}) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideUpAnim = useRef(new Animated.Value(30)).current;
   const backgroundAnim = useRef(new Animated.Value(0)).current;
+  const statsSlideAnim = useRef(new Animated.Value(50)).current;
+  const welcomeSlideAnim = useRef(new Animated.Value(30)).current;
+
+  // Atualizar o tempo a cada minuto
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 60000); // Atualiza a cada minuto
+
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     // Animações iniciais
@@ -56,6 +70,18 @@ const Index = ({navigation}) => {
       Animated.timing(slideUpAnim, {
         toValue: 0,
         duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.timing(statsSlideAnim, {
+        toValue: 0,
+        duration: 800,
+        delay: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(welcomeSlideAnim, {
+        toValue: 0,
+        duration: 700,
+        delay: 400,
         useNativeDriver: true,
       }),
     ]).start();
@@ -78,7 +104,7 @@ const Index = ({navigation}) => {
     backgroundAnimation.start();
 
     return () => backgroundAnimation.stop();
-  }, [backgroundAnim, fadeAnim, slideUpAnim]);
+  }, [backgroundAnim, fadeAnim, slideUpAnim, statsSlideAnim, welcomeSlideAnim]);
 
   useEffect(() => {
     if (!user) {
@@ -119,11 +145,292 @@ const Index = ({navigation}) => {
         setStats(prev => ({...prev, dependentes: snapshot?.docs?.length || 0}));
       });
 
+    // Buscar alertas para próximo medicamento
+    const unsubscribeAlertas = firestore()
+      .collection('alertas')
+      .where('usuarioId', '==', user.uid)
+      .onSnapshot(
+        async snapshot => {
+          try {
+            if (!snapshot || !snapshot.docs) {
+              console.log('Nenhum alerta encontrado');
+              setStats(prev => ({
+                ...prev, 
+                nextMedication: null,
+                nextMedicationTomorrow: null,
+                hasAlarmsOtherDays: false,
+                totalAlarms: 0,
+              }));
+              return;
+            }
+
+            const alertasData = snapshot.docs.map(doc => ({
+              id: doc.id,
+              ...doc.data(),
+            }));
+
+            console.log('Alertas encontrados:', alertasData.length);
+
+            // Filtrar apenas alertas ativos
+            const alertasAtivos = alertasData.filter(alerta => alerta.ativo !== false);
+            console.log('Alertas ativos:', alertasAtivos.length);
+
+            // Buscar próximo medicamento e estatísticas
+            const medicationStats = await getMedicationStats(alertasAtivos);
+            console.log('Estatísticas dos medicamentos:', medicationStats);
+            
+            setStats(prev => ({
+              ...prev, 
+              ...medicationStats,
+              totalAlarms: alertasAtivos.length,
+            }));
+
+          } catch (error) {
+            console.error('Erro ao processar alertas:', error);
+            setStats(prev => ({
+              ...prev, 
+              nextMedication: null,
+              nextMedicationTomorrow: null,
+              hasAlarmsOtherDays: false,
+              totalAlarms: 0,
+            }));
+          }
+        },
+        error => {
+          console.error('Erro ao buscar alertas:', error);
+          setStats(prev => ({
+            ...prev, 
+            nextMedication: null,
+            nextMedicationTomorrow: null,
+            hasAlarmsOtherDays: false,
+            totalAlarms: 0,
+          }));
+        },
+      );
+
     return () => {
       unsubscribe();
       unsubscribeDependentes();
+      unsubscribeAlertas();
     };
   }, [user]);
+
+  // Recalcular próximo medicamento quando o tempo muda
+  useEffect(() => {
+    if (stats.totalAlarms > 0) {
+      // Reprocessar alertas quando o tempo muda
+      const reprocessAlerts = async () => {
+        try {
+          const alertasSnapshot = await firestore()
+            .collection('alertas')
+            .where('usuarioId', '==', user?.uid)
+            .get();
+
+          if (alertasSnapshot && alertasSnapshot.docs) {
+            const alertasData = alertasSnapshot.docs.map(doc => ({
+              id: doc.id,
+              ...doc.data(),
+            }));
+
+            const alertasAtivos = alertasData.filter(alerta => alerta.ativo !== false);
+            const medicationStats = await getMedicationStats(alertasAtivos);
+            
+            setStats(prev => ({
+              ...prev, 
+              ...medicationStats,
+            }));
+          }
+        } catch (error) {
+          console.error('Erro ao reprocessar alertas:', error);
+        }
+      };
+
+      reprocessAlerts();
+    }
+  }, [currentTime, user?.uid]);
+
+  const getMedicationStats = async (alertasData) => {
+    console.log('Processando alertas:', alertasData);
+    
+    if (!alertasData || alertasData.length === 0) {
+      console.log('Nenhum alerta para processar');
+      return {
+        nextMedication: null,
+        nextMedicationTomorrow: null,
+        hasAlarmsOtherDays: false,
+      };
+    }
+
+    const now = new Date();
+    console.log('Hora atual:', now.toLocaleTimeString('pt-BR'));
+    
+    const currentDay = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
+    const tomorrow = (currentDay + 1) % 7;
+    
+    // Mapear dias da semana (ajustando para diferentes formatos)
+    const diasSemana = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
+    const diasSemanaShort = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+    const currentDayName = diasSemana[currentDay];
+    const currentDayNameShort = diasSemanaShort[currentDay];
+    const tomorrowDayName = diasSemana[tomorrow];
+    const tomorrowDayNameShort = diasSemanaShort[tomorrow];
+    
+    console.log('Dia atual:', currentDayName, currentDayNameShort);
+    console.log('Amanhã:', tomorrowDayName, tomorrowDayNameShort);
+
+    let nextMedicationsToday = [];
+    let nextMedicationsTomorrow = [];
+    let hasAlarmsOtherDays = false;
+
+    for (let alerta of alertasData) {
+      try {
+        console.log('Processando alerta:', alerta.id, alerta.horario);
+        
+        // Buscar nome do remédio
+        let nomeRemedio = alerta.titulo || 'Medicamento';
+        if (alerta.remedioId) {
+          try {
+            const remedioDoc = await firestore()
+              .collection('remedios')
+              .doc(alerta.remedioId)
+              .get();
+            if (remedioDoc.exists) {
+              nomeRemedio = remedioDoc.data().nome || nomeRemedio;
+            }
+          } catch (error) {
+            console.error('Erro ao buscar remédio:', error);
+          }
+        }
+
+        // Verificar em quais dias este alerta está configurado
+        let isToday = false;
+        let isTomorrow = false;
+        let hasOtherDays = false;
+        
+        if (alerta.dias) {
+          let diasArray = [];
+          
+          if (Array.isArray(alerta.dias)) {
+            diasArray = alerta.dias.map(d => d.toLowerCase().trim());
+          } else if (typeof alerta.dias === 'string') {
+            diasArray = alerta.dias.toLowerCase().split(',').map(d => d.trim());
+          }
+
+          isToday = diasArray.includes(currentDayName) || diasArray.includes(currentDayNameShort);
+          isTomorrow = diasArray.includes(tomorrowDayName) || diasArray.includes(tomorrowDayNameShort);
+          
+          // Verificar se tem alarmes em outros dias além de hoje e amanhã
+          const otherDays = diasArray.filter(day => 
+            !day.includes(currentDayName.toLowerCase()) && 
+            !day.includes(currentDayNameShort.toLowerCase()) &&
+            !day.includes(tomorrowDayName.toLowerCase()) && 
+            !day.includes(tomorrowDayNameShort.toLowerCase())
+          );
+          hasOtherDays = otherDays.length > 0;
+          
+          if (hasOtherDays) {
+            hasAlarmsOtherDays = true;
+          }
+        } else {
+          // Se não especificou dias, assume que é todo dia
+          isToday = true;
+          isTomorrow = true;
+        }
+        
+        console.log('Alerta é para hoje?', isToday, 'Amanhã?', isTomorrow, 'Outros dias?', hasOtherDays);
+
+        if (alerta.horario) {
+          try {
+            const [hours, minutes] = alerta.horario.split(':').map(Number);
+            
+            // Para hoje
+            if (isToday) {
+              const alertTime = new Date();
+              alertTime.setHours(hours, minutes, 0, 0);
+
+              console.log('Horário do alerta hoje:', alertTime.toLocaleTimeString('pt-BR'));
+              console.log('Já passou?', alertTime <= now);
+
+              // Se o horário ainda não passou hoje
+              if (alertTime > now) {
+                const timeDiff = alertTime - now;
+                const hoursRemaining = Math.floor(timeDiff / (1000 * 60 * 60));
+                const minutesRemaining = Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60));
+
+                let timeRemaining;
+                if (hoursRemaining > 0) {
+                  timeRemaining = `em ${hoursRemaining}h ${minutesRemaining}min`;
+                } else {
+                  timeRemaining = `em ${minutesRemaining}min`;
+                }
+
+                nextMedicationsToday.push({
+                  ...alerta,
+                  nomeRemedio,
+                  timeRemaining,
+                  alertTime,
+                  isToday: true,
+                });
+                
+                console.log('Adicionado à lista de hoje:', nomeRemedio, timeRemaining);
+              }
+            }
+
+            // Para amanhã
+            if (isTomorrow) {
+              const alertTimeTomorrow = new Date();
+              alertTimeTomorrow.setDate(alertTimeTomorrow.getDate() + 1);
+              alertTimeTomorrow.setHours(hours, minutes, 0, 0);
+
+              const timeDiffTomorrow = alertTimeTomorrow - now;
+              const hoursRemaining = Math.floor(timeDiffTomorrow / (1000 * 60 * 60));
+              const minutesRemaining = Math.floor((timeDiffTomorrow % (1000 * 60 * 60)) / (1000 * 60));
+
+              let timeRemaining;
+              if (hoursRemaining > 0) {
+                timeRemaining = `em ${hoursRemaining}h ${minutesRemaining}min`;
+              } else {
+                timeRemaining = `amanhã`;
+              }
+
+              nextMedicationsTomorrow.push({
+                ...alerta,
+                nomeRemedio,
+                timeRemaining,
+                alertTime: alertTimeTomorrow,
+                isTomorrow: true,
+              });
+              
+              console.log('Adicionado à lista de amanhã:', nomeRemedio, timeRemaining);
+            }
+          } catch (error) {
+            console.error('Erro ao processar horário:', error);
+          }
+        }
+      } catch (error) {
+        console.error('Erro ao processar alerta:', error);
+      }
+    }
+
+    console.log('Próximos medicamentos hoje:', nextMedicationsToday.length);
+    console.log('Próximos medicamentos amanhã:', nextMedicationsTomorrow.length);
+
+    // Ordenar por horário mais próximo
+    nextMedicationsToday.sort((a, b) => a.alertTime - b.alertTime);
+    nextMedicationsTomorrow.sort((a, b) => a.alertTime - b.alertTime);
+
+    const nextMedication = nextMedicationsToday.length > 0 ? nextMedicationsToday[0] : null;
+    const nextMedicationTomorrow = nextMedicationsTomorrow.length > 0 ? nextMedicationsTomorrow[0] : null;
+    
+    console.log('Próximo medicamento hoje selecionado:', nextMedication?.nomeRemedio, nextMedication?.timeRemaining);
+    console.log('Próximo medicamento amanhã selecionado:', nextMedicationTomorrow?.nomeRemedio, nextMedicationTomorrow?.timeRemaining);
+    
+    return {
+      nextMedication,
+      nextMedicationTomorrow,
+      hasAlarmsOtherDays,
+    };
+  };
 
   const toggleMenu = () => {
     if (menuVisible) {
@@ -236,7 +543,6 @@ const Index = ({navigation}) => {
                   <Text style={styles.menuItemText}>Ajuda</Text>
                 </TouchableOpacity>
 
-
                 <TouchableOpacity
                   style={[styles.menuItem, styles.logoutMenuItem]}
                   onPress={handleLogout}>
@@ -253,71 +559,7 @@ const Index = ({navigation}) => {
     </Modal>
   );
 
-  const renderAvisoItem = aviso => (
-    <TouchableOpacity key={aviso.id} style={styles.avisoCard}>
-      <View style={styles.avisoHeader}>
-        <View
-          style={[
-            styles.avisoIconContainer,
-            {backgroundColor: getPrioridadeCor(aviso.prioridade) + '20'},
-          ]}>
-          <Icon
-            name={getTipoIcon(aviso.tipo)}
-            size={20}
-            color={getPrioridadeCor(aviso.prioridade)}
-          />
-        </View>
-        <View style={styles.avisoContent}>
-          <Text style={styles.avisoTitulo}>{aviso.titulo}</Text>
-          <Text style={styles.avisoDescricao}>{aviso.descricao}</Text>
-          <View style={styles.avisoFooter}>
-            <Text style={styles.avisoData}>{aviso.data}</Text>
-            <View
-              style={[
-                styles.prioridadeBadge,
-                {backgroundColor: getPrioridadeCor(aviso.prioridade)},
-              ]}>
-              <Text style={styles.prioridadeText}>
-                {aviso.prioridade.charAt(0).toUpperCase() +
-                  aviso.prioridade.slice(1)}
-              </Text>
-            </View>
-          </View>
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
-
-  const renderEmptyState = () => (
-    <View style={styles.emptyStateContainer}>
-      <View style={styles.emptyStateIconContainer}>
-        <Icon
-          name="notifications-off"
-          size={isSmallScreen ? 40 : 48}
-          color="#64748b"
-        />
-      </View>
-      <Text style={styles.emptyStateTitle}>Nenhum aviso encontrado</Text>
-      <Text style={styles.emptyStateDescription}>
-        Você não possui avisos ou notificações no momento.
-      </Text>
-    </View>
-  );
-
-  const renderLoadingState = () => (
-    <View style={styles.loadingContainer}>
-      <ActivityIndicator size="large" color="#4D97DB" />
-      <Text style={styles.loadingText}>Carregando avisos...</Text>
-    </View>
-  );
-
-  const getQuickActionColumns = () => {
-    if (isSmallScreen) return 2;
-    return 4;
-  };
-
   const renderQuickActions = () => {
-    const columns = getQuickActionColumns();
     const actions = [
       {
         icon: 'alarm',
@@ -325,6 +567,7 @@ const Index = ({navigation}) => {
         route: 'AlertasMenu',
         component: Icon,
         color: '#4d96db',
+        description: 'Configure seus lembretes'
       },
       {
         icon: 'medication',
@@ -332,6 +575,7 @@ const Index = ({navigation}) => {
         route: 'RemediosMenu',
         component: MaterialIcons,
         color: '#E53E3E',
+        description: 'Gerencie medicamentos'
       },
       {
         icon: 'user-friends',
@@ -339,6 +583,7 @@ const Index = ({navigation}) => {
         route: 'DependentesMenu',
         component: FontAwesome5,
         color: '#10B981',
+        description: 'Cuide de quem ama'
       },
       {
         icon: 'bar-chart',
@@ -346,103 +591,181 @@ const Index = ({navigation}) => {
         route: 'HistoricoMenu',
         component: Icon,
         color: '#F59E0B',
+        description: 'Acompanhe o progresso'
       },
     ];
 
-    if (columns === 2) {
-      return (
-        <View style={styles.quickActionsGrid}>
-          <View style={styles.quickActionsRow}>
-            {actions.slice(0, 2).map((action, index) => (
+    return (
+      <Animated.View
+        style={[
+          styles.actionsSection,
+          {
+            opacity: fadeAnim,
+            transform: [{translateY: slideUpAnim}],
+          },
+        ]}>
+        <View style={styles.actionsGrid}>
+          {actions.map((action, index) => (
+            <Animated.View
+              key={index}
+              style={[
+                {
+                  opacity: fadeAnim,
+                  transform: [{
+                    translateY: slideUpAnim.interpolate({
+                      inputRange: [0, 30],
+                      outputRange: [0, 30 + (index * 10)],
+                    })
+                  }],
+                }
+              ]}>
               <TouchableOpacity
-                key={index}
                 style={[
-                  styles.quickActionButton,
-                  styles.quickActionButtonGrid,
+                  styles.modernActionCard,
                   {
                     backgroundColor: action.color + '15',
                     borderColor: action.color + '25',
+                    borderLeftColor: action.color,
                   },
                 ]}
                 onPress={() => navigation.navigate(action.route)}>
-                <View
-                  style={[
-                    styles.quickActionIcon,
-                    {backgroundColor: action.color},
-                  ]}>
-                  <action.component
-                    name={action.icon}
-                    size={action.component === FontAwesome5 ? 16 : 18}
-                    color="#FFFFFF"
-                  />
+                <View style={styles.modernActionContent}>
+                  <View style={[styles.modernActionIcon, {backgroundColor: action.color}]}>
+                    <action.component
+                      name={action.icon}
+                      size={action.component === FontAwesome5 ? 18 : 20}
+                      color="#FFFFFF"
+                    />
+                  </View>
+                  <View style={styles.modernActionText}>
+                    <Text style={styles.modernActionTitle}>{action.text}</Text>
+                    <Text style={styles.modernActionDescription}>{action.description}</Text>
+                  </View>
+                  <View style={styles.modernActionArrow}>
+                    <Icon name="chevron-forward" size={20} color="#94a3b8" />
+                  </View>
                 </View>
-                <Text style={styles.quickActionText}>{action.text}</Text>
               </TouchableOpacity>
-            ))}
-          </View>
-          <View style={styles.quickActionsRow}>
-            {actions.slice(2, 4).map((action, index) => (
-              <TouchableOpacity
-                key={index + 2}
-                style={[
-                  styles.quickActionButton,
-                  styles.quickActionButtonGrid,
-                  {
-                    backgroundColor: action.color + '15',
-                    borderColor: action.color + '25',
-                  },
-                ]}
-                onPress={() => navigation.navigate(action.route)}>
-                <View
-                  style={[
-                    styles.quickActionIcon,
-                    {backgroundColor: action.color},
-                  ]}>
-                  <action.component
-                    name={action.icon}
-                    size={action.component === FontAwesome5 ? 16 : 18}
-                    color="#FFFFFF"
-                  />
-                </View>
-                <Text style={styles.quickActionText}>{action.text}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+            </Animated.View>
+          ))}
         </View>
-      );
+      </Animated.View>
+    );
+  };
+
+  const renderNextMedication = () => {
+    // Determinar qual card mostrar baseado na situação dos alarmes
+    let cardType = 'no-alarms'; // padrão: sem alarmes
+    let cardData = null;
+
+    if (stats.totalAlarms > 0) {
+      if (stats.nextMedication) {
+        cardType = 'next-today';
+        cardData = stats.nextMedication;
+      } else if (stats.hasAlarmsOtherDays) {
+        cardType = 'other-days';
+      } else {
+        cardType = 'no-active-today';
+      }
     }
 
     return (
-      <View style={styles.quickActionsContainer}>
-        {actions.map((action, index) => (
-          <TouchableOpacity
-            key={index}
-            style={[
-              styles.quickActionButton,
-              {
-                backgroundColor: action.color + '15',
-                borderColor: action.color + '25',
-              },
-            ]}
-            onPress={() => navigation.navigate(action.route)}>
-            <View
-              style={[styles.quickActionIcon, {backgroundColor: action.color}]}>
-              <action.component
-                name={action.icon}
-                size={action.component === FontAwesome5 ? 16 : 18}
-                color="#FFFFFF"
-              />
+      <Animated.View
+        style={[
+          styles.nextMedSection,
+          {
+            opacity: fadeAnim,
+            transform: [{translateY: statsSlideAnim}],
+          },
+        ]}>
+        <View style={styles.nextMedHeader}>
+          <Text style={styles.nextMedTitle}>Próximo Medicamento</Text>
+          <Text style={styles.nextMedSubtitle}>
+            {cardType === 'no-alarms' ? 'Configure seus lembretes' :
+             cardType === 'next-today' ? 'Não esqueça do seu tratamento' :
+             cardType === 'other-days' ? 'Pode descansar' :
+             'Nenhum alarme para hoje'}
+          </Text>
+        </View>
+        
+        {cardType === 'next-today' && (
+          <View style={[styles.nextMedCard, styles.nextMedCardToday]}>
+            <View style={[styles.nextMedIconContainer, styles.nextMedIconToday]}>
+              <Icon name="alarm" size={20} color="#4D97DB" />
             </View>
-            <Text style={styles.quickActionText}>{action.text}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+            
+            <View style={styles.nextMedContent}>
+              <Text style={styles.nextMedTime}>{cardData.horario}</Text>
+              <Text style={styles.nextMedName}>{cardData.nomeRemedio}</Text>
+              <Text style={styles.nextMedDosage}>Dosagem: {cardData.dosagem}</Text>
+              <Text style={[styles.nextMedRemaining, styles.nextMedRemainingToday]}>
+                {cardData.timeRemaining}
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {cardType === 'other-days' && (
+          <View style={[styles.nextMedCard, styles.nextMedCardOtherDays]}>
+            <View style={[styles.nextMedIconContainer, styles.nextMedIconOtherDays]}>
+              <Icon name="moon" size={20} color="#8B5CF6" />
+            </View>
+            
+            <View style={styles.nextMedContent}>
+              <Text style={styles.nextMedName}>Tudo em dia por hoje</Text>
+              <Text style={styles.nextMedDosage}>
+                Descanse, você cumpriu seu tratamento hoje
+              </Text>
+              <Text style={[styles.nextMedRemaining, styles.nextMedRemainingOtherDays]}>
+                {stats.totalAlarms} alarme{stats.totalAlarms > 1 ? 's' : ''} em outros dias
+              </Text>
+              <TouchableOpacity
+                style={[styles.configureButton, styles.configureButtonOtherDays]}
+                onPress={() => navigation.navigate('AlertasMenu')}>
+                <Text style={[styles.configureButtonText, styles.configureButtonTextOtherDays]}>Ver Alarmes</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {cardType === 'no-alarms' && (
+          <View style={[styles.nextMedCard, styles.nextMedCardEmpty]}>
+            <View style={[styles.nextMedIconContainer, styles.nextMedIconEmpty]}>
+              <Icon name="alarm" size={20} color="#4D97DB" />
+            </View>
+            
+            <View style={styles.nextMedContent}>
+              <Text style={styles.nextMedTime}>--:--</Text>
+              <Text style={styles.nextMedName}>Nenhum alerta configurado</Text>
+              <Text style={styles.nextMedDosage}>Configure seus medicamentos</Text>
+              <TouchableOpacity
+                style={styles.configureButton}
+                onPress={() => navigation.navigate('AlertasMenu')}>
+                <Text style={styles.configureButtonText}>Configurar Alertas</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+      </Animated.View>
     );
   };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="light-content" backgroundColor="#121A29" />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#4D97DB" />
+          <Text style={styles.loadingText}>Carregando...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#121A29" />
+      
       <Animated.View
         style={[
           styles.backgroundCircle,
@@ -495,74 +818,25 @@ const Index = ({navigation}) => {
             <Icon name="menu" size={24} color="#FFFFFF" />
           </TouchableOpacity>
           <View style={styles.titleContainer}>
-            <Text style={styles.title}> PillCheck</Text>
+            <Text style={styles.title}>PillCheck</Text>
+            <Text style={styles.subtitle}>Sua saúde em primeiro lugar</Text>
           </View>
         </View>
+      </Animated.View>
 
+      <ScrollView 
+        style={styles.content} 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}>
+        
+        {renderNextMedication()}
         {renderQuickActions()}
-      </Animated.View>
-
-      <Animated.View
-        style={[
-          styles.avisosSection,
-          {
-            opacity: fadeAnim,
-            transform: [{translateY: slideUpAnim}],
-          },
-        ]}>
-        <View style={styles.avisosSectionHeader}>
-          <View style={styles.sectionTitleContainer}>
-            <Icon name="notifications" size={18} color="#e2e8f0" />
-            <Text style={styles.avisosSectionTitle}>Avisos e Notificações</Text>
-          </View>
-          <TouchableOpacity style={styles.verTodosButton}>
-            <Text style={styles.verTodosText}>Ver todos</Text>
-            <Icon name="chevron-forward" size={12} color="#e2e8f0" />
-          </TouchableOpacity>
-        </View>
-
-        {loading ? (
-          renderLoadingState()
-        ) : (
-          <ScrollView
-            style={styles.avisosScrollView}
-            showsVerticalScrollIndicator={false}>
-            {avisos.length > 0
-              ? avisos.map(renderAvisoItem)
-              : renderEmptyState()}
-          </ScrollView>
-        )}
-      </Animated.View>
+        
+      </ScrollView>
 
       {renderHamburgerMenu()}
     </SafeAreaView>
   );
-};
-
-const getPrioridadeCor = prioridade => {
-  switch (prioridade) {
-    case 'alta':
-      return '#E53E3E';
-    case 'media':
-      return '#F59E0B';
-    case 'baixa':
-      return '#10B981';
-    default:
-      return '#4D97DB';
-  }
-};
-
-const getTipoIcon = tipo => {
-  switch (tipo) {
-    case 'medicamento':
-      return 'medical';
-    case 'alarme':
-      return 'alarm';
-    case 'consulta':
-      return 'calendar';
-    default:
-      return 'information-circle';
-  }
 };
 
 const styles = StyleSheet.create({
@@ -604,20 +878,19 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
-    marginTop: isSmallScreen ? -30 : isMediumScreen ? -20 : -5,
   },
   headerTop: {
     paddingTop: Platform.OS === 'ios' ? 15 : 25,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: isSmallScreen ? 16 : 20,
   },
   titleContainer: {
     flex: 1,
+    paddingLeft: 16,
   },
   title: {
-    fontSize: isMediumScreen ? 24 : 28,
+    fontSize: isMediumScreen ? 28 : 32,
     fontWeight: '700',
     color: '#FFFFFF',
     marginBottom: 6,
@@ -648,45 +921,167 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },
-  quickActionsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: isSmallScreen ? 8 : 12,
-  },
-  quickActionsGrid: {
-    gap: 12,
-  },
-  quickActionsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  quickActionButton: {
+  content: {
     flex: 1,
-    alignItems: 'center',
-    paddingVertical: isSmallScreen ? 12 : 16,
+  },
+  scrollContent: {
+    paddingHorizontal: isSmallScreen ? 16 : 24,
+    paddingTop: 30,
+    paddingBottom: 30,
+  },
+  welcomeSection: {
+    marginBottom: 25,
+  },
+  welcomeContent: {
+    paddingHorizontal: 4,
+  },
+  welcomeTitle: {
+    fontSize: isSmallScreen ? 24 : 28,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 8,
+    letterSpacing: -0.3,
+    lineHeight: isSmallScreen ? 30 : 34,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
+  },
+  welcomeSubtitle: {
+    fontSize: isSmallScreen ? 16 : 17,
+    color: '#94a3b8',
+    lineHeight: isSmallScreen ? 22 : 24,
+    letterSpacing: 0.1,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
+  },
+  nextMedSection: {
+    marginBottom: 25,
+  },
+  nextMedHeader: {
+    marginBottom: 16,
+    paddingHorizontal: 4,
+  },
+  nextMedTitle: {
+    fontSize: isSmallScreen ? 20 : 22,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 4,
+    letterSpacing: 0.2,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
+  },
+  nextMedSubtitle: {
+    fontSize: isSmallScreen ? 14 : 15,
+    color: '#94a3b8',
+    letterSpacing: 0.1,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
+  },
+  nextMedCard: {
+    backgroundColor: 'rgba(30, 41, 59, 0.8)',
     borderRadius: 18,
+    padding: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderLeftWidth: 4,
+    borderLeftColor: '#4D97DB',
     borderWidth: 1,
-    minHeight: 80,
+    borderColor: 'rgba(77, 151, 219, 0.25)',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 2,
+      height: 3,
     },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
   },
-  quickActionButtonGrid: {
-    flex: 1,
-    minWidth: (width - (isSmallScreen ? 32 : 48) - 12) / 2,
-  },
-  quickActionIcon: {
-    width: isSmallScreen ? 32 : 40,
-    height: isSmallScreen ? 32 : 40,
-    borderRadius: isSmallScreen ? 16 : 20,
+  nextMedIconContainer: {
+    width: isSmallScreen ? 44 : 48,
+    height: isSmallScreen ? 44 : 48,
+    borderRadius: isSmallScreen ? 22 : 24,
+    backgroundColor: 'rgba(77, 151, 219, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 8,
+    marginRight: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(77, 151, 219, 0.3)',
+  },
+  nextMedContent: {
+    flex: 1,
+  },
+  nextMedTime: {
+    fontSize: isSmallScreen ? 24 : 28,
+    fontWeight: '300',
+    color: '#FFFFFF',
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
+    letterSpacing: -1,
+    marginBottom: 4,
+  },
+  nextMedName: {
+    fontSize: isSmallScreen ? 16 : 17,
+    fontWeight: '600',
+    color: '#f8fafc',
+    marginBottom: 3,
+    letterSpacing: 0.2,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
+  },
+  nextMedDosage: {
+    fontSize: isSmallScreen ? 13 : 14,
+    color: '#94a3b8',
+    marginBottom: 6,
+    letterSpacing: 0.1,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
+  },
+  nextMedRemaining: {
+    fontSize: isSmallScreen ? 12 : 13,
+    color: '#10B981',
+    fontWeight: '500',
+    letterSpacing: 0.2,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
+  },
+  configureButton: {
+    backgroundColor: 'rgba(77, 151, 219, 0.15)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+    marginTop: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(77, 151, 219, 0.25)',
+  },
+  configureButtonText: {
+    fontSize: isSmallScreen ? 12 : 13,
+    color: '#4D97DB',
+    fontWeight: '600',
+    letterSpacing: 0.2,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
+  },
+  actionsSection: {
+    marginBottom: 25,
+  },
+  actionsGrid: {
+    gap: 14,
+  },
+  modernActionCard: {
+    borderRadius: 16,
+    borderLeftWidth: 4,
+    borderWidth: 1,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 3,
+    },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+  },
+  modernActionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 18,
+  },
+  modernActionIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -695,137 +1090,93 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 4,
   },
-  quickActionText: {
-    color: '#e2e8f0',
-    fontSize: isSmallScreen ? 10 : isMediumScreen ? 10 : 12,
+  modernActionText: {
+    flex: 1,
+  },
+  modernActionTitle: {
+    fontSize: isSmallScreen ? 16 : 17,
     fontWeight: '600',
-    textAlign: 'center',
+    color: '#FFFFFF',
+    marginBottom: 3,
     letterSpacing: 0.2,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
-  avisosSection: {
-    flex: 1,
-    paddingHorizontal: isSmallScreen ? 16 : 24,
-    paddingTop: 25,
+  modernActionDescription: {
+    fontSize: isSmallScreen ? 13 : 14,
+    color: '#94a3b8',
+    letterSpacing: 0.1,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
-  avisosSectionHeader: {
+  modernActionArrow: {
+    marginLeft: 12,
+    opacity: 0.6,
+  },
+  activitySection: {
+    marginBottom: 20,
+  },
+  activityHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
+    paddingHorizontal: 4,
   },
-  sectionTitleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flex: 1,
-  },
-  avisosSectionTitle: {
-    fontSize: isSmallScreen ? 16 : 18,
+  activityTitle: {
+    fontSize: isSmallScreen ? 20 : 22,
     fontWeight: '700',
-    color: '#e2e8f0',
-    letterSpacing: 0.3,
+    color: '#FFFFFF',
+    letterSpacing: 0.2,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
   },
-  verTodosButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: 'rgba(77, 151, 219, 0.15)',
-    borderRadius: 16,
-    gap: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(77, 151, 219, 0.25)',
-  },
-  verTodosText: {
-    fontSize: isMediumScreen ? 10 : 12,
-    color: '#e2e8f0',
+  viewAllText: {
+    fontSize: 14,
+    color: '#4d96db',
     fontWeight: '600',
     letterSpacing: 0.2,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
-  avisosScrollView: {
-    flex: 1,
+  activityList: {
+    gap: 12,
   },
-  avisoCard: {
+  activityItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: 'rgba(30, 41, 59, 0.8)',
-    borderRadius: 18,
+    borderRadius: 14,
     padding: 16,
-    marginBottom: 12,
+    borderWidth: 1,
+    borderLeftWidth: 4,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
       height: 2,
     },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    borderLeftWidth: 4,
-    borderLeftColor: '#E53E3E',
-    borderWidth: 1,
-    borderColor: 'rgba(51, 65, 85, 0.6)',
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
   },
-  avisoHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
-  avisoIconContainer: {
-    width: isSmallScreen ? 36 : 40,
-    height: isSmallScreen ? 36 : 40,
-    borderRadius: isSmallScreen ? 18 : 20,
+  activityIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 14,
   },
-  avisoContent: {
+  activityContent: {
     flex: 1,
   },
-  avisoTitulo: {
-    fontSize: isSmallScreen ? 14 : 16,
+  activityItemTitle: {
+    fontSize: isSmallScreen ? 14 : 15,
     fontWeight: '600',
-    color: '#f8fafc',
-    marginBottom: 4,
-    letterSpacing: 0.2,
-    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
-  },
-  avisoDescricao: {
-    fontSize: isSmallScreen ? 12 : 14,
-    color: '#94a3b8',
-    lineHeight: isSmallScreen ? 18 : 20,
-    marginBottom: 12,
+    color: '#FFFFFF',
+    marginBottom: 2,
     letterSpacing: 0.1,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
-  avisoFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  avisoData: {
+  activityItemTime: {
     fontSize: 12,
-    color: '#64748b',
-    fontWeight: '500',
-    letterSpacing: 0.2,
-    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
-  },
-  prioridadeBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-  },
-  prioridadeText: {
-    fontSize: 10,
-    color: '#FFFFFF',
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    color: '#94a3b8',
+    letterSpacing: 0.1,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   loadingContainer: {
@@ -840,42 +1191,6 @@ const styles = StyleSheet.create({
     color: '#94a3b8',
     fontWeight: '500',
     letterSpacing: 0.3,
-    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
-  },
-  emptyStateContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 60,
-    paddingHorizontal: 40,
-  },
-  emptyStateIconContainer: {
-    width: isSmallScreen ? 64 : 80,
-    height: isSmallScreen ? 64 : 80,
-    borderRadius: isSmallScreen ? 32 : 40,
-    backgroundColor: 'rgba(30, 41, 59, 0.8)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(51, 65, 85, 0.6)',
-  },
-  emptyStateTitle: {
-    fontSize: isSmallScreen ? 18 : 20,
-    fontWeight: '600',
-    color: '#e2e8f0',
-    marginBottom: 8,
-    textAlign: 'center',
-    letterSpacing: 0.3,
-    fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
-  },
-  emptyStateDescription: {
-    fontSize: isSmallScreen ? 14 : 16,
-    color: '#94a3b8',
-    textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 24,
-    letterSpacing: 0.2,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   modalOverlay: {
@@ -970,12 +1285,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     letterSpacing: 0.2,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
-  },
-  menuDivider: {
-    height: 1,
-    marginVertical: 8,
-    marginHorizontal: 20,
-    backgroundColor: 'rgba(51, 65, 85, 0.6)',
   },
   logoutMenuItem: {
     borderBottomWidth: 0,
