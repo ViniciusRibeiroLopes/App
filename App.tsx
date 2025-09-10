@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
-import { NavigationContainer } from '@react-navigation/native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import auth, { FirebaseAuthTypes } from '@react-native-firebase/auth';
+import React, {useEffect, useState} from 'react';
+import {NavigationContainer} from '@react-navigation/native';
+import {createNativeStackNavigator} from '@react-navigation/native-stack';
+import auth, {FirebaseAuthTypes} from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import FastImage from 'react-native-fast-image';
@@ -26,7 +26,9 @@ import AdicionarAlertaDependente from './screens/forms/dependentes/FormAlertaDep
 
 import IndexTelaDependente from './screens/telas_dependentes/IndexTelaDependente.js';
 
-import { View, Image } from 'react-native';
+import AjudaScreen from './screens/navigation/AjudaScreen.js';
+
+import {View, Image} from 'react-native';
 
 const Stack = createNativeStackNavigator();
 
@@ -37,35 +39,38 @@ export default function App() {
   const [firebaseReady, setFirebaseReady] = useState(false);
   const [gifDone, setGifDone] = useState(false);
   const [initialAuthCheck, setInitialAuthCheck] = useState(true);
-  
-  const [isWaitingForLoginAnimation, setIsWaitingForLoginAnimation] = useState(false);
+
+  const [isWaitingForLoginAnimation, setIsWaitingForLoginAnimation] =
+    useState(false);
 
   useEffect(() => {
-    const unsubscribe = auth().onAuthStateChanged(async (_user) => {
+    const unsubscribe = auth().onAuthStateChanged(async _user => {
       if (initialAuthCheck) {
         setInitialAuthCheck(false);
         setUser(_user);
-        
+
         if (_user) {
           await processUserData(_user);
         } else {
           setProfileExists(null);
           setIsDependentUser(null);
         }
-        
+
         setFirebaseReady(true);
         return;
       }
 
       if (!user && _user) {
-        console.log('🎯 Usuário fez login manual, aguardando animação Lottie...');
+        console.log(
+          '🎯 Usuário fez login manual, aguardando animação Lottie...',
+        );
         setIsWaitingForLoginAnimation(true);
-        
+
         await AsyncStorage.setItem('waitingForLoginAnimation', 'true');
-        
+
         checkForAnimationCompletion();
       }
-      
+
       setUser(_user);
 
       if (_user && !isWaitingForLoginAnimation) {
@@ -87,20 +92,24 @@ export default function App() {
   const checkForAnimationCompletion = async () => {
     const checkInterval = setInterval(async () => {
       try {
-        const animationCompleted = await AsyncStorage.getItem('loginAnimationCompleted');
-        
+        const animationCompleted = await AsyncStorage.getItem(
+          'loginAnimationCompleted',
+        );
+
         if (animationCompleted === 'true') {
-          console.log('✅ Animação Lottie concluída, processando dados do usuário...');
-          
+          console.log(
+            '✅ Animação Lottie concluída, processando dados do usuário...',
+          );
+
           setIsWaitingForLoginAnimation(false);
-          
+
           await AsyncStorage.removeItem('waitingForLoginAnimation');
           await AsyncStorage.removeItem('loginAnimationCompleted');
-          
+
           if (user) {
             await processUserData(user);
           }
-          
+
           clearInterval(checkInterval);
         }
       } catch (error) {
@@ -121,7 +130,10 @@ export default function App() {
 
   const processUserData = async (_user: FirebaseAuthTypes.User) => {
     try {
-      const userDoc = await firestore().collection('users').doc(_user.uid).get();
+      const userDoc = await firestore()
+        .collection('users')
+        .doc(_user.uid)
+        .get();
       setProfileExists(userDoc.exists);
 
       const dependentUserQuery = await firestore()
@@ -130,7 +142,6 @@ export default function App() {
         .get();
 
       setIsDependentUser(!dependentUserQuery.empty);
-
     } catch (error) {
       console.error('Erro ao verificar usuário:', error);
       setProfileExists(false);
@@ -150,10 +161,10 @@ export default function App() {
 
   if (!firebaseReady || !gifDone) {
     return (
-      <View style={{ flex: 1, backgroundColor: '#fff' }}>
+      <View style={{flex: 1, backgroundColor: '#fff'}}>
         <FastImage
           source={require('./images/splash_screen.gif')}
-          style={{ width: '100%', height: '100%' }}
+          style={{width: '100%', height: '100%'}}
           resizeMode={FastImage.resizeMode.cover}
         />
       </View>
@@ -163,15 +174,20 @@ export default function App() {
   return (
     <>
       <NavigationContainer>
-        <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {user && !isWaitingForLoginAnimation ? (
-          isDependentUser ? (
-            <Stack.Screen name="IndexTelaDependente" component={IndexTelaDependente} />
-          ) : (
-            profileExists === false ? (
+        <Stack.Navigator screenOptions={{headerShown: false}}>
+          {user && !isWaitingForLoginAnimation ? (
+            isDependentUser ? (
+              <Stack.Screen
+                name="IndexTelaDependente"
+                component={IndexTelaDependente}
+              />
+            ) : profileExists === false ? (
               <Stack.Screen name="UserProfileForm">
-                {(props) => (
-                  <UserProfileForm {...props} onProfileCreated={() => setProfileExists(true)} />
+                {props => (
+                  <UserProfileForm
+                    {...props}
+                    onProfileCreated={() => setProfileExists(true)}
+                  />
                 )}
               </Stack.Screen>
             ) : (
@@ -180,27 +196,48 @@ export default function App() {
                 <Stack.Screen name="AlertasMenu" component={AlertasMenu} />
                 <Stack.Screen name="RemediosMenu" component={RemediosMenu} />
                 <Stack.Screen name="HistoricoMenu" component={HistoricoMenu} />
-                <Stack.Screen name="DependentesMenu" component={DependentesMenu} />
-                <Stack.Screen name="AdicionarRemedio" component={AdicionarRemedio} />
-                <Stack.Screen name="AdicionarAlerta" component={AdicionarAlerta} />
-                <Stack.Screen name="AdicionarDependente" component={AdicionarDependente} />
+                <Stack.Screen
+                  name="DependentesMenu"
+                  component={DependentesMenu}
+                />
+                <Stack.Screen
+                  name="AdicionarRemedio"
+                  component={AdicionarRemedio}
+                />
+                <Stack.Screen
+                  name="AdicionarAlerta"
+                  component={AdicionarAlerta}
+                />
+                <Stack.Screen
+                  name="AdicionarDependente"
+                  component={AdicionarDependente}
+                />
 
-                <Stack.Screen name="IndexDependentes" component={IndexDependentes} />
-                <Stack.Screen name="HistoricoDependentes" component={HistoricoDependentes} />
-                <Stack.Screen name="AdicionarAlertaDependente" component={AdicionarAlertaDependente} />
+                <Stack.Screen
+                  name="IndexDependentes"
+                  component={IndexDependentes}
+                />
+                <Stack.Screen
+                  name="HistoricoDependentes"
+                  component={HistoricoDependentes}
+                />
+                <Stack.Screen
+                  name="AdicionarAlertaDependente"
+                  component={AdicionarAlertaDependente}
+                />
+                <Stack.Screen name="Ajuda" component={AjudaScreen} />
               </>
             )
-          )
-        ) : (
-          <>
-            <Stack.Screen name="OnBoarding" component={OnBoarding} />
-            <Stack.Screen name="Login" component={LoginScreen} />
-            <Stack.Screen name="Register" component={RegisterScreen} />
-          </>
-        )}
+          ) : (
+            <>
+              <Stack.Screen name="OnBoarding" component={OnBoarding} />
+              <Stack.Screen name="Login" component={LoginScreen} />
+              <Stack.Screen name="Register" component={RegisterScreen} />
+            </>
+          )}
         </Stack.Navigator>
       </NavigationContainer>
-      
+
       {user && profileExists && !isDependentUser && <AlarmSystem />}
     </>
   );
