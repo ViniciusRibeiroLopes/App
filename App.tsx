@@ -26,6 +26,8 @@ import AdicionarAlertaDependente from './screens/forms/dependentes/FormAlertaDep
 
 import IndexTelaDependente from './screens/telas_dependentes/IndexTelaDependente.js';
 
+import PerfilScreen from './screens/navigation/PerfilScreen.js';
+import ConfigScreen from './screens/navigation/ConfigScreen.js';
 import AjudaScreen from './screens/navigation/AjudaScreen.js';
 
 import {View, Image} from 'react-native';
@@ -225,6 +227,8 @@ export default function App() {
                   name="AdicionarAlertaDependente"
                   component={AdicionarAlertaDependente}
                 />
+                <Stack.Screen name="Perfil" component={PerfilScreen} />
+                <Stack.Screen name="Configuracoes" component={ConfigScreen} />
                 <Stack.Screen name="Ajuda" component={AjudaScreen} />
               </>
             )
