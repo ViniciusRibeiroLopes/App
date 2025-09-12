@@ -1,3 +1,9 @@
+/**
+ * @fileoverview AlertasScreen - Tela principal para gerenciamento de alertas de medicação
+ * @author Seu Nome
+ * @version 1.0.0
+ */
+
 import React, {useEffect, useState, useRef} from 'react';
 import {
   View,
@@ -20,23 +26,89 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import notifee from '@notifee/react-native';
 
+// Obtenção das dimensões da tela para responsividade
 const {width, height} = Dimensions.get('window');
 
+/**
+ * Constantes para determinar o tamanho da tela e aplicar estilos responsivos
+ */
 const isSmallScreen = width < 360;
 const isMediumScreen = width >= 360 && width < 400;
 const isLargeScreen = width >= 400;
 
+/**
+ * @typedef {Object} Alerta
+ * @property {string} id - ID único do alerta
+ * @property {string} horario - Horário do alerta (formato HH:MM)
+ * @property {string} nomeRemedio - Nome do medicamento
+ * @property {string} dosagem - Dosagem do medicamento
+ * @property {string} remedioId - ID do remédio associado
+ * @property {string} usuarioId - ID do usuário proprietário
+ * @property {boolean} ativo - Status ativo/inativo do alerta
+ * @property {string|Array} dias - Dias da semana para o alerta
+ * @property {string} proximaTomada - Data/hora da próxima tomada
+ * @property {string} titulo - Título alternativo do alerta
+ */
+
+/**
+ * @component AlertasScreen
+ * @description Componente principal para exibição e gerenciamento de alertas de medicação.
+ * Permite visualizar, ativar/desativar e excluir alertas configurados pelo usuário.
+ *
+ * @param {Object} props - Propriedades do componente
+ * @param {Object} props.navigation - Objeto de navegação do React Navigation
+ * @returns {JSX.Element} Componente renderizado
+ *
+ * @example
+ * <AlertasScreen navigation={navigation} />
+ */
 const AlertasScreen = ({navigation}) => {
+  // Estados do componente
+  /**
+   * @type {[Array<Alerta>, Function]} Estado que armazena a lista de alertas
+   */
   const [alertas, setAlertas] = useState([]);
+
+  /**
+   * @type {[boolean, Function]} Estado de carregamento da tela
+   */
   const [loading, setLoading] = useState(true);
+
+  /**
+   * @type {[boolean, Function]} Controla a visibilidade do modal de confirmação
+   */
   const [modalVisible, setModalVisible] = useState(false);
+
+  /**
+   * @type {[Alerta|null, Function]} Armazena o alerta selecionado para exclusão
+   */
   const [alertaParaExcluir, setAlertaParaExcluir] = useState(null);
+
+  /**
+   * @type {Object} Usuário autenticado atual
+   */
   const user = auth().currentUser;
 
+  // Referências para animações
+  /**
+   * @type {Animated.Value} Valor animado para fade in/out
+   */
   const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  /**
+   * @type {Animated.Value} Valor animado para movimento vertical
+   */
   const slideUpAnim = useRef(new Animated.Value(30)).current;
+
+  /**
+   * @type {Animated.Value} Valor animado para o fundo
+   */
   const backgroundAnim = useRef(new Animated.Value(0)).current;
 
+  /**
+   * @description useEffect para inicializar animações da tela
+   * Executa animações de fade e slide up, além da animação contínua de fundo
+   */
   useEffect(() => {
     // Animações iniciais
     Animated.parallel([
@@ -72,6 +144,10 @@ const AlertasScreen = ({navigation}) => {
     return () => backgroundAnimation.stop();
   });
 
+  /**
+   * @description useEffect para carregar alertas do Firestore
+   * Configura um listener em tempo real para os alertas do usuário autenticado
+   */
   useEffect(() => {
     if (!user) {
       setLoading(false);
@@ -148,11 +224,22 @@ const AlertasScreen = ({navigation}) => {
     return () => unsubscribe();
   }, [user]);
 
+  /**
+   * @function confirmarExclusao
+   * @description Abre o modal de confirmação para exclusão de um alerta
+   * @param {Alerta} alerta - O alerta a ser excluído
+   */
   const confirmarExclusao = alerta => {
     setAlertaParaExcluir(alerta);
     setModalVisible(true);
   };
 
+  /**
+   * @function cancelarNotificacoesRemedio
+   * @description Cancela todas as notificações agendadas para um remédio específico
+   * @param {string} remedioId - ID do remédio
+   * @param {Array<string>} dias - Array com os dias da semana
+   */
   const cancelarNotificacoesRemedio = async (remedioId, dias) => {
     for (let dia of dias) {
       const id = `${remedioId}_${dia}`;
@@ -160,6 +247,11 @@ const AlertasScreen = ({navigation}) => {
     }
   };
 
+  /**
+   * @function excluirAlerta
+   * @description Exclui permanentemente um alerta do Firestore e cancela suas notificações
+   * @async
+   */
   const excluirAlerta = async () => {
     try {
       await firestore()
@@ -176,6 +268,12 @@ const AlertasScreen = ({navigation}) => {
     }
   };
 
+  /**
+   * @function toggleAlerta
+   * @description Alterna o status ativo/inativo de um alerta
+   * @param {string} alertaId - ID do alerta a ser alternado
+   * @async
+   */
   const toggleAlerta = async alertaId => {
     try {
       const alerta = alertas.find(a => a.id === alertaId);
@@ -197,6 +295,12 @@ const AlertasScreen = ({navigation}) => {
     }
   };
 
+  /**
+   * @function renderDiasSemana
+   * @description Renderiza os chips dos dias da semana para um alerta
+   * @param {string|Array} dias - Dias da semana (string separada por vírgula ou array)
+   * @returns {JSX.Element|null} Componente com os chips dos dias ou null
+   */
   const renderDiasSemana = dias => {
     if (!dias) {
       return null;
@@ -211,6 +315,9 @@ const AlertasScreen = ({navigation}) => {
       return null;
     }
 
+    /**
+     * @type {Object} Mapeamento de abreviações para dias formatados
+     */
     const diasMap = {
       Dom: 'DOM',
       Seg: 'SEG',
@@ -239,6 +346,12 @@ const AlertasScreen = ({navigation}) => {
     );
   };
 
+  /**
+   * @function renderAlertaCard
+   * @description Renderiza um card individual de alerta
+   * @param {Alerta} alerta - Dados do alerta a ser renderizado
+   * @returns {JSX.Element} Card do alerta
+   */
   const renderAlertaCard = alerta => (
     <View
       key={alerta.id}
@@ -292,6 +405,11 @@ const AlertasScreen = ({navigation}) => {
     </View>
   );
 
+  /**
+   * @function renderLoadingState
+   * @description Renderiza o estado de carregamento
+   * @returns {JSX.Element} Componente de loading
+   */
   const renderLoadingState = () => (
     <View style={styles.loadingContainer}>
       <ActivityIndicator size="large" color="#4D97DB" />
@@ -299,6 +417,11 @@ const AlertasScreen = ({navigation}) => {
     </View>
   );
 
+  /**
+   * @function renderEmptyState
+   * @description Renderiza o estado vazio quando não há alertas
+   * @returns {JSX.Element} Componente de estado vazio
+   */
   const renderEmptyState = () => (
     <View style={styles.emptyStateContainer}>
       <View style={styles.emptyStateIconContainer}>
@@ -326,6 +449,14 @@ const AlertasScreen = ({navigation}) => {
     </View>
   );
 
+  /**
+   * @function getAlertsStats
+   * @description Calcula estatísticas dos alertas (ativos, inativos, total)
+   * @returns {Object} Objeto com as estatísticas
+   * @returns {number} returns.ativos - Número de alertas ativos
+   * @returns {number} returns.inativos - Número de alertas inativos
+   * @returns {number} returns.total - Total de alertas
+   */
   const getAlertsStats = () => {
     const ativos = alertas.filter(alerta => alerta.ativo !== false).length;
     const inativos = alertas.length - ativos;
@@ -378,6 +509,7 @@ const AlertasScreen = ({navigation}) => {
         ]}
       />
 
+      {/* Header da tela */}
       <Animated.View
         style={[
           styles.header,
@@ -395,9 +527,7 @@ const AlertasScreen = ({navigation}) => {
 
           <View style={styles.headerCenter}>
             <Text style={styles.headerTitle}>Meus Alertas</Text>
-            <Text style={styles.headerSubtitle}>
-              {stats.total} alerta(s)
-            </Text>
+            <Text style={styles.headerSubtitle}>{stats.total} alerta(s)</Text>
           </View>
 
           <TouchableOpacity
@@ -408,6 +538,7 @@ const AlertasScreen = ({navigation}) => {
         </View>
       </Animated.View>
 
+      {/* Conteúdo principal */}
       <Animated.View
         style={[
           styles.content,
@@ -435,6 +566,7 @@ const AlertasScreen = ({navigation}) => {
         </ScrollView>
       </Animated.View>
 
+      {/* Modal de confirmação de exclusão */}
       <Modal
         animationType="fade"
         transparent={true}
@@ -477,6 +609,11 @@ const AlertasScreen = ({navigation}) => {
   );
 };
 
+/**
+ * @description Estilos do componente AlertasScreen
+ * Utiliza StyleSheet.create para otimização de performance
+ * @type {Object}
+ */
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -880,7 +1017,6 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.25,
     shadowRadius: 25,
-
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
   },

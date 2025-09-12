@@ -17,20 +17,69 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 
+// Obtém as dimensões da tela do dispositivo
 const {width, height} = Dimensions.get('window');
 
+// Define breakpoints para responsividade baseado na largura da tela
 const isSmallScreen = width < 360;
 const isMediumScreen = width >= 360 && width < 400;
 
+/**
+ * Componente de tela de Ajuda do aplicativo PillCheck
+ *
+ * @description Tela principal de suporte que oferece FAQ, ações rápidas,
+ * opções de contato e informações do aplicativo. Inclui animações suaves
+ * e design responsivo para diferentes tamanhos de tela.
+ *
+ * @component
+ * @param {Object} props - Propriedades do componente
+ * @param {Object} props.navigation - Objeto de navegação do React Navigation
+ * @returns {JSX.Element} Componente renderizado da tela de ajuda
+ *
+ * @example
+ * // Uso no React Navigation
+ * <Stack.Screen name="Ajuda" component={Ajuda} />
+ *
+ * @author Equipe PillCheck
+ * @version 1.0.0
+ * @since 2025
+ */
 const Ajuda = ({navigation}) => {
+  /**
+   * Estado para controlar qual item do FAQ está expandido
+   * @type {number|null} ID do FAQ expandido ou null se nenhum estiver expandido
+   */
   const [expandedFaq, setExpandedFaq] = useState(null);
 
+  /**
+   * Referência para animação de fade in dos elementos
+   * @type {Animated.Value} Valor animado para opacidade (0 a 1)
+   */
   const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  /**
+   * Referência para animação de deslizamento vertical
+   * @type {Animated.Value} Valor animado para translateY (30 a 0)
+   */
   const slideUpAnim = useRef(new Animated.Value(30)).current;
+
+  /**
+   * Referência para animação contínua do fundo
+   * @type {Animated.Value} Valor animado para efeitos de fundo (0 a 1)
+   */
   const backgroundAnim = useRef(new Animated.Value(0)).current;
 
+  /**
+   * Effect hook para inicializar animações quando o componente é montado
+   *
+   * @description Executa animações paralelas de fade in e slide up na montagem,
+   * além de iniciar uma animação de loop contínua para o fundo.
+   *
+   * @effect
+   * @returns {Function} Função de cleanup para parar a animação de fundo
+   */
   useEffect(() => {
-    // Animações iniciais
+    // Animações iniciais executadas em paralelo
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -44,7 +93,7 @@ const Ajuda = ({navigation}) => {
       }),
     ]).start();
 
-    // Animação de fundo contínua
+    // Animação de fundo contínua em loop infinito
     const backgroundAnimation = Animated.loop(
       Animated.sequence([
         Animated.timing(backgroundAnim, {
@@ -61,9 +110,18 @@ const Ajuda = ({navigation}) => {
     );
     backgroundAnimation.start();
 
+    // Cleanup: para a animação quando o componente é desmontado
     return () => backgroundAnimation.stop();
   }, [backgroundAnim, fadeAnim, slideUpAnim]);
 
+  /**
+   * Dados estáticos para a seção de Perguntas Frequentes (FAQ)
+   *
+   * @type {Array<Object>} Array de objetos contendo perguntas e respostas
+   * @property {number} id - Identificador único da pergunta
+   * @property {string} question - Texto da pergunta
+   * @property {string} answer - Texto da resposta detalhada
+   */
   const faqData = [
     {
       id: 1,
@@ -103,6 +161,18 @@ const Ajuda = ({navigation}) => {
     },
   ];
 
+  /**
+   * Opções de contato disponíveis para o usuário
+   *
+   * @type {Array<Object>} Array de objetos com informações de contato
+   * @property {number} id - Identificador único da opção
+   * @property {string} title - Título da opção de contato
+   * @property {string} description - Descrição ou informação adicional
+   * @property {string} icon - Nome do ícone a ser exibido
+   * @property {string} color - Cor tema da opção em hexadecimal
+   * @property {Component} component - Componente de ícone a ser usado
+   * @property {Function} action - Função executada ao tocar na opção
+   */
   const contactOptions = [
     {
       id: 1,
@@ -191,6 +261,18 @@ const Ajuda = ({navigation}) => {
     },
   ];
 
+  /**
+   * Ações rápidas disponíveis para acesso imediato a funcionalidades
+   *
+   * @type {Array<Object>} Array de objetos com ações rápidas
+   * @property {number} id - Identificador único da ação
+   * @property {string} title - Título da ação
+   * @property {string} description - Descrição da funcionalidade
+   * @property {string} icon - Nome do ícone
+   * @property {string} color - Cor tema em hexadecimal
+   * @property {Component} component - Componente de ícone
+   * @property {Function} action - Função executada ao tocar
+   */
   const quickActions = [
     {
       id: 1,
@@ -238,10 +320,37 @@ const Ajuda = ({navigation}) => {
     },
   ];
 
+  /**
+   * Função para alternar a expansão de itens do FAQ
+   *
+   * @description Controla qual pergunta do FAQ está expandida, permitindo
+   * apenas uma pergunta expandida por vez. Se a pergunta já estiver expandida,
+   * ela será recolhida.
+   *
+   * @param {number} id - ID do item FAQ a ser expandido/recolhido
+   * @returns {void}
+   *
+   * @example
+   * // Expandir FAQ com ID 1
+   * toggleFaq(1);
+   *
+   * // Recolher FAQ atualmente expandido
+   * toggleFaq(expandedFaq);
+   */
   const toggleFaq = id => {
     setExpandedFaq(expandedFaq === id ? null : id);
   };
 
+  /**
+   * Renderiza o cabeçalho da tela com animações
+   *
+   * @description Componente que renderiza o header com botão de voltar,
+   * título e subtítulo, aplicando animações de fade e slide.
+   *
+   * @returns {JSX.Element} Elemento JSX do cabeçalho animado
+   *
+   * @private
+   */
   const renderHeader = () => (
     <Animated.View
       style={[
@@ -263,6 +372,17 @@ const Ajuda = ({navigation}) => {
     </Animated.View>
   );
 
+  /**
+   * Renderiza a seção de ações rápidas
+   *
+   * @description Cria uma lista de cartões interativos com ações rápidas
+   * que o usuário pode executar, como acessar tutorial, guias e dicas.
+   * Cada cartão tem ícone colorido, título, descrição e ação associada.
+   *
+   * @returns {JSX.Element} Elemento JSX da seção de ações rápidas
+   *
+   * @private
+   */
   const renderQuickActions = () => (
     <Animated.View
       style={[
@@ -303,6 +423,17 @@ const Ajuda = ({navigation}) => {
     </Animated.View>
   );
 
+  /**
+   * Renderiza a seção de Perguntas Frequentes (FAQ)
+   *
+   * @description Cria uma lista expansível de perguntas e respostas.
+   * Cada item pode ser expandido para mostrar a resposta completa.
+   * Apenas uma pergunta pode estar expandida por vez.
+   *
+   * @returns {JSX.Element} Elemento JSX da seção FAQ
+   *
+   * @private
+   */
   const renderFAQ = () => (
     <Animated.View
       style={[
@@ -340,6 +471,17 @@ const Ajuda = ({navigation}) => {
     </Animated.View>
   );
 
+  /**
+   * Renderiza a seção de contato
+   *
+   * @description Cria um grid de cartões com diferentes opções de contato,
+   * incluindo suporte, WhatsApp, email e avaliação do app. Cada cartão
+   * tem ícone temático, título, descrição e ação específica.
+   *
+   * @returns {JSX.Element} Elemento JSX da seção de contato
+   *
+   * @private
+   */
   const renderContact = () => (
     <Animated.View
       style={[
@@ -373,10 +515,12 @@ const Ajuda = ({navigation}) => {
     </Animated.View>
   );
 
+  // Renderização principal do componente
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#121A29" />
 
+      {/* Elementos de fundo animados para efeito visual */}
       <Animated.View
         style={[
           styles.backgroundCircle,
@@ -416,6 +560,7 @@ const Ajuda = ({navigation}) => {
         ]}
       />
 
+      {/* Renderização das seções da tela */}
       {renderHeader()}
 
       <ScrollView
@@ -426,6 +571,7 @@ const Ajuda = ({navigation}) => {
         {renderFAQ()}
         {renderContact()}
 
+        {/* Seção de informações do aplicativo */}
         <View style={styles.appInfoSection}>
           <Text style={styles.appInfoTitle}>PillCheck</Text>
           <Text style={styles.appInfoVersion}>Versão 1.0.0</Text>
@@ -438,6 +584,50 @@ const Ajuda = ({navigation}) => {
   );
 };
 
+/**
+ * Estilos do componente Ajuda
+ *
+ * @description StyleSheet contendo todos os estilos utilizados no componente.
+ * Inclui responsividade para diferentes tamanhos de tela, cores consistentes
+ * com o tema dark, animações suaves e design moderno.
+ *
+ * @type {StyleSheet} Objeto de estilos do React Native
+ *
+ * @property {Object} container - Container principal da tela
+ * @property {Object} backgroundCircle - Círculo de fundo animado superior
+ * @property {Object} backgroundCircle2 - Círculo de fundo animado inferior
+ * @property {Object} header - Cabeçalho da tela
+ * @property {Object} backButton - Botão de voltar
+ * @property {Object} headerContent - Conteúdo do cabeçalho
+ * @property {Object} headerTitle - Título principal
+ * @property {Object} headerSubtitle - Subtítulo
+ * @property {Object} content - Área de conteúdo scrollável
+ * @property {Object} scrollContent - Container do scroll
+ * @property {Object} section - Seção genérica
+ * @property {Object} sectionTitle - Título de seção
+ * @property {Object} quickActionsGrid - Grid de ações rápidas
+ * @property {Object} quickActionCard - Cartão de ação rápida
+ * @property {Object} quickActionIcon - Ícone da ação rápida
+ * @property {Object} quickActionContent - Conteúdo da ação rápida
+ * @property {Object} quickActionTitle - Título da ação rápida
+ * @property {Object} quickActionDescription - Descrição da ação rápida
+ * @property {Object} faqContainer - Container do FAQ
+ * @property {Object} faqItem - Item individual do FAQ
+ * @property {Object} faqQuestion - Pergunta do FAQ
+ * @property {Object} faqQuestionExpanded - Pergunta expandida
+ * @property {Object} faqQuestionText - Texto da pergunta
+ * @property {Object} faqAnswer - Resposta do FAQ
+ * @property {Object} faqAnswerText - Texto da resposta
+ * @property {Object} contactGrid - Grid de contato
+ * @property {Object} contactCard - Cartão de contato
+ * @property {Object} contactIcon - Ícone de contato
+ * @property {Object} contactTitle - Título do contato
+ * @property {Object} contactDescription - Descrição do contato
+ * @property {Object} appInfoSection - Seção de informações do app
+ * @property {Object} appInfoTitle - Título das informações
+ * @property {Object} appInfoVersion - Versão do app
+ * @property {Object} appInfoCopyright - Copyright
+ */
 const styles = StyleSheet.create({
   container: {
     flex: 1,

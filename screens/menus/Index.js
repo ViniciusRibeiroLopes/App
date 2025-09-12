@@ -21,17 +21,39 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 
+// Obtém as dimensões da tela para responsividade
 const {width, height} = Dimensions.get('window');
 
+// Constantes para diferentes tamanhos de tela
 const isSmallScreen = width < 360;
 const isMediumScreen = width >= 360 && width < 400;
 const isLargeScreen = width >= 400;
 
+/**
+ * Componente principal da aplicação PillCheck - Tela inicial (Dashboard).
+ *
+ * Funcionalidades principais:
+ * - Dashboard com informações de medicamentos e próximos alarmes
+ * - Menu hambúrguer lateral com navegação e perfil do usuário
+ * - Cards de ações rápidas para navegação entre funcionalidades
+ * - Sistema de cálculo inteligente do próximo medicamento
+ * - Animações fluidas de entrada e fundo contínuas
+ * - Interface responsiva para diferentes tamanhos de tela
+ * - Integração em tempo real com Firebase Firestore
+ *
+ * @component
+ * @param {Object} props - Propriedades do componente
+ * @param {Object} props.navigation - Objeto de navegação do React Navigation
+ * @returns {JSX.Element} Componente renderizado da tela principal
+ */
 const Index = ({navigation}) => {
+  // Estados principais da aplicação
   const [medicamentos, setMedicamentos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [menuVisible, setMenuVisible] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
+
+  /** @type {Object} stats - Estatísticas consolidadas da aplicação */
   const [stats, setStats] = useState({
     medicamentosAtivos: 0,
     alertasHoje: 0,
@@ -42,7 +64,10 @@ const Index = ({navigation}) => {
     totalAlarms: 0,
   });
 
+  // Usuário autenticado do Firebase
   const user = auth().currentUser;
+
+  // Referências para animações
   const slideAnim = useRef(new Animated.Value(-250)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideUpAnim = useRef(new Animated.Value(30)).current;
@@ -50,7 +75,10 @@ const Index = ({navigation}) => {
   const statsSlideAnim = useRef(new Animated.Value(50)).current;
   const welcomeSlideAnim = useRef(new Animated.Value(30)).current;
 
-  // Atualizar o tempo a cada minuto
+  /**
+   * Hook de efeito para atualizar o tempo atual a cada minuto.
+   * Necessário para recalcular próximos medicamentos em tempo real.
+   */
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
@@ -59,8 +87,12 @@ const Index = ({navigation}) => {
     return () => clearInterval(timer);
   }, []);
 
+  /**
+   * Hook de efeito para configurar animações iniciais e contínuas.
+   * Executa animações sequenciais de entrada e loop de fundo.
+   */
   useEffect(() => {
-    // Animações iniciais
+    // Animações iniciais paralelas
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -86,7 +118,7 @@ const Index = ({navigation}) => {
       }),
     ]).start();
 
-    // Animação de fundo contínua
+    // Animação de fundo contínua em loop
     const backgroundAnimation = Animated.loop(
       Animated.sequence([
         Animated.timing(backgroundAnim, {
@@ -106,12 +138,18 @@ const Index = ({navigation}) => {
     return () => backgroundAnimation.stop();
   }, [backgroundAnim, fadeAnim, slideUpAnim, statsSlideAnim, welcomeSlideAnim]);
 
+  /**
+   * Hook principal para sincronização de dados em tempo real com o Firestore.
+   * Gerencia listeners para medicamentos, dependentes e alertas.
+   * Calcula automaticamente estatísticas e próximos medicamentos.
+   */
   useEffect(() => {
     if (!user) {
       setLoading(false);
       return;
     }
 
+    // Listener para medicamentos do usuário
     const unsubscribe = firestore()
       .collection('remedios')
       .where('usuarioId', '==', user.uid)
@@ -138,6 +176,7 @@ const Index = ({navigation}) => {
         },
       );
 
+    // Listener para dependentes do usuário
     const unsubscribeDependentes = firestore()
       .collection('dependentes')
       .where('usuarioId', '==', user.uid)
@@ -145,7 +184,7 @@ const Index = ({navigation}) => {
         setStats(prev => ({...prev, dependentes: snapshot?.docs?.length || 0}));
       });
 
-    // Buscar alertas para próximo medicamento
+    // Listener para alertas com processamento de próximos medicamentos
     const unsubscribeAlertas = firestore()
       .collection('alertas')
       .where('usuarioId', '==', user.uid)
@@ -155,7 +194,7 @@ const Index = ({navigation}) => {
             if (!snapshot || !snapshot.docs) {
               console.log('Nenhum alerta encontrado');
               setStats(prev => ({
-                ...prev, 
+                ...prev,
                 nextMedication: null,
                 nextMedicationTomorrow: null,
                 hasAlarmsOtherDays: false,
@@ -172,23 +211,24 @@ const Index = ({navigation}) => {
             console.log('Alertas encontrados:', alertasData.length);
 
             // Filtrar apenas alertas ativos
-            const alertasAtivos = alertasData.filter(alerta => alerta.ativo !== false);
+            const alertasAtivos = alertasData.filter(
+              alerta => alerta.ativo !== false,
+            );
             console.log('Alertas ativos:', alertasAtivos.length);
 
             // Buscar próximo medicamento e estatísticas
             const medicationStats = await getMedicationStats(alertasAtivos);
             console.log('Estatísticas dos medicamentos:', medicationStats);
-            
+
             setStats(prev => ({
-              ...prev, 
+              ...prev,
               ...medicationStats,
               totalAlarms: alertasAtivos.length,
             }));
-
           } catch (error) {
             console.error('Erro ao processar alertas:', error);
             setStats(prev => ({
-              ...prev, 
+              ...prev,
               nextMedication: null,
               nextMedicationTomorrow: null,
               hasAlarmsOtherDays: false,
@@ -199,7 +239,7 @@ const Index = ({navigation}) => {
         error => {
           console.error('Erro ao buscar alertas:', error);
           setStats(prev => ({
-            ...prev, 
+            ...prev,
             nextMedication: null,
             nextMedicationTomorrow: null,
             hasAlarmsOtherDays: false,
@@ -215,7 +255,10 @@ const Index = ({navigation}) => {
     };
   }, [user]);
 
-  // Recalcular próximo medicamento quando o tempo muda
+  /**
+   * Hook de efeito para reprocessar alertas quando o tempo atual muda.
+   * Atualiza automaticamente o cálculo do próximo medicamento a cada minuto.
+   */
   useEffect(() => {
     if (stats.totalAlarms > 0) {
       // Reprocessar alertas quando o tempo muda
@@ -232,11 +275,13 @@ const Index = ({navigation}) => {
               ...doc.data(),
             }));
 
-            const alertasAtivos = alertasData.filter(alerta => alerta.ativo !== false);
+            const alertasAtivos = alertasData.filter(
+              alerta => alerta.ativo !== false,
+            );
             const medicationStats = await getMedicationStats(alertasAtivos);
-            
+
             setStats(prev => ({
-              ...prev, 
+              ...prev,
               ...medicationStats,
             }));
           }
@@ -249,9 +294,21 @@ const Index = ({navigation}) => {
     }
   }, [currentTime, user?.uid]);
 
-  const getMedicationStats = async (alertasData) => {
+  /**
+   * Função principal para calcular estatísticas de medicamentos e próximos alarmes.
+   * Processa alertas ativos e determina qual medicamento deve ser tomado primeiro.
+   *
+   * @async
+   * @function getMedicationStats
+   * @param {Array<Object>} alertasData - Array de alertas ativos do usuário
+   * @returns {Promise<Object>} Estatísticas processadas dos medicamentos
+   * @returns {Object|null} returns.nextMedication - Próximo medicamento hoje
+   * @returns {Object|null} returns.nextMedicationTomorrow - Próximo medicamento amanhã
+   * @returns {boolean} returns.hasAlarmsOtherDays - Se há alarmes em outros dias
+   */
+  const getMedicationStats = async alertasData => {
     console.log('Processando alertas:', alertasData);
-    
+
     if (!alertasData || alertasData.length === 0) {
       console.log('Nenhum alerta para processar');
       return {
@@ -263,18 +320,26 @@ const Index = ({navigation}) => {
 
     const now = new Date();
     console.log('Hora atual:', now.toLocaleTimeString('pt-BR'));
-    
+
     const currentDay = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
     const tomorrow = (currentDay + 1) % 7;
-    
-    // Mapear dias da semana (ajustando para diferentes formatos)
-    const diasSemana = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
+
+    // Mapear dias da semana (suporta diferentes formatos de string)
+    const diasSemana = [
+      'domingo',
+      'segunda',
+      'terça',
+      'quarta',
+      'quinta',
+      'sexta',
+      'sábado',
+    ];
     const diasSemanaShort = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
     const currentDayName = diasSemana[currentDay];
     const currentDayNameShort = diasSemanaShort[currentDay];
     const tomorrowDayName = diasSemana[tomorrow];
     const tomorrowDayNameShort = diasSemanaShort[tomorrow];
-    
+
     console.log('Dia atual:', currentDayName, currentDayNameShort);
     console.log('Amanhã:', tomorrowDayName, tomorrowDayNameShort);
 
@@ -282,11 +347,12 @@ const Index = ({navigation}) => {
     let nextMedicationsTomorrow = [];
     let hasAlarmsOtherDays = false;
 
+    // Processar cada alerta individualmente
     for (let alerta of alertasData) {
       try {
         console.log('Processando alerta:', alerta.id, alerta.horario);
-        
-        // Buscar nome do remédio
+
+        // Buscar nome do remédio a partir do ID
         let nomeRemedio = alerta.titulo || 'Medicamento';
         if (alerta.remedioId) {
           try {
@@ -306,28 +372,37 @@ const Index = ({navigation}) => {
         let isToday = false;
         let isTomorrow = false;
         let hasOtherDays = false;
-        
+
         if (alerta.dias) {
           let diasArray = [];
-          
+
+          // Suportar diferentes formatos de armazenamento de dias
           if (Array.isArray(alerta.dias)) {
             diasArray = alerta.dias.map(d => d.toLowerCase().trim());
           } else if (typeof alerta.dias === 'string') {
-            diasArray = alerta.dias.toLowerCase().split(',').map(d => d.trim());
+            diasArray = alerta.dias
+              .toLowerCase()
+              .split(',')
+              .map(d => d.trim());
           }
 
-          isToday = diasArray.includes(currentDayName) || diasArray.includes(currentDayNameShort);
-          isTomorrow = diasArray.includes(tomorrowDayName) || diasArray.includes(tomorrowDayNameShort);
-          
+          isToday =
+            diasArray.includes(currentDayName) ||
+            diasArray.includes(currentDayNameShort);
+          isTomorrow =
+            diasArray.includes(tomorrowDayName) ||
+            diasArray.includes(tomorrowDayNameShort);
+
           // Verificar se tem alarmes em outros dias além de hoje e amanhã
-          const otherDays = diasArray.filter(day => 
-            !day.includes(currentDayName.toLowerCase()) && 
-            !day.includes(currentDayNameShort.toLowerCase()) &&
-            !day.includes(tomorrowDayName.toLowerCase()) && 
-            !day.includes(tomorrowDayNameShort.toLowerCase())
+          const otherDays = diasArray.filter(
+            day =>
+              !day.includes(currentDayName.toLowerCase()) &&
+              !day.includes(currentDayNameShort.toLowerCase()) &&
+              !day.includes(tomorrowDayName.toLowerCase()) &&
+              !day.includes(tomorrowDayNameShort.toLowerCase()),
           );
           hasOtherDays = otherDays.length > 0;
-          
+
           if (hasOtherDays) {
             hasAlarmsOtherDays = true;
           }
@@ -336,26 +411,39 @@ const Index = ({navigation}) => {
           isToday = true;
           isTomorrow = true;
         }
-        
-        console.log('Alerta é para hoje?', isToday, 'Amanhã?', isTomorrow, 'Outros dias?', hasOtherDays);
 
+        console.log(
+          'Alerta é para hoje?',
+          isToday,
+          'Amanhã?',
+          isTomorrow,
+          'Outros dias?',
+          hasOtherDays,
+        );
+
+        // Processar horários dos alarmes
         if (alerta.horario) {
           try {
             const [hours, minutes] = alerta.horario.split(':').map(Number);
-            
-            // Para hoje
+
+            // Para hoje - verificar se horário ainda não passou
             if (isToday) {
               const alertTime = new Date();
               alertTime.setHours(hours, minutes, 0, 0);
 
-              console.log('Horário do alerta hoje:', alertTime.toLocaleTimeString('pt-BR'));
+              console.log(
+                'Horário do alerta hoje:',
+                alertTime.toLocaleTimeString('pt-BR'),
+              );
               console.log('Já passou?', alertTime <= now);
 
               // Se o horário ainda não passou hoje
               if (alertTime > now) {
                 const timeDiff = alertTime - now;
                 const hoursRemaining = Math.floor(timeDiff / (1000 * 60 * 60));
-                const minutesRemaining = Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60));
+                const minutesRemaining = Math.floor(
+                  (timeDiff % (1000 * 60 * 60)) / (1000 * 60),
+                );
 
                 let timeRemaining;
                 if (hoursRemaining > 0) {
@@ -371,20 +459,28 @@ const Index = ({navigation}) => {
                   alertTime,
                   isToday: true,
                 });
-                
-                console.log('Adicionado à lista de hoje:', nomeRemedio, timeRemaining);
+
+                console.log(
+                  'Adicionado à lista de hoje:',
+                  nomeRemedio,
+                  timeRemaining,
+                );
               }
             }
 
-            // Para amanhã
+            // Para amanhã - calcular tempo até o medicamento
             if (isTomorrow) {
               const alertTimeTomorrow = new Date();
               alertTimeTomorrow.setDate(alertTimeTomorrow.getDate() + 1);
               alertTimeTomorrow.setHours(hours, minutes, 0, 0);
 
               const timeDiffTomorrow = alertTimeTomorrow - now;
-              const hoursRemaining = Math.floor(timeDiffTomorrow / (1000 * 60 * 60));
-              const minutesRemaining = Math.floor((timeDiffTomorrow % (1000 * 60 * 60)) / (1000 * 60));
+              const hoursRemaining = Math.floor(
+                timeDiffTomorrow / (1000 * 60 * 60),
+              );
+              const minutesRemaining = Math.floor(
+                (timeDiffTomorrow % (1000 * 60 * 60)) / (1000 * 60),
+              );
 
               let timeRemaining;
               if (hoursRemaining > 0) {
@@ -400,8 +496,12 @@ const Index = ({navigation}) => {
                 alertTime: alertTimeTomorrow,
                 isTomorrow: true,
               });
-              
-              console.log('Adicionado à lista de amanhã:', nomeRemedio, timeRemaining);
+
+              console.log(
+                'Adicionado à lista de amanhã:',
+                nomeRemedio,
+                timeRemaining,
+              );
             }
           } catch (error) {
             console.error('Erro ao processar horário:', error);
@@ -413,18 +513,31 @@ const Index = ({navigation}) => {
     }
 
     console.log('Próximos medicamentos hoje:', nextMedicationsToday.length);
-    console.log('Próximos medicamentos amanhã:', nextMedicationsTomorrow.length);
+    console.log(
+      'Próximos medicamentos amanhã:',
+      nextMedicationsTomorrow.length,
+    );
 
     // Ordenar por horário mais próximo
     nextMedicationsToday.sort((a, b) => a.alertTime - b.alertTime);
     nextMedicationsTomorrow.sort((a, b) => a.alertTime - b.alertTime);
 
-    const nextMedication = nextMedicationsToday.length > 0 ? nextMedicationsToday[0] : null;
-    const nextMedicationTomorrow = nextMedicationsTomorrow.length > 0 ? nextMedicationsTomorrow[0] : null;
-    
-    console.log('Próximo medicamento hoje selecionado:', nextMedication?.nomeRemedio, nextMedication?.timeRemaining);
-    console.log('Próximo medicamento amanhã selecionado:', nextMedicationTomorrow?.nomeRemedio, nextMedicationTomorrow?.timeRemaining);
-    
+    const nextMedication =
+      nextMedicationsToday.length > 0 ? nextMedicationsToday[0] : null;
+    const nextMedicationTomorrow =
+      nextMedicationsTomorrow.length > 0 ? nextMedicationsTomorrow[0] : null;
+
+    console.log(
+      'Próximo medicamento hoje selecionado:',
+      nextMedication?.nomeRemedio,
+      nextMedication?.timeRemaining,
+    );
+    console.log(
+      'Próximo medicamento amanhã selecionado:',
+      nextMedicationTomorrow?.nomeRemedio,
+      nextMedicationTomorrow?.timeRemaining,
+    );
+
     return {
       nextMedication,
       nextMedicationTomorrow,
@@ -432,6 +545,11 @@ const Index = ({navigation}) => {
     };
   };
 
+  /**
+   * Alterna a visibilidade do menu hambúrguer.
+   *
+   * @function toggleMenu
+   */
   const toggleMenu = () => {
     if (menuVisible) {
       closeMenu();
@@ -440,6 +558,11 @@ const Index = ({navigation}) => {
     }
   };
 
+  /**
+   * Abre o menu hambúrguer com animação de slide.
+   *
+   * @function openMenu
+   */
   const openMenu = () => {
     setMenuVisible(true);
     Animated.timing(slideAnim, {
@@ -449,6 +572,11 @@ const Index = ({navigation}) => {
     }).start();
   };
 
+  /**
+   * Fecha o menu hambúrguer com animação de slide.
+   *
+   * @function closeMenu
+   */
   const closeMenu = () => {
     Animated.timing(slideAnim, {
       toValue: -250,
@@ -459,6 +587,13 @@ const Index = ({navigation}) => {
     });
   };
 
+  /**
+   * Gerencia o processo de logout do usuário.
+   * Exibe confirmação antes de executar o logout do Firebase.
+   *
+   * @async
+   * @function handleLogout
+   */
   const handleLogout = async () => {
     closeMenu();
     Alert.alert('Sair da conta', 'Tem certeza que deseja sair?', [
@@ -477,6 +612,13 @@ const Index = ({navigation}) => {
     ]);
   };
 
+  /**
+   * Renderiza o menu hambúrguer lateral em modal.
+   * Inclui informações do usuário e opções de navegação.
+   *
+   * @function renderHamburgerMenu
+   * @returns {JSX.Element} Modal com menu lateral
+   */
   const renderHamburgerMenu = () => (
     <Modal
       visible={menuVisible}
@@ -493,6 +635,7 @@ const Index = ({navigation}) => {
                   transform: [{translateX: slideAnim}],
                 },
               ]}>
+              {/* Header do menu com avatar e informações do usuário */}
               <View style={styles.menuHeader}>
                 <View style={styles.userInfoContainer}>
                   <View style={styles.avatarContainer}>
@@ -512,6 +655,7 @@ const Index = ({navigation}) => {
                 </TouchableOpacity>
               </View>
 
+              {/* Itens de navegação do menu */}
               <View style={styles.menuItems}>
                 <TouchableOpacity
                   style={styles.menuItem}
@@ -559,7 +703,15 @@ const Index = ({navigation}) => {
     </Modal>
   );
 
+  /**
+   * Renderiza a seção de ações rápidas (cards de navegação).
+   * Cards animados para as principais funcionalidades do app.
+   *
+   * @function renderQuickActions
+   * @returns {JSX.Element} Grade de cards de ações rápidas
+   */
   const renderQuickActions = () => {
+    /** @type {Array<Object>} actions - Configuração das ações rápidas */
     const actions = [
       {
         icon: 'alarm',
@@ -567,7 +719,7 @@ const Index = ({navigation}) => {
         route: 'AlertasMenu',
         component: Icon,
         color: '#4d96db',
-        description: 'Configure seus lembretes'
+        description: 'Configure seus lembretes',
       },
       {
         icon: 'medication',
@@ -575,7 +727,7 @@ const Index = ({navigation}) => {
         route: 'RemediosMenu',
         component: MaterialIcons,
         color: '#E53E3E',
-        description: 'Gerencie medicamentos'
+        description: 'Gerencie medicamentos',
       },
       {
         icon: 'user-friends',
@@ -583,7 +735,7 @@ const Index = ({navigation}) => {
         route: 'DependentesMenu',
         component: FontAwesome5,
         color: '#10B981',
-        description: 'Cuide de quem ama'
+        description: 'Cuide de quem ama',
       },
       {
         icon: 'bar-chart',
@@ -591,7 +743,7 @@ const Index = ({navigation}) => {
         route: 'HistoricoMenu',
         component: Icon,
         color: '#F59E0B',
-        description: 'Acompanhe o progresso'
+        description: 'Acompanhe o progresso',
       },
     ];
 
@@ -611,13 +763,15 @@ const Index = ({navigation}) => {
               style={[
                 {
                   opacity: fadeAnim,
-                  transform: [{
-                    translateY: slideUpAnim.interpolate({
-                      inputRange: [0, 30],
-                      outputRange: [0, 30 + (index * 10)],
-                    })
-                  }],
-                }
+                  transform: [
+                    {
+                      translateY: slideUpAnim.interpolate({
+                        inputRange: [0, 30],
+                        outputRange: [0, 30 + index * 10],
+                      }),
+                    },
+                  ],
+                },
               ]}>
               <TouchableOpacity
                 style={[
@@ -630,7 +784,11 @@ const Index = ({navigation}) => {
                 ]}
                 onPress={() => navigation.navigate(action.route)}>
                 <View style={styles.modernActionContent}>
-                  <View style={[styles.modernActionIcon, {backgroundColor: action.color}]}>
+                  <View
+                    style={[
+                      styles.modernActionIcon,
+                      {backgroundColor: action.color},
+                    ]}>
                     <action.component
                       name={action.icon}
                       size={action.component === FontAwesome5 ? 18 : 20}
@@ -639,7 +797,9 @@ const Index = ({navigation}) => {
                   </View>
                   <View style={styles.modernActionText}>
                     <Text style={styles.modernActionTitle}>{action.text}</Text>
-                    <Text style={styles.modernActionDescription}>{action.description}</Text>
+                    <Text style={styles.modernActionDescription}>
+                      {action.description}
+                    </Text>
                   </View>
                   <View style={styles.modernActionArrow}>
                     <Icon name="chevron-forward" size={20} color="#94a3b8" />
@@ -653,6 +813,19 @@ const Index = ({navigation}) => {
     );
   };
 
+  /**
+   * Renderiza o card de próximo medicamento com diferentes estados.
+   * Exibe informações inteligentes baseadas nos alarmes configurados.
+   *
+   * Estados possíveis:
+   * - 'next-today': Próximo medicamento hoje
+   * - 'other-days': Alarmes apenas em outros dias
+   * - 'no-alarms': Nenhum alarme configurado
+   * - 'no-active-today': Sem alarmes ativos para hoje
+   *
+   * @function renderNextMedication
+   * @returns {JSX.Element} Card do próximo medicamento
+   */
   const renderNextMedication = () => {
     // Determinar qual card mostrar baseado na situação dos alarmes
     let cardType = 'no-alarms'; // padrão: sem alarmes
@@ -681,67 +854,100 @@ const Index = ({navigation}) => {
         <View style={styles.nextMedHeader}>
           <Text style={styles.nextMedTitle}>Próximo Medicamento</Text>
           <Text style={styles.nextMedSubtitle}>
-            {cardType === 'no-alarms' ? 'Configure seus lembretes' :
-             cardType === 'next-today' ? 'Não esqueça do seu tratamento' :
-             cardType === 'other-days' ? 'Pode descansar' :
-             'Nenhum alarme para hoje'}
+            {cardType === 'no-alarms'
+              ? 'Configure seus lembretes'
+              : cardType === 'next-today'
+              ? 'Não esqueça do seu tratamento'
+              : cardType === 'other-days'
+              ? 'Pode descansar'
+              : 'Nenhum alarme para hoje'}
           </Text>
         </View>
-        
+
+        {/* Card para próximo medicamento hoje */}
         {cardType === 'next-today' && (
           <View style={[styles.nextMedCard, styles.nextMedCardToday]}>
-            <View style={[styles.nextMedIconContainer, styles.nextMedIconToday]}>
+            <View
+              style={[styles.nextMedIconContainer, styles.nextMedIconToday]}>
               <Icon name="alarm" size={20} color="#4D97DB" />
             </View>
-            
+
             <View style={styles.nextMedContent}>
               <Text style={styles.nextMedTime}>{cardData.horario}</Text>
               <Text style={styles.nextMedName}>{cardData.nomeRemedio}</Text>
-              <Text style={styles.nextMedDosage}>Dosagem: {cardData.dosagem}</Text>
-              <Text style={[styles.nextMedRemaining, styles.nextMedRemainingToday]}>
+              <Text style={styles.nextMedDosage}>
+                Dosagem: {cardData.dosagem}
+              </Text>
+              <Text
+                style={[styles.nextMedRemaining, styles.nextMedRemainingToday]}>
                 {cardData.timeRemaining}
               </Text>
             </View>
           </View>
         )}
 
+        {/* Card para alarmes em outros dias */}
         {cardType === 'other-days' && (
           <View style={[styles.nextMedCard, styles.nextMedCardOtherDays]}>
-            <View style={[styles.nextMedIconContainer, styles.nextMedIconOtherDays]}>
+            <View
+              style={[
+                styles.nextMedIconContainer,
+                styles.nextMedIconOtherDays,
+              ]}>
               <Icon name="moon" size={20} color="#8B5CF6" />
             </View>
-            
+
             <View style={styles.nextMedContent}>
               <Text style={styles.nextMedName}>Tudo em dia por hoje</Text>
               <Text style={styles.nextMedDosage}>
                 Descanse, você cumpriu seu tratamento hoje
               </Text>
-              <Text style={[styles.nextMedRemaining, styles.nextMedRemainingOtherDays]}>
-                {stats.totalAlarms} alarme{stats.totalAlarms > 1 ? 's' : ''} em outros dias
+              <Text
+                style={[
+                  styles.nextMedRemaining,
+                  styles.nextMedRemainingOtherDays,
+                ]}>
+                {stats.totalAlarms} alarme{stats.totalAlarms > 1 ? 's' : ''} em
+                outros dias
               </Text>
               <TouchableOpacity
-                style={[styles.configureButton, styles.configureButtonOtherDays]}
+                style={[
+                  styles.configureButton,
+                  styles.configureButtonOtherDays,
+                ]}
                 onPress={() => navigation.navigate('AlertasMenu')}>
-                <Text style={[styles.configureButtonText, styles.configureButtonTextOtherDays]}>Ver Alarmes</Text>
+                <Text
+                  style={[
+                    styles.configureButtonText,
+                    styles.configureButtonTextOtherDays,
+                  ]}>
+                  Ver Alarmes
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
         )}
 
+        {/* Card para nenhum alarme configurado */}
         {cardType === 'no-alarms' && (
           <View style={[styles.nextMedCard, styles.nextMedCardEmpty]}>
-            <View style={[styles.nextMedIconContainer, styles.nextMedIconEmpty]}>
+            <View
+              style={[styles.nextMedIconContainer, styles.nextMedIconEmpty]}>
               <Icon name="alarm" size={20} color="#4D97DB" />
             </View>
-            
+
             <View style={styles.nextMedContent}>
               <Text style={styles.nextMedTime}>--:--</Text>
               <Text style={styles.nextMedName}>Nenhum alerta configurado</Text>
-              <Text style={styles.nextMedDosage}>Configure seus medicamentos</Text>
+              <Text style={styles.nextMedDosage}>
+                Configure seus medicamentos
+              </Text>
               <TouchableOpacity
                 style={styles.configureButton}
                 onPress={() => navigation.navigate('AlertasMenu')}>
-                <Text style={styles.configureButtonText}>Configurar Alertas</Text>
+                <Text style={styles.configureButtonText}>
+                  Configurar Alertas
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -750,6 +956,7 @@ const Index = ({navigation}) => {
     );
   };
 
+  // Renderizar estado de loading
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
@@ -765,7 +972,8 @@ const Index = ({navigation}) => {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#121A29" />
-      
+
+      {/* Círculos de fundo animados para efeito visual */}
       <Animated.View
         style={[
           styles.backgroundCircle,
@@ -805,6 +1013,7 @@ const Index = ({navigation}) => {
         ]}
       />
 
+      {/* Header principal com menu hambúrguer e título */}
       <Animated.View
         style={[
           styles.header,
@@ -824,14 +1033,13 @@ const Index = ({navigation}) => {
         </View>
       </Animated.View>
 
-      <ScrollView 
-        style={styles.content} 
+      {/* Conteúdo principal scrollável */}
+      <ScrollView
+        style={styles.content}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}>
-        
         {renderNextMedication()}
         {renderQuickActions()}
-        
       </ScrollView>
 
       {renderHamburgerMenu()}
@@ -839,7 +1047,21 @@ const Index = ({navigation}) => {
   );
 };
 
+/**
+ * Estilos do componente Index.
+ * Organizado por seções funcionais e responsivo para diferentes tamanhos de tela.
+ * Utiliza tema escuro moderno com efeitos visuais e animações fluidas.
+ *
+ * Principais seções de estilo:
+ * - Layout base e background
+ * - Header e navegação
+ * - Cards de medicamentos (diferentes estados)
+ * - Ações rápidas
+ * - Menu lateral
+ * - Estados de loading
+ */
 const styles = StyleSheet.create({
+  // === Estilos de Layout Base ===
   container: {
     flex: 1,
     backgroundColor: '#121A29',
@@ -862,6 +1084,8 @@ const styles = StyleSheet.create({
     bottom: -width * 0.6,
     right: -width * 0.4,
   },
+
+  // === Estilos do Header ===
   header: {
     backgroundColor: 'rgba(30, 41, 59, 0.95)',
     paddingHorizontal: isSmallScreen ? 16 : 24,
@@ -921,6 +1145,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },
+
+  // === Estilos do Conteúdo Principal ===
   content: {
     flex: 1,
   },
@@ -929,28 +1155,8 @@ const styles = StyleSheet.create({
     paddingTop: 30,
     paddingBottom: 30,
   },
-  welcomeSection: {
-    marginBottom: 25,
-  },
-  welcomeContent: {
-    paddingHorizontal: 4,
-  },
-  welcomeTitle: {
-    fontSize: isSmallScreen ? 24 : 28,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    marginBottom: 8,
-    letterSpacing: -0.3,
-    lineHeight: isSmallScreen ? 30 : 34,
-    fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
-  },
-  welcomeSubtitle: {
-    fontSize: isSmallScreen ? 16 : 17,
-    color: '#94a3b8',
-    lineHeight: isSmallScreen ? 22 : 24,
-    letterSpacing: 0.1,
-    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
-  },
+
+  // === Estilos da Seção de Próximo Medicamento ===
   nextMedSection: {
     marginBottom: 25,
   },
@@ -972,6 +1178,8 @@ const styles = StyleSheet.create({
     letterSpacing: 0.1,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
+
+  // === Cards de Próximo Medicamento ===
   nextMedCard: {
     backgroundColor: 'rgba(30, 41, 59, 0.8)',
     borderRadius: 18,
@@ -990,6 +1198,17 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.12,
     shadowRadius: 10,
   },
+  nextMedCardToday: {
+    // Estilos específicos para medicamento hoje
+  },
+  nextMedCardOtherDays: {
+    borderLeftColor: '#8B5CF6',
+    borderColor: 'rgba(139, 92, 246, 0.25)',
+  },
+  nextMedCardEmpty: {
+    borderLeftColor: '#64748b',
+    borderColor: 'rgba(100, 116, 139, 0.25)',
+  },
   nextMedIconContainer: {
     width: isSmallScreen ? 44 : 48,
     height: isSmallScreen ? 44 : 48,
@@ -1000,6 +1219,17 @@ const styles = StyleSheet.create({
     marginRight: 16,
     borderWidth: 1,
     borderColor: 'rgba(77, 151, 219, 0.3)',
+  },
+  nextMedIconToday: {
+    // Estilos específicos para ícone hoje
+  },
+  nextMedIconOtherDays: {
+    backgroundColor: 'rgba(139, 92, 246, 0.2)',
+    borderColor: 'rgba(139, 92, 246, 0.3)',
+  },
+  nextMedIconEmpty: {
+    backgroundColor: 'rgba(100, 116, 139, 0.2)',
+    borderColor: 'rgba(100, 116, 139, 0.3)',
   },
   nextMedContent: {
     flex: 1,
@@ -1034,6 +1264,12 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
+  nextMedRemainingToday: {
+    // Cor específica para medicamento hoje
+  },
+  nextMedRemainingOtherDays: {
+    color: '#8B5CF6',
+  },
   configureButton: {
     backgroundColor: 'rgba(77, 151, 219, 0.15)',
     paddingHorizontal: 12,
@@ -1044,6 +1280,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(77, 151, 219, 0.25)',
   },
+  configureButtonOtherDays: {
+    backgroundColor: 'rgba(139, 92, 246, 0.15)',
+    borderColor: 'rgba(139, 92, 246, 0.25)',
+  },
   configureButtonText: {
     fontSize: isSmallScreen ? 12 : 13,
     color: '#4D97DB',
@@ -1051,6 +1291,11 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
+  configureButtonTextOtherDays: {
+    color: '#8B5CF6',
+  },
+
+  // === Estilos das Ações Rápidas ===
   actionsSection: {
     marginBottom: 25,
   },
@@ -1111,74 +1356,8 @@ const styles = StyleSheet.create({
     marginLeft: 12,
     opacity: 0.6,
   },
-  activitySection: {
-    marginBottom: 20,
-  },
-  activityHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-    paddingHorizontal: 4,
-  },
-  activityTitle: {
-    fontSize: isSmallScreen ? 20 : 22,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    letterSpacing: 0.2,
-    fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
-  },
-  viewAllText: {
-    fontSize: 14,
-    color: '#4d96db',
-    fontWeight: '600',
-    letterSpacing: 0.2,
-    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
-  },
-  activityList: {
-    gap: 12,
-  },
-  activityItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(30, 41, 59, 0.8)',
-    borderRadius: 14,
-    padding: 16,
-    borderWidth: 1,
-    borderLeftWidth: 4,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-  },
-  activityIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 14,
-  },
-  activityContent: {
-    flex: 1,
-  },
-  activityItemTitle: {
-    fontSize: isSmallScreen ? 14 : 15,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    marginBottom: 2,
-    letterSpacing: 0.1,
-    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
-  },
-  activityItemTime: {
-    fontSize: 12,
-    color: '#94a3b8',
-    letterSpacing: 0.1,
-    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
-  },
+
+  // === Estilos de Loading ===
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -1193,6 +1372,8 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
+
+  // === Estilos do Menu Lateral ===
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',

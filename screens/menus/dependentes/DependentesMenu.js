@@ -17,21 +17,47 @@ import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
 import Icon from 'react-native-vector-icons/Ionicons';
 
+// Obtém a largura da tela do dispositivo
 const {width} = Dimensions.get('window');
 
+// Define breakpoints para diferentes tamanhos de tela
 const isSmallScreen = width < 360;
 const isMediumScreen = width >= 360 && width < 400;
 const isLargeScreen = width >= 400;
 
+/**
+ * Componente principal para gerenciar dependentes do usuário.
+ *
+ * Este componente permite visualizar, adicionar, editar e remover dependentes,
+ * além de navegar para o gerenciamento de medicamentos de cada dependente.
+ * Inclui animações suaves e design responsivo para diferentes tamanhos de tela.
+ *
+ * @component
+ * @param {Object} props - Propriedades do componente
+ * @param {Object} props.navigation - Objeto de navegação do React Navigation
+ * @returns {JSX.Element} Componente renderizado da tela de dependentes
+ *
+ * @author Seu Nome
+ * @version 1.0.0
+ * @since 2024-01-01
+ */
 const Dependentes = ({navigation}) => {
+  // Estados do componente
   const [dependentes, setDependentes] = useState([]);
   const [loading, setLoading] = useState(true);
   const user = auth().currentUser;
 
+  // Referências para animações
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideUpAnim = useRef(new Animated.Value(30)).current;
   const backgroundAnim = useRef(new Animated.Value(0)).current;
 
+  /**
+   * Effect hook para configurar animações iniciais da tela.
+   *
+   * Configura animações de fade-in, slide-up e uma animação contínua
+   * de fundo que cria um efeito visual sutil.
+   */
   useEffect(() => {
     // Animações iniciais
     Animated.parallel([
@@ -67,6 +93,12 @@ const Dependentes = ({navigation}) => {
     return () => backgroundAnimation.stop();
   }, [backgroundAnim, fadeAnim, slideUpAnim]);
 
+  /**
+   * Effect hook para buscar e escutar mudanças na lista de dependentes.
+   *
+   * Configura um listener em tempo real no Firestore para obter os dependentes
+   * do usuário atual. Atualiza automaticamente quando há mudanças na base de dados.
+   */
   useEffect(() => {
     if (!user) {
       setLoading(false);
@@ -102,14 +134,40 @@ const Dependentes = ({navigation}) => {
     return () => unsubscribe();
   }, [user]);
 
+  /**
+   * Navega para a tela de adicionar novo dependente.
+   *
+   * @function handleAdicionarDependente
+   */
   const handleAdicionarDependente = () => {
     navigation.navigate('AdicionarDependente');
   };
 
+  /**
+   * Navega para a tela de edição de dependente.
+   *
+   * @function handleEditarDependente
+   * @param {Object} dependente - Objeto contendo os dados do dependente a ser editado
+   * @param {string} dependente.id - ID único do dependente
+   * @param {string} dependente.nome - Nome do dependente
+   * @param {string} dependente.parentesco - Relação de parentesco
+   * @param {Date} dependente.dataNascimento - Data de nascimento
+   * @param {string} dependente.genero - Gênero do dependente
+   */
   const handleEditarDependente = dependente => {
     navigation.navigate('AdicionarDependente', {dependente});
   };
 
+  /**
+   * Remove um dependente da base de dados após confirmação do usuário.
+   *
+   * Exibe um alerta de confirmação antes de proceder com a remoção.
+   * Em caso de sucesso ou erro, exibe mensagens apropriadas.
+   *
+   * @async
+   * @function handleRemoverDependente
+   * @param {string} dependenteId - ID único do dependente a ser removido
+   */
   const handleRemoverDependente = async dependenteId => {
     Alert.alert(
       'Confirmar Exclusão',
@@ -137,6 +195,14 @@ const Dependentes = ({navigation}) => {
     );
   };
 
+  /**
+   * Retorna o emoji avatar apropriado baseado no gênero e idade.
+   *
+   * @function getAvatar
+   * @param {string} genero - Gênero da pessoa ('masculino' ou 'feminino')
+   * @param {number} idade - Idade da pessoa em anos
+   * @returns {string} Emoji representando o avatar da pessoa
+   */
   const getAvatar = (genero, idade) => {
     if (idade < 18) {
       return genero === 'masculino' ? '👦' : '👧';
@@ -147,10 +213,27 @@ const Dependentes = ({navigation}) => {
     }
   };
 
+  /**
+   * Retorna a cor do avatar baseada no gênero.
+   *
+   * @function getAvatarColor
+   * @param {string} genero - Gênero da pessoa ('masculino' ou 'feminino')
+   * @returns {string} Código hexadecimal da cor (#10B981 para masculino, #9F7AEA para feminino)
+   */
   const getAvatarColor = genero => {
     return genero === 'masculino' ? '#10B981' : '#9F7AEA';
   };
 
+  /**
+   * Calcula a idade em anos baseada na data de nascimento.
+   *
+   * Suporta objetos Timestamp do Firestore e objetos Date nativos.
+   * Considera mês e dia para cálculo preciso da idade.
+   *
+   * @function calcularIdade
+   * @param {Date|Object} dataNascimento - Data de nascimento (Date ou Timestamp do Firestore)
+   * @returns {number} Idade em anos completos
+   */
   const calcularIdade = dataNascimento => {
     if (!dataNascimento) return 0;
 
@@ -168,6 +251,22 @@ const Dependentes = ({navigation}) => {
     return idade;
   };
 
+  /**
+   * Renderiza um card individual de dependente com suas informações e ações.
+   *
+   * Inclui avatar personalizado, informações básicas (nome, parentesco, idade)
+   * e botões de ação (administrar, editar, remover) com animações suaves.
+   *
+   * @function renderDependenteCard
+   * @param {Object} dependente - Dados do dependente
+   * @param {string} dependente.id - ID único do dependente
+   * @param {string} dependente.nome - Nome do dependente
+   * @param {string} dependente.parentesco - Relação de parentesco
+   * @param {Date} dependente.dataNascimento - Data de nascimento
+   * @param {string} dependente.genero - Gênero do dependente
+   * @param {number} index - Índice do dependente na lista
+   * @returns {JSX.Element} Card renderizado do dependente
+   */
   const renderDependenteCard = (dependente, index) => {
     const idade = calcularIdade(dependente.dataNascimento);
     const avatar = getAvatar(dependente.genero, idade);
@@ -244,6 +343,15 @@ const Dependentes = ({navigation}) => {
     );
   };
 
+  /**
+   * Renderiza o estado vazio quando não há dependentes cadastrados.
+   *
+   * Exibe uma mensagem informativa e um botão para adicionar o primeiro dependente.
+   * O layout é responsivo e adapta-se a diferentes tamanhos de tela.
+   *
+   * @function renderEmptyState
+   * @returns {JSX.Element} Componente do estado vazio
+   */
   const renderEmptyState = () => (
     <View style={styles.emptyContainer}>
       <View style={styles.emptyIconContainer}>
@@ -269,6 +377,14 @@ const Dependentes = ({navigation}) => {
     </View>
   );
 
+  /**
+   * Renderiza o estado de carregamento enquanto os dados são buscados.
+   *
+   * Exibe um indicador de atividade e uma mensagem informativa.
+   *
+   * @function renderLoadingState
+   * @returns {JSX.Element} Componente do estado de carregamento
+   */
   const renderLoadingState = () => (
     <View style={styles.loadingContainer}>
       <ActivityIndicator size="large" color="#10B981" />
@@ -280,6 +396,7 @@ const Dependentes = ({navigation}) => {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#121A29" />
 
+      {/* Elementos de background animados para criar profundidade visual */}
       <Animated.View
         style={[
           styles.backgroundCircle,
@@ -319,6 +436,7 @@ const Dependentes = ({navigation}) => {
         ]}
       />
 
+      {/* Header da tela com título e botões de navegação */}
       <Animated.View
         style={[
           styles.header,
@@ -347,6 +465,7 @@ const Dependentes = ({navigation}) => {
         </TouchableOpacity>
       </Animated.View>
 
+      {/* Conteúdo principal da tela */}
       <ScrollView
         style={styles.content}
         showsVerticalScrollIndicator={false}
@@ -370,6 +489,14 @@ const Dependentes = ({navigation}) => {
   );
 };
 
+/**
+ * Estilos do componente Dependentes.
+ *
+ * Inclui estilos responsivos que se adaptam a diferentes tamanhos de tela,
+ * animações suaves, tema escuro e design moderno com glassmorphism.
+ *
+ * @const {Object} styles - Objeto contendo todos os estilos do componente
+ */
 const styles = StyleSheet.create({
   container: {
     flex: 1,

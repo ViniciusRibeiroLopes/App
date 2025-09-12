@@ -17,12 +17,46 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 
+// Obtém as dimensões da tela do dispositivo para layout responsivo
 const {width, height} = Dimensions.get('window');
 
+// Define breakpoints para diferentes tamanhos de tela
 const isSmallScreen = width < 360;
 const isMediumScreen = width >= 360 && width < 400;
 
+/**
+ * Componente de tela de Configurações do aplicativo PillCheck
+ *
+ * @description Tela principal de configurações que permite ao usuário personalizar
+ * notificações, aparência, privacidade, segurança e configurações avançadas.
+ * Inclui animações suaves, switches interativos e ações de gerenciamento de dados.
+ *
+ * @component
+ * @param {Object} props - Propriedades do componente
+ * @param {Object} props.navigation - Objeto de navegação do React Navigation
+ * @returns {JSX.Element} Componente renderizado da tela de configurações
+ *
+ * @example
+ * // Uso no React Navigation
+ * <Stack.Screen name="Configuracoes" component={Configuracoes} />
+ *
+ * @author Equipe PillCheck
+ * @version 1.0.0
+ * @since 2025
+ */
 const Configuracoes = ({navigation}) => {
+  /**
+   * Estado principal das configurações do aplicativo
+   * @type {Object} Objeto contendo todas as configurações do usuário
+   * @property {boolean} notificacoes - Se as notificações estão habilitadas
+   * @property {boolean} notificacaoSom - Se o som das notificações está ativo
+   * @property {boolean} vibracao - Se a vibração está habilitada
+   * @property {boolean} modoEscuro - Se o modo escuro está ativo
+   * @property {boolean} lembreteAntecipado - Se lembretes antecipados estão ativos
+   * @property {boolean} sincronizacaoNuvem - Se a sincronização na nuvem está ativa
+   * @property {boolean} compartilharDados - Se compartilhamento de dados anônimos está ativo
+   * @property {boolean} biometria - Se a autenticação biométrica está habilitada
+   */
   const [settings, setSettings] = useState({
     notificacoes: true,
     notificacaoSom: true,
@@ -34,12 +68,35 @@ const Configuracoes = ({navigation}) => {
     biometria: false,
   });
 
+  /**
+   * Referência para animação de fade in dos elementos
+   * @type {Animated.Value} Valor animado para opacidade (0 a 1)
+   */
   const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  /**
+   * Referência para animação de deslizamento vertical
+   * @type {Animated.Value} Valor animado para translateY (30 a 0)
+   */
   const slideUpAnim = useRef(new Animated.Value(30)).current;
+
+  /**
+   * Referência para animação contínua do fundo
+   * @type {Animated.Value} Valor animado para efeitos de fundo (0 a 1)
+   */
   const backgroundAnim = useRef(new Animated.Value(0)).current;
 
+  /**
+   * Effect hook para inicializar animações quando o componente é montado
+   *
+   * @description Executa animações paralelas de fade in e slide up na montagem,
+   * além de iniciar uma animação de loop contínua para o fundo com duração de 12 segundos.
+   *
+   * @effect
+   * @returns {Function} Função de cleanup para parar a animação de fundo
+   */
   useEffect(() => {
-    // Animações iniciais
+    // Animações iniciais executadas em paralelo
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -53,7 +110,7 @@ const Configuracoes = ({navigation}) => {
       }),
     ]).start();
 
-    // Animação de fundo contínua
+    // Animação de fundo contínua em loop infinito
     const backgroundAnimation = Animated.loop(
       Animated.sequence([
         Animated.timing(backgroundAnim, {
@@ -70,16 +127,33 @@ const Configuracoes = ({navigation}) => {
     );
     backgroundAnimation.start();
 
+    // Cleanup: para a animação quando o componente é desmontado
     return () => backgroundAnimation.stop();
   }, []);
 
+  /**
+   * Função para alterar o valor de uma configuração específica
+   *
+   * @description Atualiza o estado da configuração especificada e mostra
+   * feedback ao usuário para configurações críticas como notificações.
+   *
+   * @param {string} key - Chave da configuração a ser alterada
+   * @returns {void}
+   *
+   * @example
+   * // Desabilitar notificações
+   * toggleSetting('notificacoes');
+   *
+   * // Habilitar modo escuro
+   * toggleSetting('modoEscuro');
+   */
   const toggleSetting = key => {
     setSettings(prev => ({
       ...prev,
       [key]: !prev[key],
     }));
 
-    // Mostrar feedback para certas configurações
+    // Mostrar feedback para certas configurações críticas
     if (key === 'notificacoes' && settings.notificacoes) {
       Alert.alert(
         'Notificações Desabilitadas',
@@ -89,6 +163,17 @@ const Configuracoes = ({navigation}) => {
     }
   };
 
+  /**
+   * Handler para exportação de dados do usuário
+   *
+   * @description Exibe um alerta com opções para exportar os dados do usuário
+   * em formato CSV, permitindo compartilhar ou salvar no dispositivo.
+   *
+   * @returns {void}
+   *
+   * @example
+   * handleDataExport(); // Abre o diálogo de exportação
+   */
   const handleDataExport = () => {
     Alert.alert(
       'Exportar Dados',
@@ -101,6 +186,20 @@ const Configuracoes = ({navigation}) => {
     );
   };
 
+  /**
+   * Handler para limpeza completa dos dados do aplicativo
+   *
+   * @description Exibe uma série de alertas de confirmação antes de executar
+   * a limpeza completa dos dados. Esta é uma ação irreversível que remove
+   * todos os medicamentos, alarmes e histórico do usuário.
+   *
+   * @returns {void}
+   *
+   * @warning Esta ação é irreversível e remove todos os dados do usuário
+   *
+   * @example
+   * handleDataClear(); // Inicia o processo de limpeza de dados
+   */
   const handleDataClear = () => {
     Alert.alert(
       'Limpar Dados',
@@ -121,6 +220,25 @@ const Configuracoes = ({navigation}) => {
     );
   };
 
+  /**
+   * Estrutura de dados das configurações organizadas por seções
+   *
+   * @type {Array<Object>} Array de objetos representando seções de configurações
+   * @property {string} section - Nome da seção
+   * @property {Array<Object>} items - Array de itens de configuração da seção
+   *
+   * @description Cada item de configuração possui:
+   * @property {string} id - Identificador único da configuração
+   * @property {string} title - Título exibido ao usuário
+   * @property {string} description - Descrição da funcionalidade
+   * @property {string} icon - Nome do ícone a ser exibido
+   * @property {string} type - Tipo de controle ('switch' ou 'action')
+   * @property {boolean} [value] - Valor atual (para switches)
+   * @property {string} color - Cor tema da configuração
+   * @property {boolean} [disabled] - Se o item está desabilitado
+   * @property {Function} [action] - Função executada (para actions)
+   * @property {boolean} [danger] - Se é uma ação perigosa
+   */
   const settingsData = [
     {
       section: 'Notificações',
@@ -257,6 +375,16 @@ const Configuracoes = ({navigation}) => {
     },
   ];
 
+  /**
+   * Renderiza o cabeçalho da tela com animações
+   *
+   * @description Componente que renderiza o header com botão de voltar,
+   * título e subtítulo, aplicando animações de fade e slide.
+   *
+   * @returns {JSX.Element} Elemento JSX do cabeçalho animado
+   *
+   * @private
+   */
   const renderHeader = () => (
     <Animated.View
       style={[
@@ -278,6 +406,30 @@ const Configuracoes = ({navigation}) => {
     </Animated.View>
   );
 
+  /**
+   * Renderiza um item individual de configuração
+   *
+   * @description Cria um componente interativo para cada configuração,
+   * que pode ser um switch (para configurações boolean) ou uma ação
+   * (para executar funções). Aplica estilos condicionais baseados no
+   * estado disabled e danger.
+   *
+   * @param {Object} item - Objeto contendo dados do item de configuração
+   * @param {string} item.id - Identificador único do item
+   * @param {string} item.title - Título do item
+   * @param {string} item.description - Descrição do item
+   * @param {string} item.icon - Nome do ícone
+   * @param {string} item.type - Tipo ('switch' ou 'action')
+   * @param {boolean} [item.value] - Valor atual (para switches)
+   * @param {string} item.color - Cor tema
+   * @param {boolean} [item.disabled] - Se está desabilitado
+   * @param {Function} [item.action] - Função para actions
+   * @param {boolean} [item.danger] - Se é perigoso
+   *
+   * @returns {JSX.Element} Elemento JSX do item de configuração
+   *
+   * @private
+   */
   const renderSettingItem = item => {
     const isDisabled = item.disabled;
     const itemColor = isDisabled ? '#64748b' : item.color;
@@ -347,6 +499,21 @@ const Configuracoes = ({navigation}) => {
     );
   };
 
+  /**
+   * Renderiza uma seção completa de configurações
+   *
+   * @description Cria uma seção com título e container para agrupar
+   * itens relacionados de configuração. Aplica animações consistentes
+   * com o resto da interface.
+   *
+   * @param {Object} section - Objeto contendo dados da seção
+   * @param {string} section.section - Nome da seção
+   * @param {Array<Object>} section.items - Array de itens da seção
+   *
+   * @returns {JSX.Element} Elemento JSX da seção de configurações
+   *
+   * @private
+   */
   const renderSettingsSection = section => (
     <Animated.View
       key={section.section}
@@ -364,10 +531,12 @@ const Configuracoes = ({navigation}) => {
     </Animated.View>
   );
 
+  // Renderização principal do componente
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#121A29" />
 
+      {/* Elementos de fundo animados para efeito visual */}
       <Animated.View
         style={[
           styles.backgroundCircle,
@@ -407,6 +576,7 @@ const Configuracoes = ({navigation}) => {
         ]}
       />
 
+      {/* Renderização das seções da tela */}
       {renderHeader()}
 
       <ScrollView
@@ -415,6 +585,7 @@ const Configuracoes = ({navigation}) => {
         contentContainerStyle={styles.scrollContent}>
         {settingsData.map(renderSettingsSection)}
 
+        {/* Seção de informações do aplicativo */}
         <View style={styles.appInfoSection}>
           <Text style={styles.appInfoText}>PillCheck v1.0.0</Text>
           <Text style={styles.appInfoSubtext}>
@@ -426,6 +597,44 @@ const Configuracoes = ({navigation}) => {
   );
 };
 
+/**
+ * Estilos do componente Configuracoes
+ *
+ * @description StyleSheet contendo todos os estilos utilizados no componente.
+ * Inclui responsividade para diferentes tamanhos de tela, estados disabled/danger,
+ * animações suaves e design consistente com o tema dark do aplicativo.
+ *
+ * @type {StyleSheet} Objeto de estilos do React Native
+ *
+ * @property {Object} container - Container principal da tela
+ * @property {Object} backgroundCircle - Círculo de fundo animado superior
+ * @property {Object} backgroundCircle2 - Círculo de fundo animado inferior
+ * @property {Object} header - Cabeçalho da tela
+ * @property {Object} backButton - Botão de voltar
+ * @property {Object} headerContent - Conteúdo do cabeçalho
+ * @property {Object} headerTitle - Título principal
+ * @property {Object} headerSubtitle - Subtítulo
+ * @property {Object} content - Área de conteúdo scrollável
+ * @property {Object} scrollContent - Container do scroll
+ * @property {Object} section - Seção de configurações
+ * @property {Object} sectionTitle - Título da seção
+ * @property {Object} sectionContainer - Container dos itens da seção
+ * @property {Object} settingItem - Item individual de configuração
+ * @property {Object} settingItemDisabled - Estado desabilitado do item
+ * @property {Object} settingItemDanger - Estado de perigo do item
+ * @property {Object} settingContent - Conteúdo principal do item
+ * @property {Object} settingIcon - Ícone da configuração
+ * @property {Object} settingTextContainer - Container do texto
+ * @property {Object} settingTitle - Título da configuração
+ * @property {Object} settingTitleDisabled - Título desabilitado
+ * @property {Object} settingTitleDanger - Título perigoso
+ * @property {Object} settingDescription - Descrição da configuração
+ * @property {Object} settingDescriptionDisabled - Descrição desabilitada
+ * @property {Object} settingControl - Controle (switch ou seta)
+ * @property {Object} appInfoSection - Seção de informações do app
+ * @property {Object} appInfoText - Texto principal das informações
+ * @property {Object} appInfoSubtext - Subtexto das informações
+ */
 const styles = StyleSheet.create({
   container: {
     flex: 1,
