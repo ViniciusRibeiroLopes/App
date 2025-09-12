@@ -1,3 +1,11 @@
+/**
+ * @fileoverview Tela principal para gerenciamento de remédios/medicamentos
+ * Permite visualizar, adicionar, editar, excluir e marcar remédios como tomados
+ *
+ * @author Seu Nome
+ * @version 1.0.0
+ */
+
 import React, {useEffect, useState, useRef} from 'react';
 import {
   View,
@@ -23,27 +31,65 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 
 const {width, height} = Dimensions.get('window');
 
-// Breakpoints responsivos
+// Breakpoints responsivos para diferentes tamanhos de tela
 const isSmallScreen = width < 360;
 const isMediumScreen = width >= 360 && width < 400;
 const isLargeScreen = width >= 400;
 
+/**
+ * Componente principal da tela de gerenciamento de remédios
+ *
+ * @component
+ * @param {Object} props - Props do componente
+ * @param {Object} props.navigation - Objeto de navegação do React Navigation
+ * @returns {JSX.Element} Componente da tela de remédios
+ *
+ * @example
+ * <RemediosScreen navigation={navigation} />
+ */
 const RemediosScreen = ({navigation}) => {
+  // Estados para gerenciamento de dados
+  /** @type {Array} Lista de remédios do usuário */
   const [remedios, setRemedios] = useState([]);
+
+  /** @type {boolean} Estado de carregamento da tela */
   const [loading, setLoading] = useState(true);
+
+  /** @type {boolean} Visibilidade do modal de exclusão */
   const [modalVisible, setModalVisible] = useState(false);
+
+  /** @type {boolean} Visibilidade do modal de tomar remédio */
   const [modalTomarVisible, setModalTomarVisible] = useState(false);
+
+  /** @type {Object|null} Remédio selecionado para exclusão */
   const [remedioParaExcluir, setRemedioParaExcluir] = useState(null);
+
+  /** @type {Object|null} Remédio selecionado para marcar como tomado */
   const [remedioParaTomar, setRemedioParaTomar] = useState(null);
+
+  /** @type {string} Valor da dosagem inserida pelo usuário */
   const [dosagemInput, setDosagemInput] = useState('');
+
+  /** @type {Object} Usuário autenticado atual */
   const user = auth().currentUser;
 
-  // Animações
+  // Referências para animações
+  /** @type {Animated.Value} Animação de fade in */
   const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  /** @type {Animated.Value} Animação de slide para cima */
   const slideUpAnim = useRef(new Animated.Value(30)).current;
+
+  /** @type {Animated.Value} Animação dos círculos de fundo */
   const backgroundAnim = useRef(new Animated.Value(0)).current;
+
+  /** @type {Animated.Value} Animação do slide do header */
   const headerSlideAnim = useRef(new Animated.Value(-50)).current;
 
+  /**
+   * Mapeamento de tipos de medicamentos para ícones e cores
+   * @constant {Object}
+   */
   const tipoIconMap = {
     comprimido: {name: 'medical', color: '#E53E3E', bg: '#E53E3E15'},
     capsula: {name: 'ellipse', color: '#4D97DB', bg: '#4D97DB15'},
@@ -55,6 +101,10 @@ const RemediosScreen = ({navigation}) => {
     outro: {name: 'help-circle', color: '#718096', bg: '#71809615'},
   };
 
+  /**
+   * Effect para inicializar animações da tela
+   * Executa animações paralelas de entrada e uma animação contínua de fundo
+   */
   useEffect(() => {
     // Animações iniciais
     Animated.parallel([
@@ -97,6 +147,10 @@ const RemediosScreen = ({navigation}) => {
     return () => backgroundAnimation.stop();
   }, [backgroundAnim, fadeAnim, headerSlideAnim, slideUpAnim]);
 
+  /**
+   * Effect para carregar e sincronizar dados dos remédios em tempo real
+   * Configura listener do Firestore para updates automáticos
+   */
   useEffect(() => {
     if (!user) {
       setLoading(false);
@@ -137,11 +191,21 @@ const RemediosScreen = ({navigation}) => {
     return () => unsubscribe();
   }, [user]);
 
+  /**
+   * Prepara modal de confirmação para exclusão de remédio
+   * @param {Object} remedio - Objeto do remédio a ser excluído
+   */
   const confirmarExclusao = remedio => {
     setRemedioParaExcluir(remedio);
     setModalVisible(true);
   };
 
+  /**
+   * Executa a exclusão do remédio selecionado
+   * Remove o documento do Firestore e exibe feedback ao usuário
+   * @async
+   * @function
+   */
   const excluirRemedio = async () => {
     try {
       await firestore()
@@ -158,12 +222,22 @@ const RemediosScreen = ({navigation}) => {
     }
   };
 
+  /**
+   * Prepara modal para marcar remédio como tomado
+   * @param {Object} remedio - Objeto do remédio a ser marcado como tomado
+   */
   const confirmarTomarRemedio = remedio => {
     setRemedioParaTomar(remedio);
     setDosagemInput(remedio.dosagem || '1');
     setModalTomarVisible(true);
   };
 
+  /**
+   * Registra que o remédio foi tomado na coleção de histórico
+   * Cria um novo documento com data, horário e dosagem
+   * @async
+   * @function
+   */
   const marcarComoTomado = async () => {
     try {
       const agora = new Date();
@@ -201,11 +275,21 @@ const RemediosScreen = ({navigation}) => {
     }
   };
 
+  /**
+   * Obtém ícone e cor baseado no tipo do medicamento
+   * @param {string} tipo - Tipo do medicamento
+   * @returns {Object} Objeto contendo nome do ícone, cor e cor de fundo
+   */
   const getTipoIcon = tipo => {
     const tipoLower = tipo?.toLowerCase() || 'outro';
     return tipoIconMap[tipoLower] || tipoIconMap['outro'];
   };
 
+  /**
+   * Formata timestamp para exibição amigável da data de atualização
+   * @param {*} timestamp - Timestamp do Firestore ou Date
+   * @returns {string|null} String formatada da data ou null se inválido
+   */
   const formatarDataAtualizacao = timestamp => {
     if (!timestamp) return null;
 
@@ -229,7 +313,16 @@ const RemediosScreen = ({navigation}) => {
     }
   };
 
+  /**
+   * Componente para renderizar um card individual de remédio
+   * @component
+   * @param {Object} props - Props do componente
+   * @param {Object} props.remedio - Dados do remédio
+   * @param {number} props.index - Índice do card para animação escalonada
+   * @returns {JSX.Element|null} Card do remédio ou null se remédio inválido
+   */
   const RemedioCard = ({remedio, index}) => {
+    /** @type {Animated.Value} Animação específica do card */
     const cardAnimation = useRef(new Animated.Value(0)).current;
 
     useEffect(() => {
@@ -396,6 +489,10 @@ const RemediosScreen = ({navigation}) => {
     );
   };
 
+  /**
+   * Renderiza o estado de carregamento da tela
+   * @returns {JSX.Element} Componente de loading
+   */
   const renderLoadingState = () => (
     <Animated.View
       style={[
@@ -413,6 +510,10 @@ const RemediosScreen = ({navigation}) => {
     </Animated.View>
   );
 
+  /**
+   * Renderiza o estado vazio quando não há remédios cadastrados
+   * @returns {JSX.Element} Componente de estado vazio
+   */
   const renderEmptyState = () => (
     <Animated.View
       style={[
@@ -490,6 +591,7 @@ const RemediosScreen = ({navigation}) => {
         ]}
       />
 
+      {/* Header da tela */}
       <Animated.View
         style={[
           styles.header,
@@ -524,6 +626,7 @@ const RemediosScreen = ({navigation}) => {
         </TouchableOpacity>
       </Animated.View>
 
+      {/* Conteúdo principal da tela */}
       <ScrollView
         style={styles.content}
         showsVerticalScrollIndicator={false}
@@ -675,6 +778,10 @@ const RemediosScreen = ({navigation}) => {
   );
 };
 
+/**
+ * Estilos do componente RemediosScreen
+ * @constant {Object}
+ */
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -782,6 +889,7 @@ const styles = StyleSheet.create({
   remediosList: {
     gap: 16,
   },
+  /** Estilos para estado de carregamento */
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -814,6 +922,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
+  /** Estilos para cards de remédios */
   remedioCard: {
     backgroundColor: 'rgba(30, 41, 59, 0.8)',
     borderRadius: 18,
@@ -825,7 +934,6 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.15,
     shadowRadius: 8,
-
     borderWidth: 1,
     borderColor: 'rgba(51, 65, 85, 0.6)',
     overflow: 'hidden',
@@ -863,6 +971,10 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
+  tipoContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   tipoText: {
     fontSize: isSmallScreen ? 12 : 14,
     fontWeight: '500',
@@ -894,6 +1006,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 2,
   },
+  /** Estilos para conteúdo dos cards */
   cardContent: {
     padding: 20,
   },
@@ -974,6 +1087,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
+  /** Estilos para ações dos cards */
   cardActions: {
     flexDirection: 'row',
     borderTopWidth: 1,
@@ -1010,6 +1124,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
+  /** Estilos para estado vazio */
   emptyContainer: {
     flex: 1,
     alignItems: 'center',
@@ -1060,7 +1175,6 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.3,
     shadowRadius: 8,
-
     gap: 8,
   },
   emptyActionButtonText: {
@@ -1070,6 +1184,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
+  /** Estilos para modais */
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
@@ -1211,6 +1326,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
+  /** Estilos para input de dosagem */
   dosagemContainer: {
     width: '100%',
     marginBottom: 16,

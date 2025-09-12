@@ -18,13 +18,35 @@ import auth from '@react-native-firebase/auth';
 import Icon from 'react-native-vector-icons/Ionicons';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 
+// Obtém a largura da tela do dispositivo
 const {width} = Dimensions.get('window');
 
+// Define breakpoints para diferentes tamanhos de tela
 const isSmallScreen = width < 360;
 const isMediumScreen = width >= 360 && width < 400;
 const isLargeScreen = width >= 400;
 
+/**
+ * Componente da tela de histórico de medicamentos para dependentes.
+ *
+ * Esta tela exibe o histórico completo de medicamentos tomados por um dependente específico,
+ * com funcionalidades de filtragem por período (hoje, ontem, 7 dias, 30 dias),
+ * agrupamento por data e exibição detalhada de cada medicamento administrado.
+ * Inclui animações suaves e design responsivo para diferentes tamanhos de tela.
+ *
+ * @component
+ * @param {Object} props - Propriedades do componente
+ * @param {Object} props.navigation - Objeto de navegação do React Navigation
+ * @param {Object} props.route - Objeto de rota contendo parâmetros
+ * @param {string} props.route.params.dependenteId - ID do dependente para buscar o histórico
+ * @returns {JSX.Element} Componente renderizado da tela de histórico
+ *
+ * @author Seu Nome
+ * @version 1.0.0
+ * @since 2024-01-01
+ */
 const HistoricoMedicamentosScreen = ({navigation, route}) => {
+  // Estados do componente
   const [medicamentosTomados, setMedicamentosTomados] = useState([]);
   const [dependente, setDependente] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -32,10 +54,17 @@ const HistoricoMedicamentosScreen = ({navigation, route}) => {
   const user = auth().currentUser;
   const {dependenteId} = route.params || {};
 
+  // Referências para animações
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideUpAnim = useRef(new Animated.Value(30)).current;
   const backgroundAnim = useRef(new Animated.Value(0)).current;
 
+  /**
+   * Effect hook para configurar animações iniciais da tela.
+   *
+   * Configura animações de fade-in, slide-up e uma animação contínua
+   * de fundo que cria um efeito visual sutil.
+   */
   useEffect(() => {
     // Animações iniciais
     Animated.parallel([
@@ -71,6 +100,13 @@ const HistoricoMedicamentosScreen = ({navigation, route}) => {
     return () => backgroundAnimation.stop();
   }, [backgroundAnim, fadeAnim, slideUpAnim]);
 
+  /**
+   * Effect hook principal para carregar dados do dependente e seu histórico.
+   *
+   * Busca os dados do dependente e configura um listener em tempo real para
+   * monitorar mudanças no histórico de medicamentos. Aplica filtros conforme
+   * a seleção do usuário e ordena os dados por data e horário.
+   */
   useEffect(() => {
     if (!user || !dependenteId) {
       setLoading(false);
@@ -79,6 +115,13 @@ const HistoricoMedicamentosScreen = ({navigation, route}) => {
       return;
     }
 
+    /**
+     * Busca os dados básicos do dependente no Firestore.
+     *
+     * @async
+     * @function buscarDependente
+     * @returns {Promise<Object|null>} Dados do dependente ou null em caso de erro
+     */
     const buscarDependente = async () => {
       try {
         const dependenteDoc = await firestore()
@@ -109,6 +152,18 @@ const HistoricoMedicamentosScreen = ({navigation, route}) => {
       }
     };
 
+    /**
+     * Busca e monitora em tempo real o histórico de medicamentos do dependente.
+     *
+     * Configura um listener no Firestore que atualiza automaticamente quando
+     * há mudanças no histórico. Para cada medicamento, busca detalhes adicionais
+     * do remédio e aplica filtros de período conforme selecionado pelo usuário.
+     *
+     * @async
+     * @function buscarHistorico
+     * @param {Object} dependenteData - Dados do dependente
+     * @returns {Promise<Function>} Função unsubscribe do listener
+     */
     const buscarHistorico = async dependenteData => {
       if (!dependenteData) {
         setLoading(false);
@@ -212,6 +267,13 @@ const HistoricoMedicamentosScreen = ({navigation, route}) => {
       return unsubscribe;
     };
 
+    /**
+     * Função de inicialização que coordena o carregamento de dados.
+     *
+     * @async
+     * @function inicializar
+     * @returns {Promise<Function>} Função unsubscribe do listener
+     */
     const inicializar = async () => {
       const dependenteData = await buscarDependente();
       const unsubscribe = await buscarHistorico(dependenteData);
@@ -230,6 +292,17 @@ const HistoricoMedicamentosScreen = ({navigation, route}) => {
     };
   }, [user, dependenteId, filtroSelecionado]);
 
+  /**
+   * Calcula as datas de início e fim baseadas no filtro selecionado.
+   *
+   * Converte períodos relativos (hoje, ontem, semana, mês) em datas absolutas
+   * para aplicar filtros na consulta dos medicamentos.
+   *
+   * @function obterDataFiltro
+   * @returns {Object} Objeto contendo datas de início e fim no formato ISO
+   * @returns {string|null} returns.inicio - Data de início no formato YYYY-MM-DD
+   * @returns {string|null} returns.fim - Data de fim no formato YYYY-MM-DD
+   */
   const obterDataFiltro = () => {
     const hoje = new Date();
     const inicioHoje = new Date(
@@ -269,6 +342,16 @@ const HistoricoMedicamentosScreen = ({navigation, route}) => {
     }
   };
 
+  /**
+   * Formata uma string de data para exibição amigável ao usuário.
+   *
+   * Converte datas para formato brasileiro e adiciona indicadores especiais
+   * para "Hoje" e "Ontem" para melhor usabilidade.
+   *
+   * @function formatarData
+   * @param {string} dataString - Data no formato YYYY-MM-DD
+   * @returns {string} Data formatada para exibição (ex: "Hoje, 15/01/2024")
+   */
   const formatarData = dataString => {
     const data = new Date(dataString + 'T00:00:00');
     const hoje = new Date();
@@ -286,6 +369,16 @@ const HistoricoMedicamentosScreen = ({navigation, route}) => {
     }
   };
 
+  /**
+   * Agrupa os medicamentos por dia para organização na interface.
+   *
+   * Cria um objeto onde cada chave é uma data e o valor é um array
+   * contendo todos os medicamentos tomados naquele dia.
+   *
+   * @function agruparPorDia
+   * @returns {Object} Objeto com medicamentos agrupados por dia
+   * @returns {Array} returns[date] - Array de medicamentos para a data específica
+   */
   const agruparPorDia = () => {
     const grupos = {};
     medicamentosTomados.forEach(medicamento => {
@@ -298,6 +391,18 @@ const HistoricoMedicamentosScreen = ({navigation, route}) => {
     return grupos;
   };
 
+  /**
+   * Calcula estatísticas do histórico de medicamentos.
+   *
+   * Gera métricas úteis como total de dias com registros,
+   * total de medicamentos tomados e medicamentos do dia atual.
+   *
+   * @function getHistoricoStats
+   * @returns {Object} Estatísticas do histórico
+   * @returns {number} returns.totalDias - Total de dias com medicamentos registrados
+   * @returns {number} returns.totalMedicamentos - Total de medicamentos tomados
+   * @returns {number} returns.medicamentosHoje - Medicamentos tomados hoje
+   */
   const getHistoricoStats = () => {
     const grupos = agruparPorDia();
     const totalDias = Object.keys(grupos).length;
@@ -309,6 +414,15 @@ const HistoricoMedicamentosScreen = ({navigation, route}) => {
     return {totalDias, totalMedicamentos, medicamentosHoje};
   };
 
+  /**
+   * Renderiza a barra de filtros horizontais.
+   *
+   * Cria botões interativos para filtrar o histórico por diferentes períodos.
+   * Os botões incluem ícones e mudam de aparência quando selecionados.
+   *
+   * @function renderFiltros
+   * @returns {JSX.Element} Componente da barra de filtros
+   */
   const renderFiltros = () => {
     const filtros = [
       {key: 'todos', label: 'Todos', icon: 'infinite'},
@@ -353,6 +467,20 @@ const HistoricoMedicamentosScreen = ({navigation, route}) => {
     );
   };
 
+  /**
+   * Renderiza um item individual de medicamento.
+   *
+   * Exibe as informações de um medicamento específico incluindo nome,
+   * horário, dosagem e status de conclusão com ícones e badges coloridos.
+   *
+   * @function renderMedicamentoItem
+   * @param {Object} medicamento - Dados do medicamento
+   * @param {string} medicamento.id - ID único do medicamento
+   * @param {string} medicamento.remedioNome - Nome do remédio
+   * @param {string} medicamento.horario - Horário de administração
+   * @param {string} medicamento.dosagem - Dosagem administrada
+   * @returns {JSX.Element} Componente do item de medicamento
+   */
   const renderMedicamentoItem = medicamento => {
     return (
       <View key={medicamento.id} style={styles.medicamentoItem}>
@@ -381,6 +509,17 @@ const HistoricoMedicamentosScreen = ({navigation, route}) => {
     );
   };
 
+  /**
+   * Renderiza um grupo de medicamentos para um dia específico.
+   *
+   * Cria um cabeçalho com a data formatada e contador de medicamentos,
+   * seguido pela lista de medicamentos administrados naquele dia.
+   *
+   * @function renderDiaGroup
+   * @param {string} dia - Data no formato YYYY-MM-DD
+   * @param {Array} medicamentos - Array de medicamentos do dia
+   * @returns {JSX.Element} Componente do grupo diário
+   */
   const renderDiaGroup = (dia, medicamentos) => {
     return (
       <View key={dia} style={styles.diaGroup}>
@@ -400,6 +539,15 @@ const HistoricoMedicamentosScreen = ({navigation, route}) => {
     );
   };
 
+  /**
+   * Renderiza o estado de carregamento.
+   *
+   * Exibe um indicador de atividade e mensagem informativa
+   * enquanto os dados estão sendo carregados.
+   *
+   * @function renderLoadingState
+   * @returns {JSX.Element} Componente do estado de carregamento
+   */
   const renderLoadingState = () => (
     <View style={styles.loadingContainer}>
       <ActivityIndicator size="large" color="#4D97DB" />
@@ -407,6 +555,15 @@ const HistoricoMedicamentosScreen = ({navigation, route}) => {
     </View>
   );
 
+  /**
+   * Renderiza o estado vazio quando não há registros.
+   *
+   * Exibe uma mensagem personalizada baseada no filtro ativo,
+   * informando que não há medicamentos registrados no período.
+   *
+   * @function renderEmptyState
+   * @returns {JSX.Element} Componente do estado vazio
+   */
   const renderEmptyState = () => (
     <View style={styles.emptyStateContainer}>
       <View style={styles.emptyStateIconContainer}>
@@ -429,6 +586,7 @@ const HistoricoMedicamentosScreen = ({navigation, route}) => {
     </View>
   );
 
+  // Preparação de dados para renderização
   const gruposPorDia = agruparPorDia();
   const diasOrdenados = Object.keys(gruposPorDia).sort((a, b) =>
     b.localeCompare(a),
@@ -439,7 +597,7 @@ const HistoricoMedicamentosScreen = ({navigation, route}) => {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#121A29" />
 
-      {/* Círculos de fundo animados */}
+      {/* Elementos de background animados para criar profundidade visual */}
       <Animated.View
         style={[
           styles.backgroundCircle,
@@ -479,6 +637,7 @@ const HistoricoMedicamentosScreen = ({navigation, route}) => {
         ]}
       />
 
+      {/* Header da tela com título e botão de voltar */}
       <Animated.View
         style={[
           styles.header,
@@ -505,6 +664,7 @@ const HistoricoMedicamentosScreen = ({navigation, route}) => {
         </View>
       </Animated.View>
 
+      {/* Conteúdo principal da tela */}
       <Animated.View
         style={[
           styles.content,
@@ -547,6 +707,15 @@ const HistoricoMedicamentosScreen = ({navigation, route}) => {
   );
 };
 
+/**
+ * Estilos do componente HistoricoMedicamentosScreen.
+ *
+ * Inclui estilos responsivos que se adaptam a diferentes tamanhos de tela,
+ * animações suaves, tema escuro moderno com elementos glassmorphism,
+ * e design especializado para exibição de histórico médico.
+ *
+ * @const {Object} styles - Objeto contendo todos os estilos do componente
+ */
 const styles = StyleSheet.create({
   container: {
     flex: 1,

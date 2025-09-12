@@ -21,25 +21,120 @@ import notifee from '@notifee/react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 
+/**
+ * Obtém as dimensões da tela
+ * @constant {Object} width - Largura da tela do dispositivo
+ */
 const {width} = Dimensions.get('window');
 
+/**
+ * Define se a tela é pequena (menor que 360px)
+ * @constant {boolean} isSmallScreen
+ */
 const isSmallScreen = width < 360;
+
+/**
+ * Define se a tela é média (entre 360px e 400px)
+ * @constant {boolean} isMediumScreen
+ */
 const isMediumScreen = width >= 360 && width < 400;
+
+/**
+ * Define se a tela é grande (maior ou igual a 400px)
+ * @constant {boolean} isLargeScreen
+ */
 const isLargeScreen = width >= 400;
 
+/**
+ * Componente principal da tela de avisos de medicamentos para dependentes
+ *
+ * @component
+ * @param {Object} props - Propriedades do componente
+ * @param {Object} props.navigation - Objeto de navegação do React Navigation
+ * @param {Object} props.route - Objeto de rota contendo parâmetros
+ * @param {string} props.route.params.dependenteId - ID do dependente
+ * @returns {JSX.Element} Componente JSX renderizado
+ *
+ * @description
+ * Este componente gerencia os avisos de medicamentos para um dependente específico.
+ * Permite visualizar, adicionar e excluir alertas de medicação, além de navegar
+ * para o histórico de medicamentos.
+ *
+ * @features
+ * - Listagem de alertas de medicamentos
+ * - Exclusão de alertas com confirmação
+ * - Navegação para histórico e adição de novos alertas
+ * - Animações suaves de entrada
+ * - Interface responsiva para diferentes tamanhos de tela
+ */
 const MenuAvisosScreen = ({navigation, route}) => {
+  /**
+   * Estado para armazenar a lista de alertas do dependente
+   * @type {Array<Object>} alertasDependentes
+   */
   const [alertasDependentes, setAlertasDependentes] = useState([]);
+
+  /**
+   * Estado para armazenar os dados do dependente
+   * @type {Object|null} dependente
+   */
   const [dependente, setDependente] = useState(null);
+
+  /**
+   * Estado de carregamento da tela
+   * @type {boolean} loading
+   */
   const [loading, setLoading] = useState(true);
+
+  /**
+   * Estado de visibilidade do modal de confirmação
+   * @type {boolean} modalVisible
+   */
   const [modalVisible, setModalVisible] = useState(false);
+
+  /**
+   * Estado para armazenar o alerta que será excluído
+   * @type {Object|null} alertaParaExcluir
+   */
   const [alertaParaExcluir, setAlertaParaExcluir] = useState(null);
+
+  /**
+   * Usuário atualmente autenticado
+   * @type {Object} user
+   */
   const user = auth().currentUser;
+
+  /**
+   * ID do dependente obtido dos parâmetros da rota
+   * @type {string} dependenteId
+   */
   const {dependenteId} = route.params || {};
 
+  /**
+   * Referência para animação de fade
+   * @type {Animated.Value} fadeAnim
+   */
   const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  /**
+   * Referência para animação de slide up
+   * @type {Animated.Value} slideUpAnim
+   */
   const slideUpAnim = useRef(new Animated.Value(30)).current;
+
+  /**
+   * Referência para animação de fundo
+   * @type {Animated.Value} backgroundAnim
+   */
   const backgroundAnim = useRef(new Animated.Value(0)).current;
 
+  /**
+   * Effect para configurar animações iniciais e contínuas
+   *
+   * @description
+   * Configura animações de entrada (fade e slide up) e uma animação
+   * contínua de fundo que cria um efeito visual dinâmico
+   */
   useEffect(() => {
     // Animações iniciais
     Animated.parallel([
@@ -75,6 +170,14 @@ const MenuAvisosScreen = ({navigation, route}) => {
     return () => backgroundAnimation.stop();
   }, [backgroundAnim, fadeAnim, slideUpAnim]);
 
+  /**
+   * Effect principal para carregar dados do dependente e seus alertas
+   *
+   * @description
+   * Realiza a validação inicial, busca os dados do dependente e configura
+   * um listener em tempo real para os alertas. Também carrega informações
+   * adicionais dos medicamentos associados aos alertas.
+   */
   useEffect(() => {
     if (!user || !dependenteId) {
       setLoading(false);
@@ -83,6 +186,17 @@ const MenuAvisosScreen = ({navigation, route}) => {
       return;
     }
 
+    /**
+     * Busca os dados do dependente no Firestore
+     *
+     * @async
+     * @function buscarDependente
+     * @returns {Promise<Object|null>} Dados do dependente ou null se não encontrado
+     *
+     * @description
+     * Consulta o documento do dependente na collection 'users_dependentes'
+     * e retorna seus dados formatados com ID incluído
+     */
     const buscarDependente = async () => {
       try {
         const dependenteDoc = await firestore()
@@ -113,6 +227,19 @@ const MenuAvisosScreen = ({navigation, route}) => {
       }
     };
 
+    /**
+     * Configura listener em tempo real para os alertas do dependente
+     *
+     * @async
+     * @function buscarAlertasDependente
+     * @param {Object} dependenteData - Dados do dependente
+     * @returns {Promise<function>} Função para cancelar o listener
+     *
+     * @description
+     * Cria um listener que monitora mudanças na collection 'alertas_dependentes',
+     * filtrando por dependenteId e ordenando por horário. Para cada alerta,
+     * também busca informações do medicamento associado.
+     */
     const buscarAlertasDependente = async dependenteData => {
       if (!dependenteData) {
         setLoading(false);
@@ -137,6 +264,13 @@ const MenuAvisosScreen = ({navigation, route}) => {
                 ...doc.data(),
               }));
 
+              /**
+               * Enriquece os dados dos alertas com informações dos medicamentos
+               *
+               * @description
+               * Para cada alerta que possui um remedioId, busca os dados completos
+               * do medicamento na collection 'remedios' para obter o nome correto
+               */
               const alertasComDetalhes = await Promise.all(
                 alertasData.map(async alerta => {
                   let nomeRemedio = alerta.titulo || 'Medicamento';
@@ -189,6 +323,13 @@ const MenuAvisosScreen = ({navigation, route}) => {
       return unsubscribe;
     };
 
+    /**
+     * Função de inicialização que coordena o carregamento dos dados
+     *
+     * @async
+     * @function inicializar
+     * @returns {Promise<function>} Função de limpeza do listener
+     */
     const inicializar = async () => {
       const dependenteData = await buscarDependente();
       const unsubscribe = await buscarAlertasDependente(dependenteData);
@@ -200,6 +341,7 @@ const MenuAvisosScreen = ({navigation, route}) => {
       unsubscribe = unsub;
     });
 
+    // Cleanup function para cancelar o listener
     return () => {
       if (unsubscribe && typeof unsubscribe === 'function') {
         unsubscribe();
@@ -207,11 +349,33 @@ const MenuAvisosScreen = ({navigation, route}) => {
     };
   }, [user, dependenteId]);
 
+  /**
+   * Abre o modal de confirmação para exclusão de alerta
+   *
+   * @function confirmarExclusao
+   * @param {Object} alerta - Objeto do alerta a ser excluído
+   *
+   * @description
+   * Define o alerta que será excluído e torna o modal de confirmação visível
+   */
   const confirmarExclusao = alerta => {
     setAlertaParaExcluir(alerta);
     setModalVisible(true);
   };
 
+  /**
+   * Cancela todas as notificações programadas para um medicamento
+   *
+   * @async
+   * @function cancelarNotificacoesRemedio
+   * @param {string} remedioId - ID do medicamento
+   * @param {string} dependenteId - ID do dependente
+   * @param {Array<string>} dias - Array com os dias da semana
+   *
+   * @description
+   * Itera sobre os dias especificados e cancela as notificações
+   * programadas usando o padrão de ID: {remedioId}_{dependenteId}_{dia}
+   */
   const cancelarNotificacoesRemedio = async (remedioId, dependenteId, dias) => {
     if (dias && Array.isArray(dias)) {
       for (let dia of dias) {
@@ -221,6 +385,17 @@ const MenuAvisosScreen = ({navigation, route}) => {
     }
   };
 
+  /**
+   * Exclui o alerta selecionado do Firestore e cancela suas notificações
+   *
+   * @async
+   * @function excluirAlerta
+   *
+   * @description
+   * Remove o documento do alerta da collection 'alertas_dependentes',
+   * cancela todas as notificações associadas e fecha o modal de confirmação.
+   * Exibe mensagem de sucesso ou erro conforme o resultado da operação.
+   */
   const excluirAlerta = async () => {
     try {
       await firestore()
@@ -230,6 +405,7 @@ const MenuAvisosScreen = ({navigation, route}) => {
 
       Alert.alert('Sucesso', 'Alerta excluído com sucesso!');
 
+      // Cancela notificações se existirem dados necessários
       if (
         alertaParaExcluir.remedioId &&
         alertaParaExcluir.dependenteId &&
@@ -249,6 +425,17 @@ const MenuAvisosScreen = ({navigation, route}) => {
     }
   };
 
+  /**
+   * Renderiza os chips dos dias da semana para um alerta
+   *
+   * @function renderDiasSemana
+   * @param {string|Array<string>} dias - Dias da semana (string separada por vírgula ou array)
+   * @returns {JSX.Element|null} Componente JSX com os chips dos dias ou null
+   *
+   * @description
+   * Converte os dias da semana em chips visuais. Aceita tanto string
+   * separada por vírgulas quanto array. Mapeia abreviações para formato padrão.
+   */
   const renderDiasSemana = dias => {
     if (!dias) return null;
 
@@ -261,6 +448,10 @@ const MenuAvisosScreen = ({navigation, route}) => {
       return null;
     }
 
+    /**
+     * Mapeamento de abreviações dos dias da semana
+     * @constant {Object} diasMap
+     */
     const diasMap = {
       Dom: 'DOM',
       Seg: 'SEG',
@@ -288,6 +479,18 @@ const MenuAvisosScreen = ({navigation, route}) => {
     );
   };
 
+  /**
+   * Renderiza um card individual de alerta na FlatList
+   *
+   * @function renderAlertaCard
+   * @param {Object} params - Parâmetros do renderItem da FlatList
+   * @param {Object} params.item - Objeto do alerta a ser renderizado
+   * @returns {JSX.Element} Componente JSX do card do alerta
+   *
+   * @description
+   * Cria um card animado para cada alerta contendo horário, nome do medicamento,
+   * dosagem, dias da semana e botão de exclusão. Inclui animações de entrada.
+   */
   const renderAlertaCard = ({item: alerta}) => (
     <Animated.View
       style={[
@@ -343,6 +546,16 @@ const MenuAvisosScreen = ({navigation, route}) => {
     </Animated.View>
   );
 
+  /**
+   * Renderiza o estado de carregamento
+   *
+   * @function renderLoadingState
+   * @returns {JSX.Element} Componente JSX com indicador de carregamento
+   *
+   * @description
+   * Exibe um spinner de carregamento centralizado com texto informativo
+   * enquanto os dados estão sendo carregados do Firestore.
+   */
   const renderLoadingState = () => (
     <View style={styles.loadingContainer}>
       <ActivityIndicator size="large" color="#10B981" />
@@ -350,6 +563,16 @@ const MenuAvisosScreen = ({navigation, route}) => {
     </View>
   );
 
+  /**
+   * Renderiza o estado vazio quando não há alertas
+   *
+   * @function renderEmptyState
+   * @returns {JSX.Element} Componente JSX do estado vazio
+   *
+   * @description
+   * Exibe uma mensagem amigável quando não há alertas configurados,
+   * incluindo um botão para adicionar o primeiro aviso.
+   */
   const renderEmptyState = () => (
     <View style={styles.emptyContainer}>
       <View style={styles.emptyStateIconContainer}>
@@ -376,6 +599,16 @@ const MenuAvisosScreen = ({navigation, route}) => {
     </View>
   );
 
+  /**
+   * Renderiza o cabeçalho da lista com ações rápidas
+   *
+   * @function renderHeader
+   * @returns {JSX.Element} Componente JSX do cabeçalho
+   *
+   * @description
+   * Cria dois botões de ação rápida: um para ver o histórico de medicamentos
+   * e outro para adicionar um novo aviso. Inclui animações de entrada.
+   */
   const renderHeader = () => (
     <Animated.View
       style={[
@@ -421,10 +654,12 @@ const MenuAvisosScreen = ({navigation, route}) => {
     </Animated.View>
   );
 
+  // Renderização principal do componente
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#121A29" />
 
+      {/* Círculos de fundo animados para efeito visual */}
       <Animated.View
         style={[
           styles.backgroundCircle,
@@ -464,6 +699,7 @@ const MenuAvisosScreen = ({navigation, route}) => {
         ]}
       />
 
+      {/* Cabeçalho da tela com título e botão de voltar */}
       <Animated.View
         style={[
           styles.header,
@@ -480,8 +716,7 @@ const MenuAvisosScreen = ({navigation, route}) => {
 
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>
-            Avisos de{' '}
-            {dependente?.nome || dependente?.nomeCompleto}
+            Avisos de {dependente?.nome || dependente?.nomeCompleto}
           </Text>
           <Text style={styles.headerSubtitle}>
             Administre os alertas do dependente
@@ -491,6 +726,7 @@ const MenuAvisosScreen = ({navigation, route}) => {
         <View style={styles.headerSpacer} />
       </Animated.View>
 
+      {/* Lista principal de alertas */}
       <FlatList
         style={styles.scrollContainer}
         data={alertasDependentes}
@@ -504,6 +740,7 @@ const MenuAvisosScreen = ({navigation, route}) => {
         }
       />
 
+      {/* Modal de confirmação para exclusão */}
       <Modal
         animationType="fade"
         transparent={true}
@@ -547,6 +784,17 @@ const MenuAvisosScreen = ({navigation, route}) => {
   );
 };
 
+/**
+ * Estilos do componente
+ *
+ * @constant {Object} styles
+ * @description
+ * Define todos os estilos utilizados no componente, incluindo:
+ * - Layout responsivo para diferentes tamanhos de tela
+ * - Cores e tipografia consistentes
+ * - Animações e sombras
+ * - Espaçamentos e dimensões
+ */
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -639,6 +887,9 @@ const styles = StyleSheet.create({
   scrollContainer: {
     flex: 1,
   },
+  /**
+   * Estilos do cabeçalho da lista com ações rápidas
+   */
   menuHeader: {
     paddingHorizontal: isSmallScreen ? 16 : 24,
     paddingTop: 25,
@@ -649,6 +900,9 @@ const styles = StyleSheet.create({
     gap: 12,
     marginBottom: 20,
   },
+  /**
+   * Estilos dos cards de ação (Histórico e Novo Aviso)
+   */
   actionCard: {
     flex: 1,
     alignItems: 'center',
@@ -704,6 +958,9 @@ const styles = StyleSheet.create({
     letterSpacing: 0.1,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
+  /**
+   * Estilos do estado de carregamento
+   */
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -718,6 +975,9 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
+  /**
+   * Estilos dos cards de alerta individuais
+   */
   alertaCard: {
     backgroundColor: 'rgba(30, 41, 59, 0.8)',
     borderRadius: 18,
@@ -731,7 +991,6 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.15,
     shadowRadius: 8,
-
     borderWidth: 1,
     borderColor: 'rgba(51, 65, 85, 0.6)',
   },
@@ -775,6 +1034,9 @@ const styles = StyleSheet.create({
     borderTopColor: 'rgba(51, 65, 85, 0.6)',
     paddingTop: 16,
   },
+  /**
+   * Estilos das informações do medicamento
+   */
   medicamentoInfo: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -807,6 +1069,9 @@ const styles = StyleSheet.create({
     letterSpacing: 0.1,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
+  /**
+   * Estilos dos chips de dias da semana
+   */
   diasContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -843,6 +1108,9 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
+  /**
+   * Estilos do estado vazio
+   */
   emptyContainer: {
     alignItems: 'center',
     paddingVertical: 60,
@@ -904,6 +1172,9 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
+  /**
+   * Estilos do modal de confirmação
+   */
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',

@@ -18,22 +18,47 @@ import auth from '@react-native-firebase/auth';
 import Icon from 'react-native-vector-icons/Ionicons';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 
+// Obtém as dimensões da tela para responsividade
 const {width} = Dimensions.get('window');
 
+// Constantes para diferentes tamanhos de tela
 const isSmallScreen = width < 360;
 const isMediumScreen = width >= 360 && width < 400;
 const isLargeScreen = width >= 400;
 
+/**
+ * Componente de tela para exibição do histórico de medicamentos tomados pelo usuário.
+ *
+ * Funcionalidades principais:
+ * - Exibição de medicamentos tomados organizados por data
+ * - Filtros por período (hoje, ontem, 7 dias, 30 dias)
+ * - Animações de entrada e fundo contínuas
+ * - Interface responsiva para diferentes tamanhos de tela
+ * - Integração com Firebase Firestore para dados persistentes
+ *
+ * @component
+ * @param {Object} props - Propriedades do componente
+ * @param {Object} props.navigation - Objeto de navegação do React Navigation
+ * @returns {JSX.Element} Componente renderizado da tela de histórico
+ */
 const HistoricoMenu = ({navigation}) => {
+  // Estados do componente
   const [medicamentosTomados, setMedicamentosTomados] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filtroSelecionado, setFiltroSelecionado] = useState('todos');
+
+  // Usuário autenticado do Firebase
   const user = auth().currentUser;
 
+  // Referências para animações
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideUpAnim = useRef(new Animated.Value(30)).current;
   const backgroundAnim = useRef(new Animated.Value(0)).current;
 
+  /**
+   * Hook de efeito para configurar animações iniciais e contínuas.
+   * Executa animações de fade-in, slide-up e uma animação de fundo em loop.
+   */
   useEffect(() => {
     // Animações iniciais
     Animated.parallel([
@@ -69,16 +94,29 @@ const HistoricoMenu = ({navigation}) => {
     return () => backgroundAnimation.stop();
   }, [backgroundAnim, fadeAnim, slideUpAnim]);
 
+  /**
+   * Hook de efeito para carregar o histórico quando o usuário ou filtro mudam.
+   * Recarrega os dados automaticamente quando há mudanças nos filtros.
+   */
   useEffect(() => {
     if (!user) return;
     carregarHistorico();
   }, [user, filtroSelecionado]);
 
+  /**
+   * Carrega o histórico de medicamentos do Firestore com base no filtro selecionado.
+   * Aplica filtros de data e ordenação cronológica decrescente.
+   *
+   * @async
+   * @function carregarHistorico
+   * @throws {Error} Exibe alerta em caso de erro na consulta ao Firestore
+   */
   const carregarHistorico = async () => {
     setLoading(true);
     try {
       console.log('Carregando histórico para usuário:', user.uid);
 
+      // Consulta todos os medicamentos do usuário
       const snapshot = await firestore()
         .collection('medicamentos_tomados')
         .where('usuarioId', '==', user.uid)
@@ -96,6 +134,7 @@ const HistoricoMenu = ({navigation}) => {
           return data;
         });
 
+        // Aplica filtro de data se não for "todos"
         if (filtroSelecionado !== 'todos') {
           const dataFiltro = obterDataFiltro();
           console.log('Filtro de data:', dataFiltro);
@@ -113,6 +152,7 @@ const HistoricoMenu = ({navigation}) => {
           });
         }
 
+        // Ordena por data e horário decrescente
         lista.sort((a, b) => {
           if (a.dia !== b.dia) {
             return b.dia.localeCompare(a.dia);
@@ -131,6 +171,14 @@ const HistoricoMenu = ({navigation}) => {
     }
   };
 
+  /**
+   * Calcula as datas de início e fim com base no filtro selecionado.
+   *
+   * @function obterDataFiltro
+   * @returns {Object} Objeto contendo datas de início e fim no formato ISO
+   * @returns {string|null} returns.inicio - Data de início no formato YYYY-MM-DD ou null
+   * @returns {string|null} returns.fim - Data de fim no formato YYYY-MM-DD ou null
+   */
   const obterDataFiltro = () => {
     const hoje = new Date();
     const inicioHoje = new Date(
@@ -170,6 +218,14 @@ const HistoricoMenu = ({navigation}) => {
     }
   };
 
+  /**
+   * Formata uma string de data para exibição amigável ao usuário.
+   * Adiciona labels "Hoje" e "Ontem" quando apropriado.
+   *
+   * @function formatarData
+   * @param {string} dataString - Data no formato YYYY-MM-DD
+   * @returns {string} Data formatada para exibição (ex: "Hoje, 11/09/2025")
+   */
   const formatarData = dataString => {
     const data = new Date(dataString + 'T00:00:00');
     const hoje = new Date();
@@ -187,6 +243,12 @@ const HistoricoMenu = ({navigation}) => {
     }
   };
 
+  /**
+   * Agrupa os medicamentos por dia para facilitar a renderização.
+   *
+   * @function agruparPorDia
+   * @returns {Object} Objeto onde as chaves são datas (YYYY-MM-DD) e valores são arrays de medicamentos
+   */
   const agruparPorDia = () => {
     const grupos = {};
     medicamentosTomados.forEach(medicamento => {
@@ -199,6 +261,15 @@ const HistoricoMenu = ({navigation}) => {
     return grupos;
   };
 
+  /**
+   * Calcula estatísticas do histórico para exibição.
+   *
+   * @function getHistoricoStats
+   * @returns {Object} Estatísticas do histórico
+   * @returns {number} returns.totalDias - Total de dias com medicamentos registrados
+   * @returns {number} returns.totalMedicamentos - Total de medicamentos tomados
+   * @returns {number} returns.medicamentosHoje - Medicamentos tomados hoje
+   */
   const getHistoricoStats = () => {
     const grupos = agruparPorDia();
     const totalDias = Object.keys(grupos).length;
@@ -210,6 +281,12 @@ const HistoricoMenu = ({navigation}) => {
     return {totalDias, totalMedicamentos, medicamentosHoje};
   };
 
+  /**
+   * Renderiza a barra de filtros horizontais.
+   *
+   * @function renderFiltros
+   * @returns {JSX.Element} Componente com os botões de filtro
+   */
   const renderFiltros = () => {
     const filtros = [
       {key: 'todos', label: 'Todos', icon: 'infinite'},
@@ -254,6 +331,17 @@ const HistoricoMenu = ({navigation}) => {
     );
   };
 
+  /**
+   * Renderiza um item individual de medicamento.
+   *
+   * @function renderMedicamentoItem
+   * @param {Object} medicamento - Objeto contendo dados do medicamento
+   * @param {string} medicamento.id - ID único do medicamento
+   * @param {string} medicamento.remedioNome - Nome do medicamento
+   * @param {string} medicamento.horario - Horário em que foi tomado
+   * @param {string} medicamento.dosagem - Dosagem do medicamento
+   * @returns {JSX.Element} Componente renderizado do item de medicamento
+   */
   const renderMedicamentoItem = medicamento => {
     return (
       <View key={medicamento.id} style={styles.medicamentoItem}>
@@ -282,6 +370,14 @@ const HistoricoMenu = ({navigation}) => {
     );
   };
 
+  /**
+   * Renderiza um grupo de medicamentos por dia.
+   *
+   * @function renderDiaGroup
+   * @param {string} dia - Data no formato YYYY-MM-DD
+   * @param {Array<Object>} medicamentos - Array de medicamentos do dia
+   * @returns {JSX.Element} Componente renderizado do grupo de medicamentos
+   */
   const renderDiaGroup = (dia, medicamentos) => {
     return (
       <View key={dia} style={styles.diaGroup}>
@@ -301,6 +397,12 @@ const HistoricoMenu = ({navigation}) => {
     );
   };
 
+  /**
+   * Renderiza o estado de carregamento.
+   *
+   * @function renderLoadingState
+   * @returns {JSX.Element} Componente de loading com spinner e texto
+   */
   const renderLoadingState = () => (
     <View style={styles.loadingContainer}>
       <ActivityIndicator size="large" color="#4D97DB" />
@@ -308,6 +410,12 @@ const HistoricoMenu = ({navigation}) => {
     </View>
   );
 
+  /**
+   * Renderiza o estado vazio quando não há medicamentos.
+   *
+   * @function renderEmptyState
+   * @returns {JSX.Element} Componente de estado vazio com ícone e mensagem
+   */
   const renderEmptyState = () => (
     <View style={styles.emptyStateContainer}>
       <View style={styles.emptyStateIconContainer}>
@@ -326,6 +434,7 @@ const HistoricoMenu = ({navigation}) => {
     </View>
   );
 
+  // Prepara dados para renderização
   const gruposPorDia = agruparPorDia();
   const diasOrdenados = Object.keys(gruposPorDia).sort((a, b) =>
     b.localeCompare(a),
@@ -336,7 +445,7 @@ const HistoricoMenu = ({navigation}) => {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#121A29" />
 
-      {/* Círculos de fundo animados */}
+      {/* Círculos de fundo animados para efeito visual */}
       <Animated.View
         style={[
           styles.backgroundCircle,
@@ -376,6 +485,7 @@ const HistoricoMenu = ({navigation}) => {
         ]}
       />
 
+      {/* Header animado com botão de voltar e título */}
       <Animated.View
         style={[
           styles.header,
@@ -402,6 +512,7 @@ const HistoricoMenu = ({navigation}) => {
         </View>
       </Animated.View>
 
+      {/* Conteúdo principal animado */}
       <Animated.View
         style={[
           styles.content,
@@ -444,6 +555,11 @@ const HistoricoMenu = ({navigation}) => {
   );
 };
 
+/**
+ * Estilos do componente HistoricoMenu.
+ * Organizado por seções e responsivo para diferentes tamanhos de tela.
+ * Utiliza tema escuro com cores personalizadas e efeitos visuais modernos.
+ */
 const styles = StyleSheet.create({
   container: {
     flex: 1,
