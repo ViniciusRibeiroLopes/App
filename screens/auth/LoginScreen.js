@@ -23,13 +23,57 @@ import Icon from 'react-native-vector-icons/FontAwesome';
 import LottieView from 'lottie-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+/**
+ * Obtém as dimensões da tela do dispositivo
+ * @type {Object}
+ * @property {number} width - Largura da tela
+ * @property {number} height - Altura da tela
+ */
 const {width, height} = Dimensions.get('window');
 
+/**
+ * Determina se a tela é considerada pequena (largura < 360px)
+ * @type {boolean}
+ */
 const isSmallScreen = width < 360;
+
+/**
+ * Determina se a tela é considerada média (largura entre 360px e 400px)
+ * @type {boolean}
+ */
 const isMediumScreen = width >= 360 && width < 400;
+
+/**
+ * Determina se a tela é considerada grande (largura >= 400px)
+ * @type {boolean}
+ */
 const isLargeScreen = width >= 400;
 
+/**
+ * Componente de tela de login com autenticação Firebase
+ * 
+ * Este componente oferece uma interface completa de login com:
+ * - Autenticação por email/senha
+ * - Integração com Firebase Auth
+ * - Animações personalizadas
+ * - Modal de sucesso com animação Lottie
+ * - Responsividade para diferentes tamanhos de tela
+ * - Validação de campos
+ * - Tratamento de erros
+ * 
+ * @component
+ * @returns {React.JSX.Element} O componente da tela de login
+ * 
+ * @example
+ * // Uso básico do componente
+ * <LoginScreen />
+ * 
+ * @author Seu Nome
+ * @version 1.0.0
+ * @since 2024
+ */
 const LoginScreen = () => {
+  // Estados do formulário
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -37,6 +81,7 @@ const LoginScreen = () => {
   const [passwordFocused, setPasswordFocused] = useState(false);
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
 
+  // Referências para animações
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
   const logoScaleAnim = useRef(new Animated.Value(0.8)).current;
@@ -47,6 +92,14 @@ const LoginScreen = () => {
 
   const navigation = useNavigation();
 
+  /**
+   * Efeito para inicializar as animações da tela
+   * Executa animações paralelas de fade, slide e escala do logo,
+   * além de uma animação contínua do fundo
+   * 
+   * @function
+   * @name useEffect
+   */
   useEffect(() => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
@@ -86,6 +139,12 @@ const LoginScreen = () => {
     return () => backgroundAnimation.stop();
   }, [backgroundAnim, fadeAnim, logoScaleAnim, slideAnim]);
 
+  /**
+   * Navega para a tela de registro
+   * Reseta a pilha de navegação e direciona para a tela de registro
+   * 
+   * @function goToRegister
+   */
   const goToRegister = () => {
     navigation.reset({
       index: 0,
@@ -93,11 +152,25 @@ const LoginScreen = () => {
     });
   };
 
+  /**
+   * Exibe o modal de animação de sucesso
+   * Ativa o estado que controla a exibição do modal com animação Lottie
+   * 
+   * @function showSuccessAnimationOverlay
+   */
   const showSuccessAnimationOverlay = () => {
     console.log('🎯 Iniciando modal de sucesso');
     setShowSuccessAnimation(true);
   };
 
+  /**
+   * Manipula o fim da animação Lottie de sucesso
+   * Salva o estado da animação no AsyncStorage e fecha o modal após delay
+   * 
+   * @async
+   * @function handleLottieAnimationFinish
+   * @throws {Error} Erro ao salvar no AsyncStorage
+   */
   const handleLottieAnimationFinish = async () => {
     console.log('🎬 Animação Lottie finalizada!');
     
@@ -114,6 +187,14 @@ const LoginScreen = () => {
     }, 500);
   };
 
+  /**
+   * Efeito para controlar a reprodução da animação Lottie
+   * Monitora o estado showSuccessAnimation e gerencia a reprodução da animação,
+   * incluindo timers de debug e fallback
+   * 
+   * @function
+   * @name useEffect
+   */
   useEffect(() => {
     if (showSuccessAnimation) {
       console.log('📺 Modal está visível, verificando Lottie...');
@@ -144,6 +225,19 @@ const LoginScreen = () => {
     }
   }, [showSuccessAnimation]);
 
+  /**
+   * Realiza o login do usuário com email e senha
+   * Valida os campos, executa animação do botão, autentica via Firebase
+   * e gerencia estados de loading e erros
+   * 
+   * @async
+   * @function signIn
+   * @throws {Error} Erros de autenticação do Firebase
+   * 
+   * @example
+   * // Chamado quando o usuário pressiona o botão "Entrar"
+   * await signIn();
+   */
   const signIn = async () => {
     if (!email || !password) {
       Alert.alert('Campos obrigatórios', 'Por favor, preencha todos os campos');
@@ -198,6 +292,17 @@ const LoginScreen = () => {
     }
   };
 
+  /**
+   * Inicia o processo de login com Google
+   * Executa animação do botão e exibe alerta temporário sobre implementação futura
+   * 
+   * @function signInWithGoogle
+   * @todo Implementar integração com Google Sign-In
+   * 
+   * @example
+   * // Chamado quando o usuário pressiona "Continuar com Google"
+   * signInWithGoogle();
+   */
   const signInWithGoogle = () => {
     Animated.sequence([
       Animated.timing(googleButtonScaleAnim, {
@@ -219,6 +324,7 @@ const LoginScreen = () => {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#121A29" />
 
+      {/* Círculos de fundo animados */}
       <Animated.View
         style={[
           styles.backgroundCircle,
@@ -265,6 +371,8 @@ const LoginScreen = () => {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled">
+          
+          {/* Container do logo com animação */}
           <Animated.View
             style={[
               styles.logoContainer,
@@ -280,6 +388,7 @@ const LoginScreen = () => {
             />
           </Animated.View>
 
+          {/* Conteúdo principal do formulário */}
           <Animated.View
             style={[
               styles.content,
@@ -291,6 +400,7 @@ const LoginScreen = () => {
             <Text style={styles.welcomeText}>Bem-vindo de volta!</Text>
 
             <View style={styles.formContainer}>
+              {/* Campo de email */}
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>E-mail</Text>
                 <TextInput
@@ -307,6 +417,7 @@ const LoginScreen = () => {
                 />
               </View>
 
+              {/* Campo de senha */}
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>Senha</Text>
                 <TextInput
@@ -322,12 +433,14 @@ const LoginScreen = () => {
                 />
               </View>
 
+              {/* Link "Esqueceu a senha?" */}
               <TouchableOpacity 
                 style={styles.forgotPassword}
                 disabled={isLoading || showSuccessAnimation}>
                 <Text style={styles.forgotPasswordText}>Esqueceu a senha?</Text>
               </TouchableOpacity>
 
+              {/* Botão de login */}
               <Animated.View style={{transform: [{scale: buttonScaleAnim}]}}>
                 <TouchableOpacity
                   style={[
@@ -344,12 +457,14 @@ const LoginScreen = () => {
                 </TouchableOpacity>
               </Animated.View>
 
+              {/* Divisor "ou" */}
               <View style={styles.dividerContainer}>
                 <View style={styles.dividerLine} />
                 <Text style={styles.dividerText}>ou</Text>
                 <View style={styles.dividerLine} />
               </View>
 
+              {/* Botão do Google */}
               <Animated.View
                 style={{transform: [{scale: googleButtonScaleAnim}]}}>
                 <TouchableOpacity
@@ -367,6 +482,7 @@ const LoginScreen = () => {
               </Animated.View>
             </View>
 
+            {/* Rodapé com link para registro */}
             <View style={styles.footerContainer}>
               <TouchableOpacity
                 onPress={goToRegister}
@@ -380,6 +496,7 @@ const LoginScreen = () => {
         </ScrollView>
       </KeyboardAvoidingView>
 
+      {/* Modal de animação de sucesso */}
       {showSuccessAnimation && (
         <Modal
           visible={true}
@@ -406,6 +523,13 @@ const LoginScreen = () => {
   );
 };
 
+/**
+ * Estilos do componente LoginScreen
+ * Define a aparência visual de todos os elementos da tela de login,
+ * incluindo responsividade para diferentes tamanhos de tela
+ * 
+ * @type {Object}
+ */
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -601,20 +725,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
-  
-  successOverlay: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  darkBackground: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)', 
-  },
   successOverlay: {
     flex: 1,
     justifyContent: 'center',
@@ -628,28 +738,9 @@ const styles = StyleSheet.create({
     bottom: 0,
     backgroundColor: 'rgba(0, 0, 0, 0.75)',
   },
-  lottieDebugContainer: {
-    width: 400,
-    height: 400,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 20,
-    borderWidth: 2,
-  },
   lottieAnimation: {
     width: 200,
     height: 200,
-  },
-  debugText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 10,
-  },
-  debugText2: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    marginTop: 10,
   },
 });
 

@@ -15,12 +15,34 @@ import auth from '@react-native-firebase/auth';
 import Icon from 'react-native-vector-icons/Ionicons';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 
+/**
+ * Obtém as dimensões da tela do dispositivo
+ * @constant {Object} dimensions - Largura e altura da tela
+ */
 const { width, height } = Dimensions.get('window');
 
+/**
+ * Verifica se a tela é pequena (menos de 360px de largura)
+ * @constant {boolean} isSmallScreen
+ */
 const isSmallScreen = width < 360;
+
+/**
+ * Verifica se a tela é média (entre 360px e 400px de largura)
+ * @constant {boolean} isMediumScreen
+ */
 const isMediumScreen = width >= 360 && width < 400;
+
+/**
+ * Verifica se a tela é grande (400px ou mais de largura)
+ * @constant {boolean} isLargeScreen
+ */
 const isLargeScreen = width >= 400;
 
+/**
+ * Array com os dias da semana em formato abreviado e completo
+ * @constant {Array<Object>} diasSemana - Configuração dos dias da semana
+ */
 const diasSemana = [
   { abrev: 'Dom', completo: 'Domingo' },
   { abrev: 'Seg', completo: 'Segunda' },
@@ -31,18 +53,67 @@ const diasSemana = [
   { abrev: 'Sáb', completo: 'Sábado' }
 ];
 
+/**
+ * Componente de tela para exibir e gerenciar o próximo medicamento
+ * Permite ao usuário visualizar detalhes do próximo medicamento e marcá-lo como tomado
+ * @component
+ * @returns {JSX.Element} Componente de tela do próximo medicamento
+ */
 const NextMedicationScreen = () => {
+  // Estados do componente
+  /**
+   * Estado do próximo medicamento a ser tomado
+   * @type {[Object|null, Function]} nextMedication - Dados do próximo medicamento ou null se não houver
+   */
   const [nextMedication, setNextMedication] = useState(null);
+  
+  /**
+   * Estado do horário atual
+   * @type {[Date, Function]} currentTime - Data/hora atual atualizada periodicamente
+   */
   const [currentTime, setCurrentTime] = useState(new Date());
+  
+  /**
+   * Estado que indica se o horário está correto para tomar o medicamento
+   * @type {[boolean, Function]} isTimeCorrect - True se está na janela de tempo permitida (-5min a +30min)
+   */
   const [isTimeCorrect, setIsTimeCorrect] = useState(false);
+  
+  /**
+   * Estado de carregamento da busca por medicamentos
+   * @type {[boolean, Function]} loading - Indica se está carregando dados do Firestore
+   */
   const [loading, setLoading] = useState(true);
   
+  // Referências para animações
+  /**
+   * Referência para animação de pulsação
+   * @type {React.MutableRefObject<Animated.Value>} pulseAnim
+   */
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  
+  /**
+   * Referência para animação de entrada (bounce)
+   * @type {React.MutableRefObject<Animated.Value>} bounceAnim
+   */
   const bounceAnim = useRef(new Animated.Value(0)).current;
+  
+  /**
+   * Referência para animação de rotação
+   * @type {React.MutableRefObject<Animated.Value>} rotateAnim
+   */
   const rotateAnim = useRef(new Animated.Value(0)).current;
 
+  /**
+   * UID do usuário autenticado atual
+   * @type {string|undefined} uid
+   */
   const uid = auth().currentUser?.uid;
 
+  /**
+   * Efeito executado na montagem do componente
+   * Inicia as animações e busca medicamentos se o usuário estiver autenticado
+   */
   useEffect(() => {
     console.log('=== USEEFFECT INICIAL ===');
     console.log('UID do usuário:', uid);
@@ -98,6 +169,10 @@ const NextMedicationScreen = () => {
     };
   }, [uid]);
 
+  /**
+   * Efeito executado quando o horário atual ou próximo medicamento mudam
+   * Verifica se está no horário correto para tomar o medicamento
+   */
   useEffect(() => {
     console.log('=== VERIFICANDO HORÁRIO ===');
     console.log('Horário atual:', currentTime);
@@ -105,6 +180,12 @@ const NextMedicationScreen = () => {
     checkTimeCorrectness();
   }, [currentTime, nextMedication]);
 
+  /**
+   * Inicia o atualizador automático de horário
+   * Atualiza o horário atual a cada 30 segundos
+   * @function startTimeUpdater
+   * @returns {Function} Função de cleanup para limpar o interval
+   */
   const startTimeUpdater = () => {
     console.log('⏰ Iniciando atualizador de horário...');
     const interval = setInterval(() => {
@@ -114,6 +195,12 @@ const NextMedicationScreen = () => {
     return () => clearInterval(interval);
   };
 
+  /**
+   * Busca o próximo medicamento a ser tomado no Firestore
+   * Verifica alertas do usuário, filtra por dia atual e horários futuros
+   * @async
+   * @function fetchNextMedication
+   */
   const fetchNextMedication = async () => {
     console.log('=== BUSCANDO PRÓXIMO MEDICAMENTO ===');
     if (!uid) {
@@ -248,6 +335,11 @@ const NextMedicationScreen = () => {
     }
   };
 
+  /**
+   * Verifica se o horário atual está dentro da janela permitida para tomar o medicamento
+   * Janela: de 5 minutos antes até 30 minutos depois do horário marcado
+   * @function checkTimeCorrectness
+   */
   const checkTimeCorrectness = () => {
     console.log('\n=== VERIFICANDO SE PODE TOMAR MEDICAMENTO ===');
     
@@ -276,6 +368,12 @@ const NextMedicationScreen = () => {
     setIsTimeCorrect(canTake);
   };
 
+  /**
+   * Marca o medicamento como tomado no Firestore
+   * Salva o registro na coleção 'medicamentos_tomados_dependentes' e recarrega a lista
+   * @async
+   * @function markMedicationTaken
+   */
   const markMedicationTaken = async () => {
     console.log('\n=== MARCANDO MEDICAMENTO COMO TOMADO ===');
     
@@ -327,6 +425,11 @@ const NextMedicationScreen = () => {
     }
   };
 
+  /**
+   * Manipula o logout do usuário
+   * Exibe confirmação e faz logout via Firebase Auth
+   * @function handleLogout
+   */
   const handleLogout = () => {
     console.log('🚪 Iniciando processo de logout...');
     
@@ -358,10 +461,21 @@ const NextMedicationScreen = () => {
     );
   };
 
+  /**
+   * Formata uma data para exibir apenas hora e minuto
+   * @function formatarHorario
+   * @param {Date} date - Data a ser formatada
+   * @returns {string} Horário formatado no padrão HH:MM
+   */
   const formatarHorario = (date) => {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
   };
 
+  /**
+   * Calcula e formata o tempo restante até o próximo medicamento
+   * @function getTimeUntilNext
+   * @returns {string} Tempo restante formatado (ex: "em 2h 30min" ou "em 15 minutos")
+   */
   const getTimeUntilNext = () => {
     if (!nextMedication) return '';
     
@@ -385,11 +499,16 @@ const NextMedicationScreen = () => {
     }
   };
 
+  /**
+   * Interpola a animação de rotação para uso em componentes
+   * @constant {Animated.AnimatedInterpolation} rotate
+   */
   const rotate = rotateAnim.interpolate({
     inputRange: [0, 1],
     outputRange: ['0deg', '360deg'],
   });
 
+  // Renderização durante carregamento
   if (loading) {
     console.log('⏳ Componente em estado de loading');
     return (
@@ -427,6 +546,7 @@ const NextMedicationScreen = () => {
     );
   }
 
+  // Renderização quando não há próximo medicamento
   if (!nextMedication) {
     console.log('✅ Nenhum próximo medicamento - todos foram tomados');
     return (
@@ -469,6 +589,7 @@ const NextMedicationScreen = () => {
     );
   }
 
+  // Renderização principal com próximo medicamento
   console.log('🎯 Renderizando tela com próximo medicamento:', nextMedication.remedioNome);
 
   return (
@@ -601,6 +722,10 @@ const NextMedicationScreen = () => {
   );
 };
 
+/**
+ * Estilos do componente NextMedicationScreen
+ * @constant {Object} styles - Objeto contendo todos os estilos do componente
+ */
 const styles = StyleSheet.create({
   container: {
     flex: 1,

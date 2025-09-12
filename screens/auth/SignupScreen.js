@@ -20,20 +20,74 @@ import {useNavigation} from '@react-navigation/native';
 import auth from '@react-native-firebase/auth';
 import Icon from 'react-native-vector-icons/FontAwesome';
 
+/**
+ * Obtém as dimensões da tela do dispositivo
+ * @type {Object}
+ * @property {number} width - Largura da tela
+ * @property {number} height - Altura da tela
+ */
 const {width, height} = Dimensions.get('window');
 
+/**
+ * Determina se a tela é considerada pequena (largura < 360px)
+ * @type {boolean}
+ */
 const isSmallScreen = width < 360;
+
+/**
+ * Determina se a tela é considerada média (largura entre 360px e 400px)
+ * @type {boolean}
+ */
 const isMediumScreen = width >= 360 && width < 400;
+
+/**
+ * Determina se a tela é considerada grande (largura >= 400px)
+ * @type {boolean}
+ */
 const isLargeScreen = width >= 400;
 
+/**
+ * Componente de tela de registro/cadastro com autenticação Firebase
+ * 
+ * Este componente oferece uma interface completa de registro com:
+ * - Criação de conta com email/senha
+ * - Integração com Firebase Auth
+ * - Validação de formulário
+ * - Animações suaves e interativas
+ * - Design responsivo para diferentes tamanhos de tela
+ * - Tratamento de erros específicos
+ * - Opção futura para registro com Google
+ * - Navegação para tela de login
+ * - Termos de uso e política de privacidade
+ * 
+ * @component
+ * @returns {React.JSX.Element} O componente da tela de registro
+ * 
+ * @example
+ * // Uso básico do componente
+ * <RegisterScreen />
+ * 
+ * @example
+ * // Integrado com navegação
+ * <Stack.Screen 
+ *   name="Register" 
+ *   component={RegisterScreen} 
+ *   options={{headerShown: false}}
+ * />
+ * 
+ * @author Seu Nome
+ * @version 1.0.0
+ * @since 2024
+ */
 const RegisterScreen = () => {
+  // Estados do formulário
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
 
-  // Animations
+  // Referências para animações
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
   const logoScaleAnim = useRef(new Animated.Value(0.8)).current;
@@ -43,6 +97,14 @@ const RegisterScreen = () => {
 
   const navigation = useNavigation();
 
+  /**
+   * Efeito para inicializar as animações da tela
+   * Executa animações paralelas de entrada suave dos elementos
+   * e uma animação infinita do fundo
+   * 
+   * @function
+   * @name useEffect
+   */
   useEffect(() => {
     // Entrada suave dos elementos
     Animated.parallel([
@@ -84,6 +146,16 @@ const RegisterScreen = () => {
     return () => backgroundAnimation.stop();
   }, [backgroundAnim, fadeAnim, logoScaleAnim, slideAnim]);
 
+  /**
+   * Navega para a tela de login
+   * Reseta a pilha de navegação e direciona para a tela de login
+   * 
+   * @function goToLogin
+   * 
+   * @example
+   * // Chamado quando usuário clica em "Entrar"
+   * goToLogin();
+   */
   const goToLogin = () => {
     navigation.reset({
       index: 0,
@@ -91,6 +163,18 @@ const RegisterScreen = () => {
     });
   };
 
+  /**
+   * Valida os campos do formulário de registro
+   * Verifica se email e senha foram preenchidos corretamente
+   * e se a senha atende aos critérios mínimos
+   * 
+   * @function validateForm
+   * @returns {boolean} true se o formulário é válido, false caso contrário
+   * 
+   * @example
+   * // Antes de criar a conta
+   * if (!validateForm()) return;
+   */
   const validateForm = () => {
     if (!email.trim()) {
       Alert.alert('Erro', 'Por favor, digite seu email');
@@ -107,6 +191,19 @@ const RegisterScreen = () => {
     return true;
   };
 
+  /**
+   * Cria uma nova conta de usuário com Firebase Auth
+   * Valida o formulário, executa animação do botão e cria a conta
+   * com tratamento específico de erros do Firebase
+   * 
+   * @async
+   * @function signUp
+   * @throws {Error} Erros específicos do Firebase Auth
+   * 
+   * @example
+   * // Chamado quando usuário pressiona "Criar Conta"
+   * await signUp();
+   */
   const signUp = async () => {
     if (!validateForm()) return;
 
@@ -149,6 +246,18 @@ const RegisterScreen = () => {
     }
   };
 
+  /**
+   * Inicia o processo de registro com Google
+   * Executa animação do botão Google
+   * Funcionalidade ainda não implementada
+   * 
+   * @function signUpWithGoogle
+   * @todo Implementar integração com Google Sign-In
+   * 
+   * @example
+   * // Chamado quando usuário pressiona "Continuar com Google"
+   * signUpWithGoogle();
+   */
   const signUpWithGoogle = () => {
     // Animação do botão Google
     Animated.sequence([
@@ -171,7 +280,7 @@ const RegisterScreen = () => {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#121A29" />
 
-      {/* Fundo animado */}
+      {/* Círculos de fundo animados */}
       <Animated.View
         style={[
           styles.backgroundCircle,
@@ -218,7 +327,8 @@ const RegisterScreen = () => {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled">
-          {/* Logo no topo */}
+          
+          {/* Container do logo com animação */}
           <Animated.View
             style={[
               styles.logoContainer,
@@ -234,7 +344,7 @@ const RegisterScreen = () => {
             />
           </Animated.View>
 
-          {/* Conteúdo principal */}
+          {/* Conteúdo principal do formulário */}
           <Animated.View
             style={[
               styles.content,
@@ -243,11 +353,12 @@ const RegisterScreen = () => {
                 transform: [{translateY: slideAnim}],
               },
             ]}>
-            {/* Título */}
+            {/* Título da tela */}
             <Text style={styles.welcomeText}>Vamos começar?</Text>
 
-            {/* Formulário */}
+            {/* Container do formulário */}
             <View style={styles.formContainer}>
+              {/* Campo de email */}
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>E-mail</Text>
                 <TextInput
@@ -263,6 +374,7 @@ const RegisterScreen = () => {
                 />
               </View>
 
+              {/* Campo de senha */}
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>Senha</Text>
                 <TextInput
@@ -277,6 +389,7 @@ const RegisterScreen = () => {
                 />
               </View>
 
+              {/* Botão de criar conta */}
               <Animated.View style={{transform: [{scale: buttonScaleAnim}]}}>
                 <TouchableOpacity
                   style={[
@@ -293,12 +406,14 @@ const RegisterScreen = () => {
                 </TouchableOpacity>
               </Animated.View>
 
+              {/* Divisor "ou" */}
               <View style={styles.dividerContainer}>
                 <View style={styles.dividerLine} />
                 <Text style={styles.dividerText}>ou</Text>
                 <View style={styles.dividerLine} />
               </View>
 
+              {/* Botão do Google */}
               <Animated.View
                 style={{transform: [{scale: googleButtonScaleAnim}]}}>
                 <TouchableOpacity
@@ -312,8 +427,9 @@ const RegisterScreen = () => {
               </Animated.View>
             </View>
 
-            {/* Footer */}
+            {/* Rodapé com link de login e termos */}
             <View style={styles.footerContainer}>
+              {/* Link para tela de login */}
               <TouchableOpacity
                 onPress={goToLogin}
                 style={styles.loginContainer}>
@@ -321,6 +437,7 @@ const RegisterScreen = () => {
                 <Text style={styles.loginHighlight}> Entrar</Text>
               </TouchableOpacity>
 
+              {/* Termos de uso e política de privacidade */}
               <Text style={styles.termsText}>
                 Ao criar uma conta, você concorda com nossos{'\n'}
                 <Text style={styles.termsLink}>Termos de Uso</Text> e{' '}
@@ -334,6 +451,14 @@ const RegisterScreen = () => {
   );
 };
 
+/**
+ * Estilos do componente RegisterScreen
+ * Define a aparência visual de todos os elementos da tela de registro,
+ * incluindo responsividade para diferentes tamanhos de tela e estados
+ * de foco dos campos de entrada
+ * 
+ * @type {Object}
+ */
 const styles = StyleSheet.create({
   container: {
     flex: 1,

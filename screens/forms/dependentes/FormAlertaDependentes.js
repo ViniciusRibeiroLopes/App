@@ -32,12 +32,38 @@ import notifee, {
 } from '@notifee/react-native';
 import AlarmSystem from '../../../components/AlarmSystem';
 
+/**
+ * Obtém as dimensões da tela do dispositivo
+ * @type {Object}
+ * @property {number} width - Largura da tela
+ * @property {number} height - Altura da tela
+ */
 const {width, height} = Dimensions.get('window');
 
+/**
+ * Determina se a tela é considerada pequena (largura < 360px)
+ * @type {boolean}
+ */
 const isSmallScreen = width < 360;
+
+/**
+ * Determina se a tela é considerada média (largura entre 360px e 400px)
+ * @type {boolean}
+ */
 const isMediumScreen = width >= 360 && width < 400;
+
+/**
+ * Determina se a tela é considerada grande (largura >= 400px)
+ * @type {boolean}
+ */
 const isLargeScreen = width >= 400;
 
+/**
+ * Array com os dias da semana em formato abreviado e completo
+ * @type {Array<Object>}
+ * @property {string} abrev - Abreviação do dia da semana
+ * @property {string} completo - Nome completo do dia da semana
+ */
 const diasSemana = [
   {abrev: 'Dom', completo: 'Domingo'},
   {abrev: 'Seg', completo: 'Segunda'},
@@ -48,13 +74,56 @@ const diasSemana = [
   {abrev: 'Sáb', completo: 'Sábado'},
 ];
 
+/**
+ * Componente formulário para criação de alertas de medicamento para dependentes
+ * 
+ * Este componente oferece funcionalidades completas para:
+ * - Criação de alertas/lembretes de medicamentos para dependentes
+ * - Seleção de medicamentos cadastrados pelo usuário administrador
+ * - Configuração de horários e dias da semana para o alerta
+ * - Definição de dosagem específica
+ * - Integração com Firebase Firestore para persistência
+ * - Sistema de notificações com @notifee/react-native
+ * - Validação completa de formulário
+ * - Interface responsiva com animações suaves
+ * - Estados de loading e tratamento de erros
+ * - Modal personalizado para seleção de medicamentos
+ * - Preview/resumo do alerta antes da criação
+ * 
+ * @component
+ * @param {Object} props - Props do componente
+ * @param {Object} props.navigation - Objeto de navegação do React Navigation
+ * @param {Object} props.route - Objeto de rota com parâmetros
+ * @param {string} props.route.params.dependenteId - ID do dependente para o qual será criado o alerta
+ * @returns {React.JSX.Element} O componente do formulário de alerta
+ * 
+ * @example
+ * // Navegação para o componente com parâmetros
+ * navigation.navigate('FormAlertaDependente', {
+ *   dependenteId: 'dep123'
+ * });
+ * 
+ * @example
+ * // Uso direto do componente
+ * <FormAlertaDependente 
+ *   navigation={navigation} 
+ *   route={{params: {dependenteId: 'dep123'}}} 
+ * />
+ * 
+ * @author Seu Nome
+ * @version 1.0.0
+ * @since 2024
+ */
 const FormAlertaDependente = ({navigation, route}) => {
+  // Estados do formulário
   const [remedios, setRemedios] = useState([]);
   const [dependente, setDependente] = useState(null);
   const [remedioSelecionado, setRemedioSelecionado] = useState('');
   const [diasSelecionados, setDiasSelecionados] = useState([]);
   const [dosagem, setDosagem] = useState('');
   const [horario, setHorario] = useState(new Date());
+  
+  // Estados de interface
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [showPickerModal, setShowPickerModal] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -63,10 +132,19 @@ const FormAlertaDependente = ({navigation, route}) => {
 
   const {dependenteId} = route.params || {};
 
+  // Referências para animações
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideUpAnim = useRef(new Animated.Value(30)).current;
   const backgroundAnim = useRef(new Animated.Value(0)).current;
 
+  /**
+   * Efeito para inicializar as animações da tela
+   * Executa animações paralelas de fade e slide para entrada suave
+   * e uma animação contínua de fundo
+   * 
+   * @function
+   * @name useEffect
+   */
   useEffect(() => {
     // Animações iniciais
     Animated.parallel([
@@ -102,8 +180,19 @@ const FormAlertaDependente = ({navigation, route}) => {
     return () => backgroundAnimation.stop();
   }, [backgroundAnim, fadeAnim, slideUpAnim]);
 
-  // Obter informações do usuário atual
+  /**
+   * Efeito para obter e monitorar informações do usuário autenticado
+   * Configura listener para mudanças no estado de autenticação
+   * e obtém as informações do usuário atual
+   * 
+   * @function
+   * @name useEffect
+   */
   useEffect(() => {
+    /**
+     * Obtém informações do usuário atualmente autenticado
+     * @function getCurrentUser
+     */
     const getCurrentUser = () => {
       const user = auth().currentUser;
       if (user) {
@@ -133,7 +222,14 @@ const FormAlertaDependente = ({navigation, route}) => {
     return () => unsubscribeAuth();
   }, [navigation]);
 
-  // Inicializar dados quando usuário e dependente estiverem disponíveis
+  /**
+   * Efeito para inicializar dados quando usuário e dependente estão disponíveis
+   * Carrega informações do dependente e lista de medicamentos do usuário
+   * 
+   * @function
+   * @name useEffect
+   * @throws {Error} Erro ao carregar dados do Firestore
+   */
   useEffect(() => {
     if (!userInfo?.uid || !dependenteId) {
       if (!dependenteId) {
@@ -143,6 +239,12 @@ const FormAlertaDependente = ({navigation, route}) => {
       return;
     }
 
+    /**
+     * Função para inicializar dados do dependente e medicamentos
+     * @async
+     * @function inicializar
+     * @throws {Error} Erro ao buscar dados no Firestore
+     */
     const inicializar = async () => {
       try {
         setLoadingRemedios(true);
@@ -208,7 +310,14 @@ const FormAlertaDependente = ({navigation, route}) => {
     inicializar();
   }, [userInfo, dependenteId]);
 
-  // Listener em tempo real para medicamentos
+  /**
+   * Efeito para configurar listener em tempo real para medicamentos
+   * Monitora mudanças na coleção de medicamentos do usuário
+   * e atualiza a lista automaticamente
+   * 
+   * @function
+   * @name useEffect
+   */
   useEffect(() => {
     if (!userInfo?.uid) return;
 
@@ -268,12 +377,35 @@ const FormAlertaDependente = ({navigation, route}) => {
     };
   }, [userInfo]);
 
+  /**
+   * Alterna a seleção de um dia da semana
+   * Adiciona ou remove um dia da lista de dias selecionados
+   * 
+   * @function toggleDia
+   * @param {string} dia - Abreviação do dia da semana (Dom, Seg, Ter, etc.)
+   * 
+   * @example
+   * // Seleciona/deseleciona segunda-feira
+   * toggleDia('Seg');
+   */
   const toggleDia = dia => {
     setDiasSelecionados(prev =>
       prev.includes(dia) ? prev.filter(d => d !== dia) : [...prev, dia],
     );
   };
 
+  /**
+   * Salva o alerta de medicamento no Firestore
+   * Valida todos os campos obrigatórios e cria o documento de alerta
+   * 
+   * @async
+   * @function salvarAviso
+   * @throws {Error} Erro ao salvar no Firestore
+   * 
+   * @example
+   * // Chamado quando usuário pressiona "Ativar Alerta"
+   * await salvarAviso();
+   */
   const salvarAviso = async () => {
     if (
       !remedioSelecionado ||
@@ -339,6 +471,17 @@ const FormAlertaDependente = ({navigation, route}) => {
     }
   };
 
+  /**
+   * Formata um objeto Date para string de horário no formato HH:MM
+   * 
+   * @function formatarHorario
+   * @param {Date} date - Objeto Date a ser formatado
+   * @returns {string} Horário formatado em HH:MM
+   * 
+   * @example
+   * const horario = new Date();
+   * const horarioFormatado = formatarHorario(horario); // "14:30"
+   */
   const formatarHorario = date => {
     return date.toLocaleTimeString([], {
       hour: '2-digit',
@@ -347,11 +490,28 @@ const FormAlertaDependente = ({navigation, route}) => {
     });
   };
 
+  /**
+   * Obtém o nome do medicamento selecionado
+   * 
+   * @function getRemedioNome
+   * @returns {string} Nome do medicamento ou texto padrão
+   * 
+   * @example
+   * const nome = getRemedioNome(); // "Paracetamol 500mg" ou "Selecionar medicamento"
+   */
   const getRemedioNome = () => {
     const remedio = remedios.find(r => r.id === remedioSelecionado);
     return remedio ? remedio.nome : 'Selecionar medicamento';
   };
 
+  /**
+   * Renderiza o modal de seleção de medicamentos
+   * Modal personalizado com lista de medicamentos, estados de loading
+   * e opção para navegar para cadastro de novos medicamentos
+   * 
+   * @function renderPickerModal
+   * @returns {React.JSX.Element} Componente Modal com seleção de medicamentos
+   */
   const renderPickerModal = () => (
     <Modal
       visible={showPickerModal}
@@ -360,6 +520,7 @@ const FormAlertaDependente = ({navigation, route}) => {
       onRequestClose={() => setShowPickerModal(false)}>
       <View style={styles.modalOverlay}>
         <View style={styles.pickerModalContent}>
+          {/* Header do modal */}
           <View style={styles.pickerHeader}>
             <Text style={styles.pickerTitle}>Selecionar Medicamento</Text>
             <TouchableOpacity
@@ -369,12 +530,14 @@ const FormAlertaDependente = ({navigation, route}) => {
             </TouchableOpacity>
           </View>
 
+          {/* Conteúdo do modal */}
           {loadingRemedios ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#4D97DB" />
               <Text style={styles.loadingText}>Carregando medicamentos...</Text>
             </View>
           ) : remedios.length === 0 ? (
+            /* Estado vazio - sem medicamentos */
             <View style={styles.noRemediosContainer}>
               <View style={styles.emptyStateIconContainer}>
                 <MaterialIcons
@@ -402,6 +565,7 @@ const FormAlertaDependente = ({navigation, route}) => {
               </TouchableOpacity>
             </View>
           ) : (
+            /* Lista de medicamentos */
             <View style={styles.customPickerContainer}>
               <ScrollView
                 style={styles.customPickerScrollView}
@@ -450,6 +614,14 @@ const FormAlertaDependente = ({navigation, route}) => {
     </Modal>
   );
 
+  /**
+   * Renderiza o grid de seleção de dias da semana
+   * Cria layout responsivo para diferentes tamanhos de tela
+   * com botões clicáveis para cada dia
+   * 
+   * @function renderDiasGrid
+   * @returns {React.JSX.Element} Grid com botões dos dias da semana
+   */
   const renderDiasGrid = () => {
     const itemsPerRow = isSmallScreen ? 4 : 7;
     const rows = [];
@@ -486,6 +658,7 @@ const FormAlertaDependente = ({navigation, route}) => {
     );
   };
 
+  // Loading inicial enquanto carrega dependente
   if (loadingRemedios && !dependente) {
     return (
       <SafeAreaView style={[styles.container, styles.initialLoadingContainer]}>
@@ -540,6 +713,7 @@ const FormAlertaDependente = ({navigation, route}) => {
         ]}
       />
 
+      {/* Header da tela */}
       <Animated.View
         style={[
           styles.header,
@@ -564,6 +738,7 @@ const FormAlertaDependente = ({navigation, route}) => {
         <View style={styles.headerRight} />
       </Animated.View>
 
+      {/* Conteúdo principal */}
       <Animated.View
         style={[
           styles.content,
@@ -575,6 +750,7 @@ const FormAlertaDependente = ({navigation, route}) => {
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}>
+          
           {/* Card do Dependente */}
           {dependente && (
             <View style={styles.dependenteCard}>
@@ -593,6 +769,7 @@ const FormAlertaDependente = ({navigation, route}) => {
             </View>
           )}
 
+          {/* Seção Medicamento */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <MaterialIcons name="medication" size={20} color="#4D97DB" />
@@ -691,7 +868,7 @@ const FormAlertaDependente = ({navigation, route}) => {
             )}
           </View>
 
-          {/* Resumo */}
+          {/* Seção Resumo */}
           {remedioSelecionado && dosagem && diasSelecionados.length > 0 && (
             <View style={styles.resumoContainer}>
               <View style={styles.resumoHeader}>
@@ -769,6 +946,13 @@ const FormAlertaDependente = ({navigation, route}) => {
   );
 };
 
+/**
+ * Estilos do componente FormAlertaDependente
+ * Define a aparência visual de todos os elementos da tela,
+ * incluindo responsividade, animações e estados interativos
+ * 
+ * @type {Object}
+ */
 const styles = StyleSheet.create({
   container: {
     flex: 1,

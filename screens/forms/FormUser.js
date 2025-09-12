@@ -25,32 +25,140 @@ import LottieView from 'lottie-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
+/**
+ * Obtém as dimensões da tela do dispositivo
+ * @constant {Object} dimensions - Largura e altura da tela
+ */
 const {width, height} = Dimensions.get('window');
 
+/**
+ * Verifica se a tela é pequena (menos de 360px de largura)
+ * @constant {boolean} isSmallScreen
+ */
 const isSmallScreen = width < 360;
+
+/**
+ * Verifica se a tela é média (entre 360px e 400px de largura)
+ * @constant {boolean} isMediumScreen
+ */
 const isMediumScreen = width >= 360 && width < 400;
+
+/**
+ * Verifica se a tela é grande (400px ou mais de largura)
+ * @constant {boolean} isLargeScreen
+ */
 const isLargeScreen = width >= 400;
 
+/**
+ * Componente de tela para completar o perfil do usuário
+ * @component
+ * @param {Object} props - Propriedades do componente
+ * @param {Function} props.onProfileCreated - Callback chamado quando o perfil é criado com sucesso
+ * @returns {JSX.Element} Componente de tela para completar perfil
+ */
 const CompleteProfileScreen = ({onProfileCreated}) => {
+  // Estados do componente
+  /**
+   * Estado do passo atual do formulário
+   * @type {[number, Function]} currentStep - Passo atual (0, 1 ou 2)
+   */
   const [currentStep, setCurrentStep] = useState(0);
+  
+  /**
+   * Estado do nome do usuário
+   * @type {[string, Function]} nome - Nome completo do usuário
+   */
   const [nome, setnome] = useState('');
+  
+  /**
+   * Estado da data de nascimento
+   * @type {[Date, Function]} datanasc - Data de nascimento do usuário
+   */
   const [datanasc, setDatanasc] = useState(new Date());
+  
+  /**
+   * Estado de visibilidade do seletor de data
+   * @type {[boolean, Function]} showDatePicker - Controla se o DateTimePicker está visível
+   */
   const [showDatePicker, setShowDatePicker] = useState(false);
+  
+  /**
+   * Estado do gênero selecionado
+   * @type {[string, Function]} genero - Gênero do usuário (Masculino, Feminino, Prefiro não informar)
+   */
   const [genero, setGenero] = useState('');
+  
+  /**
+   * Estado de carregamento
+   * @type {[boolean, Function]} isLoading - Indica se uma operação está sendo executada
+   */
   const [isLoading, setIsLoading] = useState(false);
+  
+  /**
+   * Estado de foco do campo de entrada
+   * @type {[boolean, Function]} inputFocused - Indica se o campo de texto está em foco
+   */
   const [inputFocused, setInputFocused] = useState(false);
+  
+  /**
+   * Estado de exibição da animação de sucesso
+   * @type {[boolean, Function]} showSuccessAnimation - Controla se a animação de sucesso está sendo exibida
+   */
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
 
+  // Referências para animações
+  /**
+   * Referência para animação de fade
+   * @type {React.MutableRefObject<Animated.Value>} fadeAnim
+   */
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  
+  /**
+   * Referência para animação de deslizamento
+   * @type {React.MutableRefObject<Animated.Value>} slideAnim
+   */
   const slideAnim = useRef(new Animated.Value(50)).current;
+  
+  /**
+   * Referência para animação de escala do logo
+   * @type {React.MutableRefObject<Animated.Value>} logoScaleAnim
+   */
   const logoScaleAnim = useRef(new Animated.Value(0.8)).current;
+  
+  /**
+   * Referência para animação de escala do botão
+   * @type {React.MutableRefObject<Animated.Value>} buttonScaleAnim
+   */
   const buttonScaleAnim = useRef(new Animated.Value(1)).current;
+  
+  /**
+   * Referência para animação de fundo
+   * @type {React.MutableRefObject<Animated.Value>} backgroundAnim
+   */
   const backgroundAnim = useRef(new Animated.Value(0)).current;
+  
+  /**
+   * Referência para animação da barra de progresso
+   * @type {React.MutableRefObject<Animated.Value>} progressAnim
+   */
   const progressAnim = useRef(new Animated.Value(0.33)).current;
+  
+  /**
+   * Referência para o componente LottieView
+   * @type {React.MutableRefObject<LottieView>} lottieRef
+   */
   const lottieRef = useRef(null);
 
+  /**
+   * Hook de navegação do React Navigation
+   * @type {Object} navigation
+   */
   const navigation = useNavigation();
 
+  /**
+   * Configuração dos passos do formulário
+   * @constant {Array<Object>} steps - Array com configuração de cada passo
+   */
   const steps = [
     {
       title: 'Qual é o seu nome?',
@@ -70,10 +178,18 @@ const CompleteProfileScreen = ({onProfileCreated}) => {
     },
   ];
 
+  /**
+   * Efeito executado na montagem do componente
+   * Inicia as animações de entrada
+   */
   useEffect(() => {
     startAnimations();
   }, []);
 
+  /**
+   * Efeito executado quando o passo atual muda
+   * Atualiza a animação da barra de progresso e transição de conteúdo
+   */
   useEffect(() => {
     // Animar progresso
     const progressValue = (currentStep + 1) / steps.length;
@@ -98,6 +214,10 @@ const CompleteProfileScreen = ({onProfileCreated}) => {
     ]).start();
   }, [currentStep]);
 
+  /**
+   * Inicia as animações de entrada da tela
+   * @function startAnimations
+   */
   const startAnimations = () => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
@@ -135,11 +255,21 @@ const CompleteProfileScreen = ({onProfileCreated}) => {
     backgroundAnimation.start();
   };
 
+  /**
+   * Exibe o modal com animação de sucesso
+   * @function showSuccessAnimationOverlay
+   */
   const showSuccessAnimationOverlay = () => {
     console.log('🎯 Iniciando modal de sucesso do perfil');
     setShowSuccessAnimation(true);
   };
 
+  /**
+   * Manipula o fim da animação Lottie de sucesso
+   * Salva o estado no AsyncStorage e chama o callback
+   * @async
+   * @function handleLottieAnimationFinish
+   */
   const handleLottieAnimationFinish = async () => {
     console.log('🎬 Animação Lottie de perfil finalizada!');
 
@@ -161,6 +291,10 @@ const CompleteProfileScreen = ({onProfileCreated}) => {
     }, 500);
   };
 
+  /**
+   * Efeito executado quando a animação de sucesso é exibida
+   * Controla a reprodução da animação Lottie e fallback
+   */
   useEffect(() => {
     if (showSuccessAnimation) {
       console.log('📺 Modal do perfil está visível, verificando Lottie...');
@@ -191,10 +325,21 @@ const CompleteProfileScreen = ({onProfileCreated}) => {
     }
   }, [showSuccessAnimation]);
 
+  /**
+   * Formata uma data para o padrão brasileiro
+   * @function formatDate
+   * @param {Date} date - Data a ser formatada
+   * @returns {string} Data formatada no padrão DD/MM/AAAA
+   */
   const formatDate = date => {
     return date.toLocaleDateString('pt-BR');
   };
 
+  /**
+   * Manipula o clique no botão "Continuar/Finalizar"
+   * Valida os dados e avança para o próximo passo ou finaliza o perfil
+   * @function handleNext
+   */
   const handleNext = () => {
     if (currentStep === 0 && !nome.trim()) {
       Alert.alert('Atenção', 'Por favor, digite seu nome completo');
@@ -239,12 +384,23 @@ const CompleteProfileScreen = ({onProfileCreated}) => {
     }
   };
 
+  /**
+   * Manipula o clique no botão "Voltar"
+   * Retorna para o passo anterior
+   * @function handleBack
+   */
   const handleBack = () => {
     if (currentStep > 0) {
       setCurrentStep(currentStep - 1);
     }
   };
 
+  /**
+   * Completa o perfil do usuário
+   * Salva os dados no Firestore e exibe a animação de sucesso
+   * @async
+   * @function completeProfile
+   */
   const completeProfile = async () => {
     setIsLoading(true);
     try {
@@ -273,16 +429,31 @@ const CompleteProfileScreen = ({onProfileCreated}) => {
     }
   };
 
+  /**
+   * Manipula a mudança de data no DateTimePicker
+   * @function onDateChange
+   * @param {Event} event - Evento de mudança de data
+   * @param {Date} selectedDate - Data selecionada
+   */
   const onDateChange = (event, selectedDate) => {
     const currentDate = selectedDate || datanasc;
     setShowDatePicker(Platform.OS === 'ios');
     setDatanasc(currentDate);
   };
 
+  /**
+   * Exibe o seletor de data
+   * @function showDatepicker
+   */
   const showDatepicker = () => {
     setShowDatePicker(true);
   };
 
+  /**
+   * Renderiza o conteúdo específico de cada passo do formulário
+   * @function renderStepContent
+   * @returns {JSX.Element|null} Componente do conteúdo do passo atual
+   */
   const renderStepContent = () => {
     const step = steps[currentStep];
 
@@ -563,6 +734,10 @@ const CompleteProfileScreen = ({onProfileCreated}) => {
   );
 };
 
+/**
+ * Estilos do componente CompleteProfileScreen
+ * @constant {Object} styles - Objeto contendo todos os estilos do componente
+ */
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -831,7 +1006,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
-
   successOverlay: {
     flex: 1,
     justifyContent: 'center',
