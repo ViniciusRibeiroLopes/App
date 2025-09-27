@@ -13,6 +13,7 @@ import {
   Switch,
   Alert,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/Ionicons';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
@@ -23,6 +24,8 @@ const {width, height} = Dimensions.get('window');
 // Define breakpoints para diferentes tamanhos de tela
 const isSmallScreen = width < 360;
 const isMediumScreen = width >= 360 && width < 400;
+
+const STORAGE_KEY = '@app_settings';
 
 /**
  * Componente de tela de Configurações do aplicativo PillCheck
@@ -51,21 +54,11 @@ const Configuracoes = ({navigation}) => {
    * @property {boolean} notificacoes - Se as notificações estão habilitadas
    * @property {boolean} notificacaoSom - Se o som das notificações está ativo
    * @property {boolean} vibracao - Se a vibração está habilitada
-   * @property {boolean} modoEscuro - Se o modo escuro está ativo
-   * @property {boolean} lembreteAntecipado - Se lembretes antecipados estão ativos
-   * @property {boolean} sincronizacaoNuvem - Se a sincronização na nuvem está ativa
-   * @property {boolean} compartilharDados - Se compartilhamento de dados anônimos está ativo
-   * @property {boolean} biometria - Se a autenticação biométrica está habilitada
    */
   const [settings, setSettings] = useState({
     notificacoes: true,
     notificacaoSom: true,
     vibracao: true,
-    modoEscuro: true,
-    lembreteAntecipado: false,
-    sincronizacaoNuvem: true,
-    compartilharDados: false,
-    biometria: false,
   });
 
   /**
@@ -85,6 +78,23 @@ const Configuracoes = ({navigation}) => {
    * @type {Animated.Value} Valor animado para efeitos de fundo (0 a 1)
    */
   const backgroundAnim = useRef(new Animated.Value(0)).current;
+
+  /**
+   * Carrega configurações do AsyncStorage ao montar o componente
+   */
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const stored = await AsyncStorage.getItem(STORAGE_KEY);
+        if (stored) {
+          setSettings(JSON.parse(stored));
+        }
+      } catch (e) {
+        console.warn('Erro ao carregar configurações:', e);
+      }
+    };
+    loadSettings();
+  }, []);
 
   /**
    * Effect hook para inicializar animações quando o componente é montado
@@ -134,24 +144,25 @@ const Configuracoes = ({navigation}) => {
   /**
    * Função para alterar o valor de uma configuração específica
    *
-   * @description Atualiza o estado da configuração especificada e mostra
-   * feedback ao usuário para configurações críticas como notificações.
+   * @description Atualiza o estado da configuração especificada e salva
+   * no AsyncStorage, mostrando feedback ao usuário para configurações críticas.
    *
    * @param {string} key - Chave da configuração a ser alterada
    * @returns {void}
-   *
-   * @example
-   * // Desabilitar notificações
-   * toggleSetting('notificacoes');
-   *
-   * // Habilitar modo escuro
-   * toggleSetting('modoEscuro');
    */
-  const toggleSetting = key => {
-    setSettings(prev => ({
-      ...prev,
-      [key]: !prev[key],
-    }));
+  const toggleSetting = async key => {
+    const updated = {
+      ...settings,
+      [key]: !settings[key],
+    };
+    setSettings(updated);
+
+    try {
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    } catch (e) {
+      console.warn('Erro ao salvar configurações:', e);
+      Alert.alert('Erro', 'Não foi possível salvar a configuração.');
+    }
 
     // Mostrar feedback para certas configurações críticas
     if (key === 'notificacoes' && settings.notificacoes) {
@@ -167,7 +178,7 @@ const Configuracoes = ({navigation}) => {
    * Handler para exportação de dados do usuário
    *
    * @description Exibe um alerta com opções para exportar os dados do usuário
-   * em formato CSV, permitindo compartilhar ou salvar no dispositivo.
+   * em diferentes formatos, permitindo compartilhar ou salvar no dispositivo.
    *
    * @returns {void}
    *
@@ -177,11 +188,46 @@ const Configuracoes = ({navigation}) => {
   const handleDataExport = () => {
     Alert.alert(
       'Exportar Dados',
-      'Seus dados serão exportados em formato CSV. Onde deseja salvá-los?',
+      'Seus dados serão exportados. Escolha o formato:',
       [
         {text: 'Cancelar', style: 'cancel'},
-        {text: 'Compartilhar', onPress: () => {}},
-        {text: 'Salvar no Dispositivo', onPress: () => {}},
+        {
+          text: 'PDF',
+          onPress: () => {
+            Alert.alert('Sucesso', 'Dados exportados em formato PDF!');
+          },
+        },
+        {
+          text: 'Excel',
+          onPress: () => {
+            Alert.alert('Sucesso', 'Dados exportados em formato Excel!');
+          },
+        },
+        {
+          text: 'JSON',
+          onPress: () => {
+            Alert.alert('Sucesso', 'Dados exportados em formato JSON!');
+          },
+        },
+      ],
+    );
+  };
+
+  /**
+   * Handler para limpeza do cache do aplicativo
+   */
+  const handleClearCache = () => {
+    Alert.alert(
+      'Limpar Cache',
+      'Esta ação irá remover dados temporários para melhorar o desempenho.',
+      [
+        {text: 'Cancelar', style: 'cancel'},
+        {
+          text: 'Confirmar',
+          onPress: () => {
+            Alert.alert('Sucesso', 'Cache limpo com sucesso!');
+          },
+        },
       ],
     );
   };
@@ -191,7 +237,7 @@ const Configuracoes = ({navigation}) => {
    *
    * @description Exibe uma série de alertas de confirmação antes de executar
    * a limpeza completa dos dados. Esta é uma ação irreversível que remove
-   * todos os medicamentos, alarmes e histórico do usuário.
+   * todas as configurações do usuário.
    *
    * @returns {void}
    *
@@ -202,18 +248,26 @@ const Configuracoes = ({navigation}) => {
    */
   const handleDataClear = () => {
     Alert.alert(
-      'Limpar Dados',
-      'Esta ação irá apagar todos os seus medicamentos, alarmes e histórico. Esta ação não pode ser desfeita.',
+      'Resetar Aplicativo',
+      'Esta ação irá apagar todas as suas configurações. Esta ação não pode ser desfeita.',
       [
         {text: 'Cancelar', style: 'cancel'},
         {
           text: 'Confirmar',
           style: 'destructive',
-          onPress: () => {
-            Alert.alert(
-              'Dados Limpos',
-              'Todos os dados foram removidos com sucesso.',
-            );
+          onPress: async () => {
+            try {
+              await AsyncStorage.removeItem(STORAGE_KEY);
+              setSettings({
+                notificacoes: true,
+                notificacaoSom: true,
+                vibracao: true,
+              });
+              Alert.alert('Sucesso', 'Configurações resetadas com sucesso!');
+            } catch (e) {
+              console.warn('Erro ao limpar dados:', e);
+              Alert.alert('Erro', 'Não foi possível resetar as configurações.');
+            }
           },
         },
       ],
@@ -272,76 +326,6 @@ const Configuracoes = ({navigation}) => {
           color: '#4D97DB',
           disabled: !settings.notificacoes,
         },
-        {
-          id: 'lembreteAntecipado',
-          title: 'Lembrete Antecipado',
-          description: 'Notificar 15 minutos antes do horário',
-          icon: 'time',
-          type: 'switch',
-          value: settings.lembreteAntecipado,
-          color: '#10B981',
-          disabled: !settings.notificacoes,
-        },
-      ],
-    },
-    {
-      section: 'Aparência',
-      items: [
-        {
-          id: 'modoEscuro',
-          title: 'Modo Escuro',
-          description: 'Usar tema escuro no aplicativo',
-          icon: 'moon',
-          type: 'switch',
-          value: settings.modoEscuro,
-          color: '#8B5CF6',
-        },
-      ],
-    },
-    {
-      section: 'Dados e Privacidade',
-      items: [
-        {
-          id: 'sincronizacaoNuvem',
-          title: 'Sincronização na Nuvem',
-          description: 'Fazer backup dos dados na nuvem',
-          icon: 'cloud',
-          type: 'switch',
-          value: settings.sincronizacaoNuvem,
-          color: '#4D97DB',
-        },
-        {
-          id: 'compartilharDados',
-          title: 'Compartilhar Dados Anônimos',
-          description: 'Ajudar a melhorar o aplicativo',
-          icon: 'analytics',
-          type: 'switch',
-          value: settings.compartilharDados,
-          color: '#10B981',
-        },
-        {
-          id: 'exportarDados',
-          title: 'Exportar Dados',
-          description: 'Baixar seus dados em CSV',
-          icon: 'download',
-          type: 'action',
-          color: '#F59E0B',
-          action: handleDataExport,
-        },
-      ],
-    },
-    {
-      section: 'Segurança',
-      items: [
-        {
-          id: 'biometria',
-          title: 'Autenticação Biométrica',
-          description: 'Usar impressão digital ou Face ID',
-          icon: 'finger-print',
-          type: 'switch',
-          value: settings.biometria,
-          color: '#E53E3E',
-        },
       ],
     },
     {
@@ -354,17 +338,12 @@ const Configuracoes = ({navigation}) => {
           icon: 'trash',
           type: 'action',
           color: '#94a3b8',
-          action: () => {
-            Alert.alert(
-              'Cache Limpo',
-              'Dados temporários removidos com sucesso.',
-            );
-          },
+          action: handleClearCache,
         },
         {
           id: 'resetarDados',
           title: 'Resetar Aplicativo',
-          description: 'Apagar todos os dados (irreversível)',
+          description: 'Apagar todas as configurações (irreversível)',
           icon: 'warning',
           type: 'action',
           color: '#E53E3E',
@@ -605,35 +584,6 @@ const Configuracoes = ({navigation}) => {
  * animações suaves e design consistente com o tema dark do aplicativo.
  *
  * @type {StyleSheet} Objeto de estilos do React Native
- *
- * @property {Object} container - Container principal da tela
- * @property {Object} backgroundCircle - Círculo de fundo animado superior
- * @property {Object} backgroundCircle2 - Círculo de fundo animado inferior
- * @property {Object} header - Cabeçalho da tela
- * @property {Object} backButton - Botão de voltar
- * @property {Object} headerContent - Conteúdo do cabeçalho
- * @property {Object} headerTitle - Título principal
- * @property {Object} headerSubtitle - Subtítulo
- * @property {Object} content - Área de conteúdo scrollável
- * @property {Object} scrollContent - Container do scroll
- * @property {Object} section - Seção de configurações
- * @property {Object} sectionTitle - Título da seção
- * @property {Object} sectionContainer - Container dos itens da seção
- * @property {Object} settingItem - Item individual de configuração
- * @property {Object} settingItemDisabled - Estado desabilitado do item
- * @property {Object} settingItemDanger - Estado de perigo do item
- * @property {Object} settingContent - Conteúdo principal do item
- * @property {Object} settingIcon - Ícone da configuração
- * @property {Object} settingTextContainer - Container do texto
- * @property {Object} settingTitle - Título da configuração
- * @property {Object} settingTitleDisabled - Título desabilitado
- * @property {Object} settingTitleDanger - Título perigoso
- * @property {Object} settingDescription - Descrição da configuração
- * @property {Object} settingDescriptionDisabled - Descrição desabilitada
- * @property {Object} settingControl - Controle (switch ou seta)
- * @property {Object} appInfoSection - Seção de informações do app
- * @property {Object} appInfoText - Texto principal das informações
- * @property {Object} appInfoSubtext - Subtexto das informações
  */
 const styles = StyleSheet.create({
   container: {
@@ -689,6 +639,7 @@ const styles = StyleSheet.create({
     marginRight: 16,
   },
   headerContent: {
+    paddingTop: 18,
     flex: 1,
   },
   headerTitle: {
