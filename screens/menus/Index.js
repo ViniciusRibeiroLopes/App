@@ -20,40 +20,148 @@ import auth from '@react-native-firebase/auth';
 import Icon from 'react-native-vector-icons/Ionicons';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
+import notifee, {
+  TriggerType,
+  AndroidImportance,
+  AndroidCategory,
+  AndroidVisibility,
+  RepeatFrequency,
+} from '@notifee/react-native';
 
-// Obtém as dimensões da tela para responsividade
 const {width, height} = Dimensions.get('window');
 
-// Constantes para diferentes tamanhos de tela
 const isSmallScreen = width < 360;
 const isMediumScreen = width >= 360 && width < 400;
 const isLargeScreen = width >= 400;
 
 /**
- * Componente principal da aplicação PillCheck - Tela inicial (Dashboard).
- *
- * Funcionalidades principais:
- * - Dashboard com informações de medicamentos e próximos alarmes
- * - Menu hambúrguer lateral com navegação e perfil do usuário
- * - Cards de ações rápidas para navegação entre funcionalidades
- * - Sistema de cálculo inteligente do próximo medicamento
- * - Animações fluidas de entrada e fundo contínuas
- * - Interface responsiva para diferentes tamanhos de tela
- * - Integração em tempo real com Firebase Firestore
- *
- * @component
- * @param {Object} props - Propriedades do componente
- * @param {Object} props.navigation - Objeto de navegação do React Navigation
- * @returns {JSX.Element} Componente renderizado da tela principal
+ * Função para agendar notificações de todos os medicamentos
  */
+const agendarNotificacoesMedicamentos = async alertasData => {
+  try {
+    if (!alertasData || alertasData.length === 0) {
+      console.log('Nenhum alerta para agendar');
+      return;
+    }
+
+    for (const alerta of alertasData) {
+      if (alerta.ativo !== false) {
+        await agendarNotificacaoMedicamento({
+          id: alerta.remedioId,
+          nome: alerta.nomeRemedio,
+          dosagem: alerta.dosagem,
+          horario: alerta.horario,
+          dias: alerta.dias,
+        });
+      }
+    }
+
+    console.log('✅ Todas as notificações foram agendadas');
+  } catch (error) {
+    console.error('❌ Erro ao agendar notificações:', error);
+  }
+};
+
+/**
+ * Função para agendar notificação de um medicamento específico
+ */
+const agendarNotificacaoMedicamento = async medicamento => {
+  try {
+    if (!medicamento || !medicamento.horario) {
+      console.warn('Dados do medicamento inválidos');
+      return null;
+    }
+
+    const [hora, minuto] = medicamento.horario.split(':').map(Number);
+    const proximaData = new Date();
+
+    const diasSemana = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
+    const hojeIndex = proximaData.getDay();
+    let proximoDiaIndex = null;
+
+    for (let i = 1; i <= 7; i++) {
+      const idx = (hojeIndex + i) % 7;
+      const abrev = diasSemana[idx];
+      const diasMedicamento = Array.isArray(medicamento.dias)
+        ? medicamento.dias.map(d => d.toLowerCase())
+        : medicamento.dias
+            .toLowerCase()
+            .split(',')
+            .map(d => d.trim());
+
+      if (diasMedicamento.includes(abrev)) {
+        proximoDiaIndex = idx;
+        break;
+      }
+    }
+
+    if (proximoDiaIndex === null) {
+      console.warn('Nenhum dia válido encontrado para o medicamento');
+      return null;
+    }
+
+    proximaData.setDate(
+      proximaData.getDate() + ((proximoDiaIndex - hojeIndex + 7) % 7 || 7),
+    );
+    proximaData.setHours(hora, minuto, 0, 0);
+
+    const notificacaoId = `med_${medicamento.id}_${proximaData.getTime()}`;
+
+    const trigger = {
+      type: TriggerType.TIMESTAMP,
+      timestamp: proximaData.getTime(),
+      repeatFrequency: RepeatFrequency.WEEKLY,
+    };
+
+    await notifee.createTriggerNotification(
+      {
+        id: notificacaoId,
+        title: '💊 Hora de tomar seu medicamento',
+        body: `${medicamento.nome} - Dosagem: ${medicamento.dosagem}`,
+        data: {
+          medicamentoId: medicamento.id,
+          medicamentoNome: medicamento.nome,
+          dosagem: medicamento.dosagem,
+          horario: medicamento.horario,
+          type: 'medicamento',
+        },
+        android: {
+          channelId: 'alarm-channel',
+          category: AndroidCategory.ALARM,
+          importance: AndroidImportance.MAX,
+          visibility: AndroidVisibility.PUBLIC,
+          autoCancel: true,
+          pressAction: {
+            id: 'default',
+            launchActivity: 'default',
+          },
+          fullScreenAction: {
+            id: 'default',
+          },
+          sound: 'default',
+          priority: AndroidImportance.MAX,
+          ongoing: false,
+        },
+      },
+      trigger,
+    );
+
+    console.log(
+      `✅ Notificação agendada para ${proximaData.toLocaleString('pt-BR')}`,
+    );
+    return notificacaoId;
+  } catch (error) {
+    console.error('❌ Erro ao agendar notificação:', error);
+    return null;
+  }
+};
+
 const Index = ({navigation}) => {
-  // Estados principais da aplicação
   const [medicamentos, setMedicamentos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [menuVisible, setMenuVisible] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
 
-  /** @type {Object} stats - Estatísticas consolidadas da aplicação */
   const [stats, setStats] = useState({
     medicamentosAtivos: 0,
     alertasHoje: 0,
@@ -64,10 +172,8 @@ const Index = ({navigation}) => {
     totalAlarms: 0,
   });
 
-  // Usuário autenticado do Firebase
   const user = auth().currentUser;
 
-  // Referências para animações
   const slideAnim = useRef(new Animated.Value(-250)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideUpAnim = useRef(new Animated.Value(30)).current;
@@ -75,24 +181,15 @@ const Index = ({navigation}) => {
   const statsSlideAnim = useRef(new Animated.Value(50)).current;
   const welcomeSlideAnim = useRef(new Animated.Value(30)).current;
 
-  /**
-   * Hook de efeito para atualizar o tempo atual a cada minuto.
-   * Necessário para recalcular próximos medicamentos em tempo real.
-   */
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
-    }, 60000); // Atualiza a cada minuto
+    }, 60000);
 
     return () => clearInterval(timer);
   }, []);
 
-  /**
-   * Hook de efeito para configurar animações iniciais e contínuas.
-   * Executa animações sequenciais de entrada e loop de fundo.
-   */
   useEffect(() => {
-    // Animações iniciais paralelas
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -118,7 +215,6 @@ const Index = ({navigation}) => {
       }),
     ]).start();
 
-    // Animação de fundo contínua em loop
     const backgroundAnimation = Animated.loop(
       Animated.sequence([
         Animated.timing(backgroundAnim, {
@@ -138,18 +234,12 @@ const Index = ({navigation}) => {
     return () => backgroundAnimation.stop();
   }, [backgroundAnim, fadeAnim, slideUpAnim, statsSlideAnim, welcomeSlideAnim]);
 
-  /**
-   * Hook principal para sincronização de dados em tempo real com o Firestore.
-   * Gerencia listeners para medicamentos, dependentes e alertas.
-   * Calcula automaticamente estatísticas e próximos medicamentos.
-   */
   useEffect(() => {
     if (!user) {
       setLoading(false);
       return;
     }
 
-    // Listener para medicamentos do usuário
     const unsubscribe = firestore()
       .collection('remedios')
       .where('usuarioId', '==', user.uid)
@@ -176,7 +266,6 @@ const Index = ({navigation}) => {
         },
       );
 
-    // Listener para dependentes do usuário
     const unsubscribeDependentes = firestore()
       .collection('dependentes')
       .where('usuarioId', '==', user.uid)
@@ -184,7 +273,6 @@ const Index = ({navigation}) => {
         setStats(prev => ({...prev, dependentes: snapshot?.docs?.length || 0}));
       });
 
-    // Listener para alertas com processamento de próximos medicamentos
     const unsubscribeAlertas = firestore()
       .collection('alertas')
       .where('usuarioId', '==', user.uid)
@@ -216,8 +304,35 @@ const Index = ({navigation}) => {
             );
             console.log('Alertas ativos:', alertasAtivos.length);
 
+            // Enriquecer alertas com nome do medicamento
+            const alertasComNomes = await Promise.all(
+              alertasAtivos.map(async alerta => {
+                let nomeRemedio = alerta.titulo || 'Medicamento';
+                if (alerta.remedioId) {
+                  try {
+                    const remedioDoc = await firestore()
+                      .collection('remedios')
+                      .doc(alerta.remedioId)
+                      .get();
+                    if (remedioDoc.exists) {
+                      nomeRemedio = remedioDoc.data().nome || nomeRemedio;
+                    }
+                  } catch (error) {
+                    console.error('Erro ao buscar remédio:', error);
+                  }
+                }
+                return {
+                  ...alerta,
+                  nomeRemedio,
+                };
+              }),
+            );
+
+            // Agendar notificações para todos os alertas ativos
+            await agendarNotificacoesMedicamentos(alertasComNomes);
+
             // Buscar próximo medicamento e estatísticas
-            const medicationStats = await getMedicationStats(alertasAtivos);
+            const medicationStats = await getMedicationStats(alertasComNomes);
             console.log('Estatísticas dos medicamentos:', medicationStats);
 
             setStats(prev => ({
@@ -255,13 +370,8 @@ const Index = ({navigation}) => {
     };
   }, [user]);
 
-  /**
-   * Hook de efeito para reprocessar alertas quando o tempo atual muda.
-   * Atualiza automaticamente o cálculo do próximo medicamento a cada minuto.
-   */
   useEffect(() => {
     if (stats.totalAlarms > 0) {
-      // Reprocessar alertas quando o tempo muda
       const reprocessAlerts = async () => {
         try {
           const alertasSnapshot = await firestore()
@@ -278,7 +388,32 @@ const Index = ({navigation}) => {
             const alertasAtivos = alertasData.filter(
               alerta => alerta.ativo !== false,
             );
-            const medicationStats = await getMedicationStats(alertasAtivos);
+
+            // Enriquecer com nomes
+            const alertasComNomes = await Promise.all(
+              alertasAtivos.map(async alerta => {
+                let nomeRemedio = alerta.titulo || 'Medicamento';
+                if (alerta.remedioId) {
+                  try {
+                    const remedioDoc = await firestore()
+                      .collection('remedios')
+                      .doc(alerta.remedioId)
+                      .get();
+                    if (remedioDoc.exists) {
+                      nomeRemedio = remedioDoc.data().nome || nomeRemedio;
+                    }
+                  } catch (error) {
+                    console.error('Erro ao buscar remédio:', error);
+                  }
+                }
+                return {
+                  ...alerta,
+                  nomeRemedio,
+                };
+              }),
+            );
+
+            const medicationStats = await getMedicationStats(alertasComNomes);
 
             setStats(prev => ({
               ...prev,
@@ -292,20 +427,8 @@ const Index = ({navigation}) => {
 
       reprocessAlerts();
     }
-  }, [currentTime, user?.uid]);
+  }, [currentTime, stats.totalAlarms, user?.uid]);
 
-  /**
-   * Função principal para calcular estatísticas de medicamentos e próximos alarmes.
-   * Processa alertas ativos e determina qual medicamento deve ser tomado primeiro.
-   *
-   * @async
-   * @function getMedicationStats
-   * @param {Array<Object>} alertasData - Array de alertas ativos do usuário
-   * @returns {Promise<Object>} Estatísticas processadas dos medicamentos
-   * @returns {Object|null} returns.nextMedication - Próximo medicamento hoje
-   * @returns {Object|null} returns.nextMedicationTomorrow - Próximo medicamento amanhã
-   * @returns {boolean} returns.hasAlarmsOtherDays - Se há alarmes em outros dias
-   */
   const getMedicationStats = async alertasData => {
     console.log('Processando alertas:', alertasData);
 
@@ -321,10 +444,9 @@ const Index = ({navigation}) => {
     const now = new Date();
     console.log('Hora atual:', now.toLocaleTimeString('pt-BR'));
 
-    const currentDay = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
+    const currentDay = now.getDay();
     const tomorrow = (currentDay + 1) % 7;
 
-    // Mapear dias da semana (suporta diferentes formatos de string)
     const diasSemana = [
       'domingo',
       'segunda',
@@ -347,28 +469,10 @@ const Index = ({navigation}) => {
     let nextMedicationsTomorrow = [];
     let hasAlarmsOtherDays = false;
 
-    // Processar cada alerta individualmente
     for (let alerta of alertasData) {
       try {
         console.log('Processando alerta:', alerta.id, alerta.horario);
 
-        // Buscar nome do remédio a partir do ID
-        let nomeRemedio = alerta.titulo || 'Medicamento';
-        if (alerta.remedioId) {
-          try {
-            const remedioDoc = await firestore()
-              .collection('remedios')
-              .doc(alerta.remedioId)
-              .get();
-            if (remedioDoc.exists) {
-              nomeRemedio = remedioDoc.data().nome || nomeRemedio;
-            }
-          } catch (error) {
-            console.error('Erro ao buscar remédio:', error);
-          }
-        }
-
-        // Verificar em quais dias este alerta está configurado
         let isToday = false;
         let isTomorrow = false;
         let hasOtherDays = false;
@@ -376,7 +480,6 @@ const Index = ({navigation}) => {
         if (alerta.dias) {
           let diasArray = [];
 
-          // Suportar diferentes formatos de armazenamento de dias
           if (Array.isArray(alerta.dias)) {
             diasArray = alerta.dias.map(d => d.toLowerCase().trim());
           } else if (typeof alerta.dias === 'string') {
@@ -393,7 +496,6 @@ const Index = ({navigation}) => {
             diasArray.includes(tomorrowDayName) ||
             diasArray.includes(tomorrowDayNameShort);
 
-          // Verificar se tem alarmes em outros dias além de hoje e amanhã
           const otherDays = diasArray.filter(
             day =>
               !day.includes(currentDayName.toLowerCase()) &&
@@ -407,7 +509,6 @@ const Index = ({navigation}) => {
             hasAlarmsOtherDays = true;
           }
         } else {
-          // Se não especificou dias, assume que é todo dia
           isToday = true;
           isTomorrow = true;
         }
@@ -421,12 +522,10 @@ const Index = ({navigation}) => {
           hasOtherDays,
         );
 
-        // Processar horários dos alarmes
         if (alerta.horario) {
           try {
             const [hours, minutes] = alerta.horario.split(':').map(Number);
 
-            // Para hoje - verificar se horário ainda não passou
             if (isToday) {
               const alertTime = new Date();
               alertTime.setHours(hours, minutes, 0, 0);
@@ -437,7 +536,6 @@ const Index = ({navigation}) => {
               );
               console.log('Já passou?', alertTime <= now);
 
-              // Se o horário ainda não passou hoje
               if (alertTime > now) {
                 const timeDiff = alertTime - now;
                 const hoursRemaining = Math.floor(timeDiff / (1000 * 60 * 60));
@@ -454,7 +552,6 @@ const Index = ({navigation}) => {
 
                 nextMedicationsToday.push({
                   ...alerta,
-                  nomeRemedio,
                   timeRemaining,
                   alertTime,
                   isToday: true,
@@ -462,13 +559,12 @@ const Index = ({navigation}) => {
 
                 console.log(
                   'Adicionado à lista de hoje:',
-                  nomeRemedio,
+                  alerta.nomeRemedio,
                   timeRemaining,
                 );
               }
             }
 
-            // Para amanhã - calcular tempo até o medicamento
             if (isTomorrow) {
               const alertTimeTomorrow = new Date();
               alertTimeTomorrow.setDate(alertTimeTomorrow.getDate() + 1);
@@ -491,7 +587,6 @@ const Index = ({navigation}) => {
 
               nextMedicationsTomorrow.push({
                 ...alerta,
-                nomeRemedio,
                 timeRemaining,
                 alertTime: alertTimeTomorrow,
                 isTomorrow: true,
@@ -499,7 +594,7 @@ const Index = ({navigation}) => {
 
               console.log(
                 'Adicionado à lista de amanhã:',
-                nomeRemedio,
+                alerta.nomeRemedio,
                 timeRemaining,
               );
             }
@@ -518,7 +613,6 @@ const Index = ({navigation}) => {
       nextMedicationsTomorrow.length,
     );
 
-    // Ordenar por horário mais próximo
     nextMedicationsToday.sort((a, b) => a.alertTime - b.alertTime);
     nextMedicationsTomorrow.sort((a, b) => a.alertTime - b.alertTime);
 
@@ -545,11 +639,6 @@ const Index = ({navigation}) => {
     };
   };
 
-  /**
-   * Alterna a visibilidade do menu hambúrguer.
-   *
-   * @function toggleMenu
-   */
   const toggleMenu = () => {
     if (menuVisible) {
       closeMenu();
@@ -558,11 +647,6 @@ const Index = ({navigation}) => {
     }
   };
 
-  /**
-   * Abre o menu hambúrguer com animação de slide.
-   *
-   * @function openMenu
-   */
   const openMenu = () => {
     setMenuVisible(true);
     Animated.timing(slideAnim, {
@@ -572,11 +656,6 @@ const Index = ({navigation}) => {
     }).start();
   };
 
-  /**
-   * Fecha o menu hambúrguer com animação de slide.
-   *
-   * @function closeMenu
-   */
   const closeMenu = () => {
     Animated.timing(slideAnim, {
       toValue: -250,
@@ -587,13 +666,6 @@ const Index = ({navigation}) => {
     });
   };
 
-  /**
-   * Gerencia o processo de logout do usuário.
-   * Exibe confirmação antes de executar o logout do Firebase.
-   *
-   * @async
-   * @function handleLogout
-   */
   const handleLogout = async () => {
     closeMenu();
     Alert.alert('Sair da conta', 'Tem certeza que deseja sair?', [
@@ -612,13 +684,6 @@ const Index = ({navigation}) => {
     ]);
   };
 
-  /**
-   * Renderiza o menu hambúrguer lateral em modal.
-   * Inclui informações do usuário e opções de navegação.
-   *
-   * @function renderHamburgerMenu
-   * @returns {JSX.Element} Modal com menu lateral
-   */
   const renderHamburgerMenu = () => (
     <Modal
       visible={menuVisible}
@@ -635,7 +700,6 @@ const Index = ({navigation}) => {
                   transform: [{translateX: slideAnim}],
                 },
               ]}>
-              {/* Header do menu com avatar e informações do usuário */}
               <View style={styles.menuHeader}>
                 <View style={styles.userInfoContainer}>
                   <View style={styles.avatarContainer}>
@@ -655,7 +719,6 @@ const Index = ({navigation}) => {
                 </TouchableOpacity>
               </View>
 
-              {/* Itens de navegação do menu */}
               <View style={styles.menuItems}>
                 <TouchableOpacity
                   style={styles.menuItem}
@@ -703,15 +766,7 @@ const Index = ({navigation}) => {
     </Modal>
   );
 
-  /**
-   * Renderiza a seção de ações rápidas (cards de navegação).
-   * Cards animados para as principais funcionalidades do app.
-   *
-   * @function renderQuickActions
-   * @returns {JSX.Element} Grade de cards de ações rápidas
-   */
   const renderQuickActions = () => {
-    /** @type {Array<Object>} actions - Configuração das ações rápidas */
     const actions = [
       {
         icon: 'alarm',
@@ -813,22 +868,8 @@ const Index = ({navigation}) => {
     );
   };
 
-  /**
-   * Renderiza o card de próximo medicamento com diferentes estados.
-   * Exibe informações inteligentes baseadas nos alarmes configurados.
-   *
-   * Estados possíveis:
-   * - 'next-today': Próximo medicamento hoje
-   * - 'other-days': Alarmes apenas em outros dias
-   * - 'no-alarms': Nenhum alarme configurado
-   * - 'no-active-today': Sem alarmes ativos para hoje
-   *
-   * @function renderNextMedication
-   * @returns {JSX.Element} Card do próximo medicamento
-   */
   const renderNextMedication = () => {
-    // Determinar qual card mostrar baseado na situação dos alarmes
-    let cardType = 'no-alarms'; // padrão: sem alarmes
+    let cardType = 'no-alarms';
     let cardData = null;
 
     if (stats.totalAlarms > 0) {
@@ -864,7 +905,6 @@ const Index = ({navigation}) => {
           </Text>
         </View>
 
-        {/* Card para próximo medicamento hoje */}
         {cardType === 'next-today' && (
           <View style={[styles.nextMedCard, styles.nextMedCardToday]}>
             <View
@@ -886,7 +926,6 @@ const Index = ({navigation}) => {
           </View>
         )}
 
-        {/* Card para alarmes em outros dias */}
         {cardType === 'other-days' && (
           <View style={[styles.nextMedCard, styles.nextMedCardOtherDays]}>
             <View
@@ -928,7 +967,6 @@ const Index = ({navigation}) => {
           </View>
         )}
 
-        {/* Card para nenhum alarme configurado */}
         {cardType === 'no-alarms' && (
           <View style={[styles.nextMedCard, styles.nextMedCardEmpty]}>
             <View
@@ -956,7 +994,6 @@ const Index = ({navigation}) => {
     );
   };
 
-  // Renderizar estado de loading
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
@@ -973,7 +1010,6 @@ const Index = ({navigation}) => {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#121A29" />
 
-      {/* Círculos de fundo animados para efeito visual */}
       <Animated.View
         style={[
           styles.backgroundCircle,
@@ -1013,7 +1049,6 @@ const Index = ({navigation}) => {
         ]}
       />
 
-      {/* Header principal com menu hambúrguer e título */}
       <Animated.View
         style={[
           styles.header,
@@ -1033,7 +1068,6 @@ const Index = ({navigation}) => {
         </View>
       </Animated.View>
 
-      {/* Conteúdo principal scrollável */}
       <ScrollView
         style={styles.content}
         showsVerticalScrollIndicator={false}
@@ -1047,21 +1081,7 @@ const Index = ({navigation}) => {
   );
 };
 
-/**
- * Estilos do componente Index.
- * Organizado por seções funcionais e responsivo para diferentes tamanhos de tela.
- * Utiliza tema escuro moderno com efeitos visuais e animações fluidas.
- *
- * Principais seções de estilo:
- * - Layout base e background
- * - Header e navegação
- * - Cards de medicamentos (diferentes estados)
- * - Ações rápidas
- * - Menu lateral
- * - Estados de loading
- */
 const styles = StyleSheet.create({
-  // === Estilos de Layout Base ===
   container: {
     flex: 1,
     backgroundColor: '#121A29',
@@ -1084,8 +1104,6 @@ const styles = StyleSheet.create({
     bottom: -width * 0.6,
     right: -width * 0.4,
   },
-
-  // === Estilos do Header ===
   header: {
     backgroundColor: 'rgba(30, 41, 59, 0.95)',
     paddingHorizontal: isSmallScreen ? 16 : 24,
@@ -1145,8 +1163,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },
-
-  // === Estilos do Conteúdo Principal ===
   content: {
     flex: 1,
   },
@@ -1155,8 +1171,6 @@ const styles = StyleSheet.create({
     paddingTop: 30,
     paddingBottom: 30,
   },
-
-  // === Estilos da Seção de Próximo Medicamento ===
   nextMedSection: {
     marginBottom: 25,
   },
@@ -1178,8 +1192,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.1,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
-
-  // === Cards de Próximo Medicamento ===
   nextMedCard: {
     backgroundColor: 'rgba(30, 41, 59, 0.8)',
     borderRadius: 18,
@@ -1198,9 +1210,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.12,
     shadowRadius: 10,
   },
-  nextMedCardToday: {
-    // Estilos específicos para medicamento hoje
-  },
+  nextMedCardToday: {},
   nextMedCardOtherDays: {
     borderLeftColor: '#8B5CF6',
     borderColor: 'rgba(139, 92, 246, 0.25)',
@@ -1220,9 +1230,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(77, 151, 219, 0.3)',
   },
-  nextMedIconToday: {
-    // Estilos específicos para ícone hoje
-  },
+  nextMedIconToday: {},
   nextMedIconOtherDays: {
     backgroundColor: 'rgba(139, 92, 246, 0.2)',
     borderColor: 'rgba(139, 92, 246, 0.3)',
@@ -1264,9 +1272,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
-  nextMedRemainingToday: {
-    // Cor específica para medicamento hoje
-  },
+  nextMedRemainingToday: {},
   nextMedRemainingOtherDays: {
     color: '#8B5CF6',
   },
@@ -1294,8 +1300,6 @@ const styles = StyleSheet.create({
   configureButtonTextOtherDays: {
     color: '#8B5CF6',
   },
-
-  // === Estilos das Ações Rápidas ===
   actionsSection: {
     marginBottom: 25,
   },
@@ -1356,8 +1360,6 @@ const styles = StyleSheet.create({
     marginLeft: 12,
     opacity: 0.6,
   },
-
-  // === Estilos de Loading ===
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -1372,8 +1374,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
-
-  // === Estilos do Menu Lateral ===
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',

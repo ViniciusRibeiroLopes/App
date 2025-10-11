@@ -1,9 +1,3 @@
-/**
- * @fileoverview AlertasScreen - Tela principal para gerenciamento de alertas de medicação
- * @author Seu Nome
- * @version 1.0.0
- */
-
 import React, {useEffect, useState, useRef} from 'react';
 import {
   View,
@@ -24,93 +18,152 @@ import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
 import Icon from 'react-native-vector-icons/Ionicons';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import notifee from '@notifee/react-native';
+import notifee, {
+  TriggerType,
+  AndroidImportance,
+  AndroidCategory,
+  AndroidVisibility,
+  RepeatFrequency,
+} from '@notifee/react-native';
 
-// Obtenção das dimensões da tela para responsividade
 const {width, height} = Dimensions.get('window');
 
-/**
- * Constantes para determinar o tamanho da tela e aplicar estilos responsivos
- */
 const isSmallScreen = width < 360;
 const isMediumScreen = width >= 360 && width < 400;
 const isLargeScreen = width >= 400;
 
 /**
- * @typedef {Object} Alerta
- * @property {string} id - ID único do alerta
- * @property {string} horario - Horário do alerta (formato HH:MM)
- * @property {string} nomeRemedio - Nome do medicamento
- * @property {string} dosagem - Dosagem do medicamento
- * @property {string} remedioId - ID do remédio associado
- * @property {string} usuarioId - ID do usuário proprietário
- * @property {boolean} ativo - Status ativo/inativo do alerta
- * @property {string|Array} dias - Dias da semana para o alerta
- * @property {string} proximaTomada - Data/hora da próxima tomada
- * @property {string} titulo - Título alternativo do alerta
+ * Função para agendar notificação de um medicamento
  */
+const agendarNotificacaoMedicamento = async medicamento => {
+  try {
+    if (!medicamento || !medicamento.horario) {
+      console.warn('Dados do medicamento inválidos');
+      return null;
+    }
+
+    const [hora, minuto] = medicamento.horario.split(':').map(Number);
+    const proximaData = new Date();
+
+    // Calcular próximo dia de administração
+    const diasSemana = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
+    const hojeIndex = proximaData.getDay();
+    let proximoDiaIndex = null;
+
+    for (let i = 1; i <= 7; i++) {
+      const idx = (hojeIndex + i) % 7;
+      const abrev = diasSemana[idx];
+      const diasMedicamento = Array.isArray(medicamento.dias)
+        ? medicamento.dias.map(d => d.toLowerCase())
+        : medicamento.dias
+            .toLowerCase()
+            .split(',')
+            .map(d => d.trim());
+
+      if (diasMedicamento.includes(abrev)) {
+        proximoDiaIndex = idx;
+        break;
+      }
+    }
+
+    if (proximoDiaIndex === null) {
+      console.warn('Nenhum dia válido encontrado para o medicamento');
+      return null;
+    }
+
+    proximaData.setDate(
+      proximaData.getDate() + ((proximoDiaIndex - hojeIndex + 7) % 7 || 7),
+    );
+    proximaData.setHours(hora, minuto, 0, 0);
+
+    const notificacaoId = `med_${medicamento.id}_${proximaData.getTime()}`;
+
+    const trigger = {
+      type: TriggerType.TIMESTAMP,
+      timestamp: proximaData.getTime(),
+      repeatFrequency: RepeatFrequency.WEEKLY,
+    };
+
+    await notifee.createTriggerNotification(
+      {
+        id: notificacaoId,
+        title: '💊 Hora de tomar seu medicamento',
+        body: `${medicamento.nome} - Dosagem: ${medicamento.dosagem}`,
+        data: {
+          medicamentoId: medicamento.id,
+          medicamentoNome: medicamento.nome,
+          dosagem: medicamento.dosagem,
+          horario: medicamento.horario,
+          type: 'medicamento',
+        },
+        android: {
+          channelId: 'alarm-channel',
+          category: AndroidCategory.ALARM,
+          importance: AndroidImportance.MAX,
+          visibility: AndroidVisibility.PUBLIC,
+          autoCancel: true,
+          pressAction: {
+            id: 'default',
+            launchActivity: 'default',
+          },
+          fullScreenAction: {
+            id: 'default',
+          },
+          sound: 'default',
+          priority: AndroidImportance.MAX,
+          ongoing: false,
+          actions: [
+            {
+              title: '✓ Medicamento Tomado',
+              pressAction: {id: 'confirm'},
+            },
+            {
+              title: '⏰ Lembrar depois',
+              pressAction: {id: 'snooze'},
+            },
+          ],
+        },
+      },
+      trigger,
+    );
+
+    console.log(
+      `✅ Notificação agendada para ${proximaData.toLocaleString('pt-BR')}`,
+    );
+    return notificacaoId;
+  } catch (error) {
+    console.error('❌ Erro ao agendar notificação:', error);
+    return null;
+  }
+};
 
 /**
- * @component AlertasScreen
- * @description Componente principal para exibição e gerenciamento de alertas de medicação.
- * Permite visualizar, ativar/desativar e excluir alertas configurados pelo usuário.
- *
- * @param {Object} props - Propriedades do componente
- * @param {Object} props.navigation - Objeto de navegação do React Navigation
- * @returns {JSX.Element} Componente renderizado
- *
- * @example
- * <AlertasScreen navigation={navigation} />
+ * Função para cancelar notificação
  */
+const cancelarNotificacao = async notificacaoId => {
+  try {
+    if (notificacaoId) {
+      await notifee.cancelTriggerNotification(notificacaoId);
+      console.log(`✅ Notificação ${notificacaoId} cancelada`);
+    }
+  } catch (error) {
+    console.error('❌ Erro ao cancelar notificação:', error);
+  }
+};
+
 const AlertasScreen = ({navigation}) => {
-  // Estados do componente
-  /**
-   * @type {[Array<Alerta>, Function]} Estado que armazena a lista de alertas
-   */
   const [alertas, setAlertas] = useState([]);
-
-  /**
-   * @type {[boolean, Function]} Estado de carregamento da tela
-   */
   const [loading, setLoading] = useState(true);
-
-  /**
-   * @type {[boolean, Function]} Controla a visibilidade do modal de confirmação
-   */
   const [modalVisible, setModalVisible] = useState(false);
-
-  /**
-   * @type {[Alerta|null, Function]} Armazena o alerta selecionado para exclusão
-   */
   const [alertaParaExcluir, setAlertaParaExcluir] = useState(null);
 
-  /**
-   * @type {Object} Usuário autenticado atual
-   */
   const user = auth().currentUser;
 
-  // Referências para animações
-  /**
-   * @type {Animated.Value} Valor animado para fade in/out
-   */
   const fadeAnim = useRef(new Animated.Value(0)).current;
-
-  /**
-   * @type {Animated.Value} Valor animado para movimento vertical
-   */
   const slideUpAnim = useRef(new Animated.Value(30)).current;
-
-  /**
-   * @type {Animated.Value} Valor animado para o fundo
-   */
   const backgroundAnim = useRef(new Animated.Value(0)).current;
 
-  /**
-   * @description useEffect para inicializar animações da tela
-   * Executa animações de fade e slide up, além da animação contínua de fundo
-   */
   useEffect(() => {
-    // Animações iniciais
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -124,7 +177,6 @@ const AlertasScreen = ({navigation}) => {
       }),
     ]).start();
 
-    // Animação de fundo contínua
     const backgroundAnimation = Animated.loop(
       Animated.sequence([
         Animated.timing(backgroundAnim, {
@@ -142,12 +194,8 @@ const AlertasScreen = ({navigation}) => {
     backgroundAnimation.start();
 
     return () => backgroundAnimation.stop();
-  });
+  }, []);
 
-  /**
-   * @description useEffect para carregar alertas do Firestore
-   * Configura um listener em tempo real para os alertas do usuário autenticado
-   */
   useEffect(() => {
     if (!user) {
       setLoading(false);
@@ -205,6 +253,19 @@ const AlertasScreen = ({navigation}) => {
 
             setAlertas(alertasComNomes);
             setLoading(false);
+
+            // Agendar notificações para todos os alertas ativos
+            alertasComNomes.forEach(alerta => {
+              if (alerta.ativo !== false) {
+                agendarNotificacaoMedicamento({
+                  id: alerta.remedioId,
+                  nome: alerta.nomeRemedio,
+                  dosagem: alerta.dosagem,
+                  horario: alerta.horario,
+                  dias: alerta.dias,
+                });
+              }
+            });
           } catch (error) {
             console.error('Erro ao processar alertas:', error);
             Alert.alert(
@@ -224,43 +285,24 @@ const AlertasScreen = ({navigation}) => {
     return () => unsubscribe();
   }, [user]);
 
-  /**
-   * @function confirmarExclusao
-   * @description Abre o modal de confirmação para exclusão de um alerta
-   * @param {Alerta} alerta - O alerta a ser excluído
-   */
   const confirmarExclusao = alerta => {
     setAlertaParaExcluir(alerta);
     setModalVisible(true);
   };
 
-  /**
-   * @function cancelarNotificacoesRemedio
-   * @description Cancela todas as notificações agendadas para um remédio específico
-   * @param {string} remedioId - ID do remédio
-   * @param {Array<string>} dias - Array com os dias da semana
-   */
-  const cancelarNotificacoesRemedio = async (remedioId, dias) => {
-    for (let dia of dias) {
-      const id = `${remedioId}_${dia}`;
-      await notifee.cancelTriggerNotification(id);
-    }
-  };
-
-  /**
-   * @function excluirAlerta
-   * @description Exclui permanentemente um alerta do Firestore e cancela suas notificações
-   * @async
-   */
   const excluirAlerta = async () => {
     try {
+      // Cancelar notificação agendada
+      const notificacaoId = `med_${alertaParaExcluir.remedioId}`;
+      await cancelarNotificacao(notificacaoId);
+
+      // Deletar do Firestore
       await firestore()
         .collection('alertas')
         .doc(alertaParaExcluir.id)
         .delete();
 
       Alert.alert('Sucesso', 'Alerta excluído com sucesso!');
-      cancelarNotificacoesRemedio();
       setModalVisible(false);
     } catch (error) {
       console.error('Erro ao excluir alerta:', error);
@@ -268,12 +310,6 @@ const AlertasScreen = ({navigation}) => {
     }
   };
 
-  /**
-   * @function toggleAlerta
-   * @description Alterna o status ativo/inativo de um alerta
-   * @param {string} alertaId - ID do alerta a ser alternado
-   * @async
-   */
   const toggleAlerta = async alertaId => {
     try {
       const alerta = alertas.find(a => a.id === alertaId);
@@ -285,22 +321,30 @@ const AlertasScreen = ({navigation}) => {
         .update({ativo: novoStatus});
 
       setAlertas(prev =>
-        prev.map(alerta =>
-          alerta.id === alertaId ? {...alerta, ativo: novoStatus} : alerta,
-        ),
+        prev.map(a => (a.id === alertaId ? {...a, ativo: novoStatus} : a)),
       );
+
+      // Se ativou, agendar notificação; se desativou, cancelar
+      if (novoStatus) {
+        agendarNotificacaoMedicamento({
+          id: alerta.remedioId,
+          nome: alerta.nomeRemedio,
+          dosagem: alerta.dosagem,
+          horario: alerta.horario,
+          dias: alerta.dias,
+        });
+        Alert.alert('Sucesso', 'Alerta ativado!');
+      } else {
+        const notificacaoId = `med_${alerta.remedioId}`;
+        await cancelarNotificacao(notificacaoId);
+        Alert.alert('Sucesso', 'Alerta desativado!');
+      }
     } catch (error) {
       console.error('Erro ao atualizar alerta:', error);
       Alert.alert('Erro', 'Não foi possível atualizar o alerta.');
     }
   };
 
-  /**
-   * @function renderDiasSemana
-   * @description Renderiza os chips dos dias da semana para um alerta
-   * @param {string|Array} dias - Dias da semana (string separada por vírgula ou array)
-   * @returns {JSX.Element|null} Componente com os chips dos dias ou null
-   */
   const renderDiasSemana = dias => {
     if (!dias) {
       return null;
@@ -315,9 +359,6 @@ const AlertasScreen = ({navigation}) => {
       return null;
     }
 
-    /**
-     * @type {Object} Mapeamento de abreviações para dias formatados
-     */
     const diasMap = {
       Dom: 'DOM',
       Seg: 'SEG',
@@ -346,12 +387,6 @@ const AlertasScreen = ({navigation}) => {
     );
   };
 
-  /**
-   * @function renderAlertaCard
-   * @description Renderiza um card individual de alerta
-   * @param {Alerta} alerta - Dados do alerta a ser renderizado
-   * @returns {JSX.Element} Card do alerta
-   */
   const renderAlertaCard = alerta => (
     <View
       key={alerta.id}
@@ -381,6 +416,21 @@ const AlertasScreen = ({navigation}) => {
 
         <View style={styles.actionsContainer}>
           <TouchableOpacity
+            style={[
+              styles.toggleButton,
+              alerta.ativo !== false
+                ? styles.toggleActive
+                : styles.toggleInactive,
+            ]}
+            onPress={() => toggleAlerta(alerta.id)}>
+            <Icon
+              name={alerta.ativo !== false ? 'checkmark' : 'close'}
+              size={16}
+              color="#FFFFFF"
+            />
+          </TouchableOpacity>
+
+          <TouchableOpacity
             style={styles.deleteButton}
             onPress={() => confirmarExclusao(alerta)}>
             <Icon name="trash-outline" size={16} color="#E53E3E" />
@@ -405,11 +455,6 @@ const AlertasScreen = ({navigation}) => {
     </View>
   );
 
-  /**
-   * @function renderLoadingState
-   * @description Renderiza o estado de carregamento
-   * @returns {JSX.Element} Componente de loading
-   */
   const renderLoadingState = () => (
     <View style={styles.loadingContainer}>
       <ActivityIndicator size="large" color="#4D97DB" />
@@ -417,11 +462,6 @@ const AlertasScreen = ({navigation}) => {
     </View>
   );
 
-  /**
-   * @function renderEmptyState
-   * @description Renderiza o estado vazio quando não há alertas
-   * @returns {JSX.Element} Componente de estado vazio
-   */
   const renderEmptyState = () => (
     <View style={styles.emptyStateContainer}>
       <View style={styles.emptyStateIconContainer}>
@@ -449,14 +489,6 @@ const AlertasScreen = ({navigation}) => {
     </View>
   );
 
-  /**
-   * @function getAlertsStats
-   * @description Calcula estatísticas dos alertas (ativos, inativos, total)
-   * @returns {Object} Objeto com as estatísticas
-   * @returns {number} returns.ativos - Número de alertas ativos
-   * @returns {number} returns.inativos - Número de alertas inativos
-   * @returns {number} returns.total - Total de alertas
-   */
   const getAlertsStats = () => {
     const ativos = alertas.filter(alerta => alerta.ativo !== false).length;
     const inativos = alertas.length - ativos;
@@ -469,7 +501,6 @@ const AlertasScreen = ({navigation}) => {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#121A29" />
 
-      {/* Círculos de fundo animados */}
       <Animated.View
         style={[
           styles.backgroundCircle,
@@ -509,7 +540,6 @@ const AlertasScreen = ({navigation}) => {
         ]}
       />
 
-      {/* Header da tela */}
       <Animated.View
         style={[
           styles.header,
@@ -538,7 +568,6 @@ const AlertasScreen = ({navigation}) => {
         </View>
       </Animated.View>
 
-      {/* Conteúdo principal */}
       <Animated.View
         style={[
           styles.content,
@@ -566,7 +595,6 @@ const AlertasScreen = ({navigation}) => {
         </ScrollView>
       </Animated.View>
 
-      {/* Modal de confirmação de exclusão */}
       <Modal
         animationType="fade"
         transparent={true}
@@ -609,11 +637,6 @@ const AlertasScreen = ({navigation}) => {
   );
 };
 
-/**
- * @description Estilos do componente AlertasScreen
- * Utiliza StyleSheet.create para otimização de performance
- * @type {Object}
- */
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -714,42 +737,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
   },
-  statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
-    borderRadius: 18,
-    paddingVertical: isSmallScreen ? 12 : 16,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  statNumber: {
-    fontSize: isSmallScreen ? 18 : 20,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    marginBottom: 4,
-    letterSpacing: -0.5,
-    fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
-  },
-  statLabel: {
-    fontSize: isSmallScreen ? 10 : 12,
-    color: '#94a3b8',
-    fontWeight: '500',
-    letterSpacing: 0.2,
-    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
-  },
   content: {
     flex: 1,
     paddingHorizontal: isSmallScreen ? 16 : 24,
@@ -806,7 +793,6 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.15,
     shadowRadius: 8,
-
     borderLeftWidth: 4,
     borderLeftColor: '#4D97DB',
     borderWidth: 1,
@@ -865,6 +851,7 @@ const styles = StyleSheet.create({
   actionsContainer: {
     gap: 8,
     alignItems: 'center',
+    flexDirection: 'row',
   },
   toggleButton: {
     width: 32,

@@ -5,6 +5,10 @@ import auth, {FirebaseAuthTypes} from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import FastImage from 'react-native-fast-image';
+import notifee, {
+  AndroidImportance,
+  AndroidVisibility,
+} from '@notifee/react-native';
 
 import OnBoarding from './components/OnBoarding';
 import LoginScreen from './screens/auth/LoginScreen';
@@ -30,9 +34,72 @@ import PerfilScreen from './screens/navigation/PerfilScreen.js';
 import ConfigScreen from './screens/navigation/ConfigScreen.js';
 import AjudaScreen from './screens/navigation/AjudaScreen.js';
 
-import {View, Image} from 'react-native';
+import {View} from 'react-native';
 
 const Stack = createNativeStackNavigator();
+
+/**
+ * Inicializa os canais de notificação do Firebase Cloud Messaging
+ * Deve ser chamado uma única vez na inicialização do app
+ */
+const initializeNotificationChannels = async () => {
+  try {
+    // Canal para alarmes de medicamentos
+    await notifee.createChannel({
+      id: 'alarm-channel',
+      name: 'Alarmes de Medicação',
+      description: 'Notificações de lembretes de medicamentos',
+      importance: AndroidImportance.MAX,
+      visibility: AndroidVisibility.PUBLIC,
+      sound: 'default',
+      lights: true,
+      lightColor: '#4D97DB',
+      vibration: true,
+    });
+
+    // Canal para notificações gerais
+    await notifee.createChannel({
+      id: 'general-channel',
+      name: 'Notificações Gerais',
+      description: 'Notificações gerais do PillCheck',
+      importance: AndroidImportance.DEFAULT,
+      visibility: AndroidVisibility.PUBLIC,
+      sound: 'default',
+    });
+
+    // Canal para notificações urgentes
+    await notifee.createChannel({
+      id: 'urgent-channel',
+      name: 'Notificações Urgentes',
+      description: 'Alertas urgentes do sistema',
+      importance: AndroidImportance.MAX,
+      visibility: AndroidVisibility.PUBLIC,
+      sound: 'default',
+      lights: true,
+      lightColor: '#E53E3E',
+      vibration: true,
+    });
+
+    console.log('✅ Canais de notificação inicializados com sucesso');
+  } catch (error) {
+    console.error('❌ Erro ao inicializar canais de notificação:', error);
+  }
+};
+
+/**
+ * Configura listeners para eventos de notificação
+ */
+const setupNotificationListeners = () => {
+  // Listener para quando o app está em foreground
+  notifee.onForegroundEvent(({type, notification}) => {
+    console.log('Evento de notificação em foreground:', type);
+  });
+
+  // Listener para quando o app está em background/closed
+  notifee.onBackgroundEvent(async ({type, notification}) => {
+    console.log('Evento de notificação em background:', type);
+  });
+};
 
 export default function App() {
   const [user, setUser] = useState<FirebaseAuthTypes.User | null>(null);
@@ -41,6 +108,12 @@ export default function App() {
   const [firebaseReady, setFirebaseReady] = useState(false);
   const [gifDone, setGifDone] = useState(false);
   const [initialAuthCheck, setInitialAuthCheck] = useState(true);
+
+  // Inicializar sistema de notificações
+  useEffect(() => {
+    initializeNotificationChannels();
+    setupNotificationListeners();
+  }, []);
 
   const [isWaitingForLoginAnimation, setIsWaitingForLoginAnimation] =
     useState(false);
@@ -242,6 +315,7 @@ export default function App() {
         </Stack.Navigator>
       </NavigationContainer>
 
+      {/* Componente de alarme ativo apenas para usuários autenticados com perfil */}
       {user && profileExists && !isDependentUser && <AlarmSystem />}
     </>
   );
