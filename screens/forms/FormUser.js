@@ -60,7 +60,7 @@ const CompleteProfileScreen = ({onProfileCreated}) => {
   // Estados do componente
   /**
    * Estado do passo atual do formulário
-   * @type {[number, Function]} currentStep - Passo atual (0, 1 ou 2)
+   * @type {[number, Function]} currentStep - Passo atual (0 a 6)
    */
   const [currentStep, setCurrentStep] = useState(0);
   
@@ -87,6 +87,14 @@ const CompleteProfileScreen = ({onProfileCreated}) => {
    * @type {[string, Function]} genero - Gênero do usuário (Masculino, Feminino, Prefiro não informar)
    */
   const [genero, setGenero] = useState('');
+  
+  /**
+   * Estados adicionais do formulário
+   */
+  const [telefone, setTelefone] = useState('');
+  const [tipoSanguineo, setTipoSanguineo] = useState('');
+  const [alergias, setAlergias] = useState('');
+  const [condicoesEspeciais, setCondicoesEspeciais] = useState('');
   
   /**
    * Estado de carregamento
@@ -141,7 +149,7 @@ const CompleteProfileScreen = ({onProfileCreated}) => {
    * Referência para animação da barra de progresso
    * @type {React.MutableRefObject<Animated.Value>} progressAnim
    */
-  const progressAnim = useRef(new Animated.Value(0.33)).current;
+  const progressAnim = useRef(new Animated.Value(0.14)).current;
   
   /**
    * Referência para o componente LottieView
@@ -165,6 +173,7 @@ const CompleteProfileScreen = ({onProfileCreated}) => {
       subtitle: 'Como você gostaria de ser chamado?',
       placeholder: 'Digite seu nome completo',
       type: 'text',
+      field: 'nome',
     },
     {
       title: 'Quando você nasceu?',
@@ -175,6 +184,35 @@ const CompleteProfileScreen = ({onProfileCreated}) => {
       title: 'Como você se identifica?',
       subtitle: 'Qual é o seu gênero?',
       type: 'genero',
+    },
+    {
+      title: 'Qual é o seu telefone?',
+      subtitle: 'Para contato de emergência',
+      placeholder: '(00) 00000-0000',
+      type: 'text',
+      field: 'telefone',
+      keyboardType: 'phone-pad',
+    },
+    {
+      title: 'Qual é o seu tipo sanguíneo?',
+      subtitle: 'Informação importante para emergências',
+      type: 'tipoSanguineo',
+    },
+    {
+      title: 'Você tem alguma alergia?',
+      subtitle: 'Medicamentos, alimentos, etc. (Opcional)',
+      placeholder: 'Ex: Penicilina, amendoim, etc.',
+      type: 'text',
+      field: 'alergias',
+      multiline: true,
+    },
+    {
+      title: 'Condições especiais de saúde?',
+      subtitle: 'Diabetes, hipertensão, etc. (Opcional)',
+      placeholder: 'Ex: Diabetes tipo 2, hipertensão',
+      type: 'text',
+      field: 'condicoesEspeciais',
+      multiline: true,
     },
   ];
 
@@ -326,6 +364,25 @@ const CompleteProfileScreen = ({onProfileCreated}) => {
   }, [showSuccessAnimation]);
 
   /**
+   * Formata um número de telefone para o padrão brasileiro
+   * @function formatPhone
+   * @param {string} text - Texto do telefone
+   * @returns {string} Telefone formatado
+   */
+  const formatPhone = text => {
+    const cleaned = text.replace(/\D/g, '');
+    if (cleaned.length <= 10) {
+      return cleaned
+        .replace(/(\d{2})(\d)/, '($1) $2')
+        .replace(/(\d{4})(\d)/, '$1-$2');
+    }
+    return cleaned
+      .replace(/(\d{2})(\d)/, '($1) $2')
+      .replace(/(\d{5})(\d)/, '$1-$2')
+      .replace(/(-\d{4})\d+?$/, '$1');
+  };
+
+  /**
    * Formata uma data para o padrão brasileiro
    * @function formatDate
    * @param {Date} date - Data a ser formatada
@@ -341,12 +398,15 @@ const CompleteProfileScreen = ({onProfileCreated}) => {
    * @function handleNext
    */
   const handleNext = () => {
-    if (currentStep === 0 && !nome.trim()) {
+    const step = steps[currentStep];
+
+    // Validações por tipo de campo
+    if (step.field === 'nome' && !nome.trim()) {
       Alert.alert('Atenção', 'Por favor, digite seu nome completo');
       return;
     }
 
-    if (currentStep === 1) {
+    if (step.type === 'date') {
       const age = Math.floor(
         (new Date() - datanasc) / (365.25 * 24 * 60 * 60 * 1000),
       );
@@ -359,10 +419,22 @@ const CompleteProfileScreen = ({onProfileCreated}) => {
       }
     }
 
-    if (currentStep === 2 && !genero) {
+    if (step.type === 'genero' && !genero) {
       Alert.alert('Atenção', 'Por favor, selecione seu gênero');
       return;
     }
+
+    if (step.field === 'telefone' && !telefone.trim()) {
+      Alert.alert('Atenção', 'Por favor, digite seu telefone');
+      return;
+    }
+
+    if (step.type === 'tipoSanguineo' && !tipoSanguineo) {
+      Alert.alert('Atenção', 'Por favor, selecione seu tipo sanguíneo');
+      return;
+    }
+
+    // Campos opcionais: alergias e condicoesEspeciais não precisam de validação
 
     Animated.sequence([
       Animated.timing(buttonScaleAnim, {
@@ -406,15 +478,23 @@ const CompleteProfileScreen = ({onProfileCreated}) => {
     try {
       const user = auth().currentUser;
       if (user) {
-        await firestore().collection('users').doc(user.uid).set({
-          nome,
-          datanasc: datanasc.toISOString(),
-          genero,
-          email: user.email,
-          perfilCompleto: true,
-        });
+        await firestore()
+          .collection('users')
+          .doc(user.uid)
+          .set({
+            nome,
+            dataNascimento: datanasc.toISOString(),
+            genero,
+            telefone,
+            tipoSanguineo,
+            alergias: alergias.trim() || '',
+            condicoesEspeciais: condicoesEspeciais.trim() || '',
+            email: user.email,
+            perfilCompleto: true,
+            updatedAt: firestore.FieldValue.serverTimestamp(),
+          });
 
-        console.log('Perfil salvo com sucesso para:', user.email);
+        console.log('Perfil completo salvo com sucesso para:', user.email);
         setIsLoading(false);
 
         showSuccessAnimationOverlay();
@@ -459,18 +539,44 @@ const CompleteProfileScreen = ({onProfileCreated}) => {
 
     switch (step.type) {
       case 'text':
+        const value =
+          step.field === 'nome'
+            ? nome
+            : step.field === 'telefone'
+            ? telefone
+            : step.field === 'alergias'
+            ? alergias
+            : condicoesEspeciais;
+
+        const setValue =
+          step.field === 'nome'
+            ? setnome
+            : step.field === 'telefone'
+            ? text => setTelefone(formatPhone(text))
+            : step.field === 'alergias'
+            ? setAlergias
+            : setCondicoesEspeciais;
+
         return (
           <View style={styles.inputContainer}>
             <TextInput
-              style={[styles.input, inputFocused && styles.inputFocused]}
+              style={[
+                styles.input,
+                inputFocused && styles.inputFocused,
+                step.multiline && styles.textArea,
+              ]}
               placeholder={step.placeholder}
               placeholderTextColor="#8A8A8A"
-              value={nome}
-              onChangeText={setnome}
+              value={value}
+              onChangeText={setValue}
               onFocus={() => setInputFocused(true)}
               onBlur={() => setInputFocused(false)}
               autoFocus={currentStep === 0}
-              autoCapitalize="words"
+              autoCapitalize={step.field === 'nome' ? 'words' : 'sentences'}
+              keyboardType={step.keyboardType || 'default'}
+              multiline={step.multiline || false}
+              numberOfLines={step.multiline ? 4 : 1}
+              textAlignVertical={step.multiline ? 'top' : 'center'}
               editable={!isLoading && !showSuccessAnimation}
             />
           </View>
@@ -537,6 +643,32 @@ const CompleteProfileScreen = ({onProfileCreated}) => {
                     genero === option && styles.generoOptionTextSelected,
                   ]}>
                   {option}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        );
+
+      case 'tipoSanguineo':
+        const tiposSanguineos = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+        return (
+          <View style={styles.tipoSanguineoContainer}>
+            {tiposSanguineos.map(tipo => (
+              <TouchableOpacity
+                key={tipo}
+                style={[
+                  styles.tipoSanguineoOption,
+                  tipoSanguineo === tipo && styles.tipoSanguineoOptionSelected,
+                ]}
+                onPress={() => setTipoSanguineo(tipo)}
+                activeOpacity={0.8}
+                disabled={isLoading || showSuccessAnimation}>
+                <Text
+                  style={[
+                    styles.tipoSanguineoText,
+                    tipoSanguineo === tipo && styles.tipoSanguineoTextSelected,
+                  ]}>
+                  {tipo}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -850,6 +982,11 @@ const styles = StyleSheet.create({
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
     fontWeight: '500',
   },
+  textArea: {
+    height: 120,
+    paddingTop: 16,
+    textAlign: 'left',
+  },
   inputFocused: {
     borderColor: '#4D97DB',
     shadowColor: '#4D97DB',
@@ -938,6 +1075,44 @@ const styles = StyleSheet.create({
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   generoOptionTextSelected: {
+    color: '#4D97DB',
+  },
+  tipoSanguineoContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    justifyContent: 'center',
+    width: '100%',
+  },
+  tipoSanguineoOption: {
+    width: 70,
+    height: 56,
+    backgroundColor: '#1E2A3A',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#2A3441',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  tipoSanguineoOptionSelected: {
+    borderColor: '#4D97DB',
+    backgroundColor: '#1E2A3A',
+    shadowColor: '#4D97DB',
+    shadowOffset: {
+      width: 0,
+      height: 0,
+    },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  tipoSanguineoText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '600',
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
+  },
+  tipoSanguineoTextSelected: {
     color: '#4D97DB',
   },
   continueButton: {

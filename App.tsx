@@ -32,7 +32,6 @@ import IndexTelaDependente from './screens/telas_dependentes/IndexTelaDependente
 
 import PerfilScreen from './screens/navigation/PerfilScreen.js';
 import ConfigScreen from './screens/navigation/ConfigScreen.js';
-import AjudaScreen from './screens/navigation/AjudaScreen.js';
 
 import {View} from 'react-native';
 
@@ -302,7 +301,6 @@ export default function App() {
                 />
                 <Stack.Screen name="Perfil" component={PerfilScreen} />
                 <Stack.Screen name="Configuracoes" component={ConfigScreen} />
-                <Stack.Screen name="Ajuda" component={AjudaScreen} />
               </>
             )
           ) : (

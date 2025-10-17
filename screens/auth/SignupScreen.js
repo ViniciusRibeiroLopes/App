@@ -75,9 +75,8 @@ const isLargeScreen = width >= 400;
  *   options={{headerShown: false}}
  * />
  * 
- * @author Seu Nome
  * @version 1.0.0
- * @since 2024
+ * @since 2025
  */
 const RegisterScreen = () => {
   // Estados do formulário

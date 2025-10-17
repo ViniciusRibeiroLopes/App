@@ -41,9 +41,8 @@ const isLargeScreen = width >= 400;
  * @param {string} props.route.params.dependenteId - ID do dependente para buscar o histórico
  * @returns {JSX.Element} Componente renderizado da tela de histórico
  *
- * @author Seu Nome
  * @version 1.0.0
- * @since 2024-01-01
+ * @since 2025
  */
 const HistoricoMedicamentosScreen = ({navigation, route}) => {
   // Estados do componente

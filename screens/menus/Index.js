@@ -17,158 +17,30 @@ import {
 } from 'react-native';
 import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/Ionicons';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
-import notifee, {
-  TriggerType,
-  AndroidImportance,
-  AndroidCategory,
-  AndroidVisibility,
-  RepeatFrequency,
-} from '@notifee/react-native';
 
 const {width, height} = Dimensions.get('window');
 
 const isSmallScreen = width < 360;
 const isMediumScreen = width >= 360 && width < 400;
-const isLargeScreen = width >= 400;
-
-/**
- * Função para agendar notificações de todos os medicamentos
- */
-const agendarNotificacoesMedicamentos = async alertasData => {
-  try {
-    if (!alertasData || alertasData.length === 0) {
-      console.log('Nenhum alerta para agendar');
-      return;
-    }
-
-    for (const alerta of alertasData) {
-      if (alerta.ativo !== false) {
-        await agendarNotificacaoMedicamento({
-          id: alerta.remedioId,
-          nome: alerta.nomeRemedio,
-          dosagem: alerta.dosagem,
-          horario: alerta.horario,
-          dias: alerta.dias,
-        });
-      }
-    }
-
-    console.log('✅ Todas as notificações foram agendadas');
-  } catch (error) {
-    console.error('❌ Erro ao agendar notificações:', error);
-  }
-};
-
-/**
- * Função para agendar notificação de um medicamento específico
- */
-const agendarNotificacaoMedicamento = async medicamento => {
-  try {
-    if (!medicamento || !medicamento.horario) {
-      console.warn('Dados do medicamento inválidos');
-      return null;
-    }
-
-    const [hora, minuto] = medicamento.horario.split(':').map(Number);
-    const proximaData = new Date();
-
-    const diasSemana = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
-    const hojeIndex = proximaData.getDay();
-    let proximoDiaIndex = null;
-
-    for (let i = 1; i <= 7; i++) {
-      const idx = (hojeIndex + i) % 7;
-      const abrev = diasSemana[idx];
-      const diasMedicamento = Array.isArray(medicamento.dias)
-        ? medicamento.dias.map(d => d.toLowerCase())
-        : medicamento.dias
-            .toLowerCase()
-            .split(',')
-            .map(d => d.trim());
-
-      if (diasMedicamento.includes(abrev)) {
-        proximoDiaIndex = idx;
-        break;
-      }
-    }
-
-    if (proximoDiaIndex === null) {
-      console.warn('Nenhum dia válido encontrado para o medicamento');
-      return null;
-    }
-
-    proximaData.setDate(
-      proximaData.getDate() + ((proximoDiaIndex - hojeIndex + 7) % 7 || 7),
-    );
-    proximaData.setHours(hora, minuto, 0, 0);
-
-    const notificacaoId = `med_${medicamento.id}_${proximaData.getTime()}`;
-
-    const trigger = {
-      type: TriggerType.TIMESTAMP,
-      timestamp: proximaData.getTime(),
-      repeatFrequency: RepeatFrequency.WEEKLY,
-    };
-
-    await notifee.createTriggerNotification(
-      {
-        id: notificacaoId,
-        title: '💊 Hora de tomar seu medicamento',
-        body: `${medicamento.nome} - Dosagem: ${medicamento.dosagem}`,
-        data: {
-          medicamentoId: medicamento.id,
-          medicamentoNome: medicamento.nome,
-          dosagem: medicamento.dosagem,
-          horario: medicamento.horario,
-          type: 'medicamento',
-        },
-        android: {
-          channelId: 'alarm-channel',
-          category: AndroidCategory.ALARM,
-          importance: AndroidImportance.MAX,
-          visibility: AndroidVisibility.PUBLIC,
-          autoCancel: true,
-          pressAction: {
-            id: 'default',
-            launchActivity: 'default',
-          },
-          fullScreenAction: {
-            id: 'default',
-          },
-          sound: 'default',
-          priority: AndroidImportance.MAX,
-          ongoing: false,
-        },
-      },
-      trigger,
-    );
-
-    console.log(
-      `✅ Notificação agendada para ${proximaData.toLocaleString('pt-BR')}`,
-    );
-    return notificacaoId;
-  } catch (error) {
-    console.error('❌ Erro ao agendar notificação:', error);
-    return null;
-  }
-};
 
 const Index = ({navigation}) => {
   const [medicamentos, setMedicamentos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [menuVisible, setMenuVisible] = useState(false);
+  const [tutorialVisible, setTutorialVisible] = useState(false);
+  const [tutorialStep, setTutorialStep] = useState(0);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [dependentes, setDependentes] = useState([]);
 
   const [stats, setStats] = useState({
     medicamentosAtivos: 0,
     alertasHoje: 0,
     dependentes: 0,
     nextMedication: null,
-    nextMedicationTomorrow: null,
-    hasAlarmsOtherDays: false,
     totalAlarms: 0,
   });
 
@@ -178,8 +50,93 @@ const Index = ({navigation}) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideUpAnim = useRef(new Animated.Value(30)).current;
   const backgroundAnim = useRef(new Animated.Value(0)).current;
-  const statsSlideAnim = useRef(new Animated.Value(50)).current;
-  const welcomeSlideAnim = useRef(new Animated.Value(30)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const tutorialFade = useRef(new Animated.Value(0)).current;
+
+  // Tutorial steps
+  const tutorialSteps = [
+    {
+      title: 'Bem-vindo ao PillCheck! 👋',
+      description:
+        'Seu assistente pessoal para gerenciar medicamentos de forma simples e eficiente.',
+      icon: 'heart',
+      color: '#10B981',
+    },
+    {
+      title: 'Gerencie Dependentes 👨‍👩‍👧‍👦',
+      description:
+        'Cuide de quem você ama! Adicione familiares e acompanhe os medicamentos deles.',
+      icon: 'people',
+      color: '#10B981',
+      highlight: 'dependentes',
+    },
+    {
+      title: 'Configure Alarmes ⏰',
+      description:
+        'Nunca mais esqueça um medicamento. Configure lembretes personalizados.',
+      icon: 'alarm',
+      color: '#10B981',
+      highlight: 'alarmes',
+    },
+    {
+      title: 'Adicione Medicamentos 💊',
+      description:
+        'Cadastre seus remédios com dosagem, horários e informações importantes.',
+      icon: 'medical',
+      color: '#10B981',
+      highlight: 'remedios',
+    },
+  ];
+
+  useEffect(() => {
+    checkFirstAccess();
+  }, []);
+
+  const checkFirstAccess = async () => {
+    try {
+      const hasSeenTutorial = await AsyncStorage.getItem('hasSeenTutorial');
+      if (!hasSeenTutorial) {
+        setTimeout(() => {
+          setTutorialVisible(true);
+          Animated.timing(tutorialFade, {
+            toValue: 1,
+            duration: 500,
+            useNativeDriver: true,
+          }).start();
+        }, 1000);
+      }
+    } catch (error) {
+      console.error('Erro ao verificar tutorial:', error);
+    }
+  };
+
+  const completeTutorial = async () => {
+    try {
+      await AsyncStorage.setItem('hasSeenTutorial', 'true');
+      Animated.timing(tutorialFade, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start(() => {
+        setTutorialVisible(false);
+        setTutorialStep(0);
+      });
+    } catch (error) {
+      console.error('Erro ao salvar tutorial:', error);
+    }
+  };
+
+  const nextTutorialStep = () => {
+    if (tutorialStep < tutorialSteps.length - 1) {
+      setTutorialStep(tutorialStep + 1);
+    } else {
+      completeTutorial();
+    }
+  };
+
+  const skipTutorial = () => {
+    completeTutorial();
+  };
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -201,18 +158,6 @@ const Index = ({navigation}) => {
         duration: 600,
         useNativeDriver: true,
       }),
-      Animated.timing(statsSlideAnim, {
-        toValue: 0,
-        duration: 800,
-        delay: 200,
-        useNativeDriver: true,
-      }),
-      Animated.timing(welcomeSlideAnim, {
-        toValue: 0,
-        duration: 700,
-        delay: 400,
-        useNativeDriver: true,
-      }),
     ]).start();
 
     const backgroundAnimation = Animated.loop(
@@ -231,8 +176,27 @@ const Index = ({navigation}) => {
     );
     backgroundAnimation.start();
 
-    return () => backgroundAnimation.stop();
-  }, [backgroundAnim, fadeAnim, slideUpAnim, statsSlideAnim, welcomeSlideAnim]);
+    const pulseAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.05,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    pulseAnimation.start();
+
+    return () => {
+      backgroundAnimation.stop();
+      pulseAnimation.stop();
+    };
+  }, []);
 
   useEffect(() => {
     if (!user) {
@@ -246,7 +210,6 @@ const Index = ({navigation}) => {
       .onSnapshot(
         snapshot => {
           if (!snapshot || !snapshot.docs) {
-            console.warn('Snapshot vazio ou inválido');
             setLoading(false);
             return;
           }
@@ -261,107 +224,90 @@ const Index = ({navigation}) => {
         },
         error => {
           console.error('Erro ao buscar medicamentos:', error);
-          Alert.alert('Erro', 'Não foi possível carregar os dados.');
           setLoading(false);
         },
       );
 
     const unsubscribeDependentes = firestore()
-      .collection('dependentes')
+      .collection('users_dependentes')
       .where('usuarioId', '==', user.uid)
-      .onSnapshot(snapshot => {
-        setStats(prev => ({...prev, dependentes: snapshot?.docs?.length || 0}));
-      });
+      .onSnapshot(
+        snapshot => {
+          const deps = snapshot?.docs?.map(doc => {
+            const data = doc.data();
+            return {
+              id: doc.id,
+              nome: data.nome || data.nomeCompleto || 'Dependente',
+              relacao: data.parentesco || 'Familiar',
+              email: data.email || '',
+              ...data,
+            };
+          }) || [];
+          setDependentes(deps);
+          setStats(prev => ({...prev, dependentes: deps.length}));
+        },
+        error => {
+          console.error('Erro ao buscar dependentes:', error);
+        }
+      );
 
     const unsubscribeAlertas = firestore()
       .collection('alertas')
       .where('usuarioId', '==', user.uid)
-      .onSnapshot(
-        async snapshot => {
-          try {
-            if (!snapshot || !snapshot.docs) {
-              console.log('Nenhum alerta encontrado');
-              setStats(prev => ({
-                ...prev,
-                nextMedication: null,
-                nextMedicationTomorrow: null,
-                hasAlarmsOtherDays: false,
-                totalAlarms: 0,
-              }));
-              return;
-            }
-
-            const alertasData = snapshot.docs.map(doc => ({
-              id: doc.id,
-              ...doc.data(),
-            }));
-
-            console.log('Alertas encontrados:', alertasData.length);
-
-            // Filtrar apenas alertas ativos
-            const alertasAtivos = alertasData.filter(
-              alerta => alerta.ativo !== false,
-            );
-            console.log('Alertas ativos:', alertasAtivos.length);
-
-            // Enriquecer alertas com nome do medicamento
-            const alertasComNomes = await Promise.all(
-              alertasAtivos.map(async alerta => {
-                let nomeRemedio = alerta.titulo || 'Medicamento';
-                if (alerta.remedioId) {
-                  try {
-                    const remedioDoc = await firestore()
-                      .collection('remedios')
-                      .doc(alerta.remedioId)
-                      .get();
-                    if (remedioDoc.exists) {
-                      nomeRemedio = remedioDoc.data().nome || nomeRemedio;
-                    }
-                  } catch (error) {
-                    console.error('Erro ao buscar remédio:', error);
-                  }
-                }
-                return {
-                  ...alerta,
-                  nomeRemedio,
-                };
-              }),
-            );
-
-            // Agendar notificações para todos os alertas ativos
-            await agendarNotificacoesMedicamentos(alertasComNomes);
-
-            // Buscar próximo medicamento e estatísticas
-            const medicationStats = await getMedicationStats(alertasComNomes);
-            console.log('Estatísticas dos medicamentos:', medicationStats);
-
-            setStats(prev => ({
-              ...prev,
-              ...medicationStats,
-              totalAlarms: alertasAtivos.length,
-            }));
-          } catch (error) {
-            console.error('Erro ao processar alertas:', error);
+      .onSnapshot(async snapshot => {
+        try {
+          if (!snapshot || !snapshot.docs) {
             setStats(prev => ({
               ...prev,
               nextMedication: null,
-              nextMedicationTomorrow: null,
-              hasAlarmsOtherDays: false,
               totalAlarms: 0,
             }));
+            return;
           }
-        },
-        error => {
-          console.error('Erro ao buscar alertas:', error);
+
+          const alertasData = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+          }));
+
+          const alertasAtivos = alertasData.filter(
+            alerta => alerta.ativo !== false,
+          );
+
+          const alertasComNomes = await Promise.all(
+            alertasAtivos.map(async alerta => {
+              let nomeRemedio = alerta.titulo || 'Medicamento';
+              if (alerta.remedioId) {
+                try {
+                  const remedioDoc = await firestore()
+                    .collection('remedios')
+                    .doc(alerta.remedioId)
+                    .get();
+                  if (remedioDoc.exists) {
+                    nomeRemedio = remedioDoc.data().nome || nomeRemedio;
+                  }
+                } catch (error) {
+                  console.error('Erro ao buscar remédio:', error);
+                }
+              }
+              return {
+                ...alerta,
+                nomeRemedio,
+              };
+            }),
+          );
+
+          const medicationStats = getMedicationStats(alertasComNomes);
+
           setStats(prev => ({
             ...prev,
-            nextMedication: null,
-            nextMedicationTomorrow: null,
-            hasAlarmsOtherDays: false,
-            totalAlarms: 0,
+            ...medicationStats,
+            totalAlarms: alertasAtivos.length,
           }));
-        },
-      );
+        } catch (error) {
+          console.error('Erro ao processar alertas:', error);
+        }
+      });
 
     return () => {
       unsubscribe();
@@ -370,83 +316,15 @@ const Index = ({navigation}) => {
     };
   }, [user]);
 
-  useEffect(() => {
-    if (stats.totalAlarms > 0) {
-      const reprocessAlerts = async () => {
-        try {
-          const alertasSnapshot = await firestore()
-            .collection('alertas')
-            .where('usuarioId', '==', user?.uid)
-            .get();
-
-          if (alertasSnapshot && alertasSnapshot.docs) {
-            const alertasData = alertasSnapshot.docs.map(doc => ({
-              id: doc.id,
-              ...doc.data(),
-            }));
-
-            const alertasAtivos = alertasData.filter(
-              alerta => alerta.ativo !== false,
-            );
-
-            // Enriquecer com nomes
-            const alertasComNomes = await Promise.all(
-              alertasAtivos.map(async alerta => {
-                let nomeRemedio = alerta.titulo || 'Medicamento';
-                if (alerta.remedioId) {
-                  try {
-                    const remedioDoc = await firestore()
-                      .collection('remedios')
-                      .doc(alerta.remedioId)
-                      .get();
-                    if (remedioDoc.exists) {
-                      nomeRemedio = remedioDoc.data().nome || nomeRemedio;
-                    }
-                  } catch (error) {
-                    console.error('Erro ao buscar remédio:', error);
-                  }
-                }
-                return {
-                  ...alerta,
-                  nomeRemedio,
-                };
-              }),
-            );
-
-            const medicationStats = await getMedicationStats(alertasComNomes);
-
-            setStats(prev => ({
-              ...prev,
-              ...medicationStats,
-            }));
-          }
-        } catch (error) {
-          console.error('Erro ao reprocessar alertas:', error);
-        }
-      };
-
-      reprocessAlerts();
-    }
-  }, [currentTime, stats.totalAlarms, user?.uid]);
-
-  const getMedicationStats = async alertasData => {
-    console.log('Processando alertas:', alertasData);
-
+  const getMedicationStats = alertasData => {
     if (!alertasData || alertasData.length === 0) {
-      console.log('Nenhum alerta para processar');
       return {
         nextMedication: null,
-        nextMedicationTomorrow: null,
-        hasAlarmsOtherDays: false,
       };
     }
 
     const now = new Date();
-    console.log('Hora atual:', now.toLocaleTimeString('pt-BR'));
-
     const currentDay = now.getDay();
-    const tomorrow = (currentDay + 1) % 7;
-
     const diasSemana = [
       'domingo',
       'segunda',
@@ -459,23 +337,12 @@ const Index = ({navigation}) => {
     const diasSemanaShort = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
     const currentDayName = diasSemana[currentDay];
     const currentDayNameShort = diasSemanaShort[currentDay];
-    const tomorrowDayName = diasSemana[tomorrow];
-    const tomorrowDayNameShort = diasSemanaShort[tomorrow];
-
-    console.log('Dia atual:', currentDayName, currentDayNameShort);
-    console.log('Amanhã:', tomorrowDayName, tomorrowDayNameShort);
 
     let nextMedicationsToday = [];
-    let nextMedicationsTomorrow = [];
-    let hasAlarmsOtherDays = false;
 
     for (let alerta of alertasData) {
       try {
-        console.log('Processando alerta:', alerta.id, alerta.horario);
-
         let isToday = false;
-        let isTomorrow = false;
-        let hasOtherDays = false;
 
         if (alerta.dias) {
           let diasArray = [];
@@ -492,111 +359,35 @@ const Index = ({navigation}) => {
           isToday =
             diasArray.includes(currentDayName) ||
             diasArray.includes(currentDayNameShort);
-          isTomorrow =
-            diasArray.includes(tomorrowDayName) ||
-            diasArray.includes(tomorrowDayNameShort);
-
-          const otherDays = diasArray.filter(
-            day =>
-              !day.includes(currentDayName.toLowerCase()) &&
-              !day.includes(currentDayNameShort.toLowerCase()) &&
-              !day.includes(tomorrowDayName.toLowerCase()) &&
-              !day.includes(tomorrowDayNameShort.toLowerCase()),
-          );
-          hasOtherDays = otherDays.length > 0;
-
-          if (hasOtherDays) {
-            hasAlarmsOtherDays = true;
-          }
         } else {
           isToday = true;
-          isTomorrow = true;
         }
 
-        console.log(
-          'Alerta é para hoje?',
-          isToday,
-          'Amanhã?',
-          isTomorrow,
-          'Outros dias?',
-          hasOtherDays,
-        );
-
-        if (alerta.horario) {
+        if (alerta.horario && isToday) {
           try {
             const [hours, minutes] = alerta.horario.split(':').map(Number);
+            const alertTime = new Date();
+            alertTime.setHours(hours, minutes, 0, 0);
 
-            if (isToday) {
-              const alertTime = new Date();
-              alertTime.setHours(hours, minutes, 0, 0);
-
-              console.log(
-                'Horário do alerta hoje:',
-                alertTime.toLocaleTimeString('pt-BR'),
-              );
-              console.log('Já passou?', alertTime <= now);
-
-              if (alertTime > now) {
-                const timeDiff = alertTime - now;
-                const hoursRemaining = Math.floor(timeDiff / (1000 * 60 * 60));
-                const minutesRemaining = Math.floor(
-                  (timeDiff % (1000 * 60 * 60)) / (1000 * 60),
-                );
-
-                let timeRemaining;
-                if (hoursRemaining > 0) {
-                  timeRemaining = `em ${hoursRemaining}h ${minutesRemaining}min`;
-                } else {
-                  timeRemaining = `em ${minutesRemaining}min`;
-                }
-
-                nextMedicationsToday.push({
-                  ...alerta,
-                  timeRemaining,
-                  alertTime,
-                  isToday: true,
-                });
-
-                console.log(
-                  'Adicionado à lista de hoje:',
-                  alerta.nomeRemedio,
-                  timeRemaining,
-                );
-              }
-            }
-
-            if (isTomorrow) {
-              const alertTimeTomorrow = new Date();
-              alertTimeTomorrow.setDate(alertTimeTomorrow.getDate() + 1);
-              alertTimeTomorrow.setHours(hours, minutes, 0, 0);
-
-              const timeDiffTomorrow = alertTimeTomorrow - now;
-              const hoursRemaining = Math.floor(
-                timeDiffTomorrow / (1000 * 60 * 60),
-              );
+            if (alertTime > now) {
+              const timeDiff = alertTime - now;
+              const hoursRemaining = Math.floor(timeDiff / (1000 * 60 * 60));
               const minutesRemaining = Math.floor(
-                (timeDiffTomorrow % (1000 * 60 * 60)) / (1000 * 60),
+                (timeDiff % (1000 * 60 * 60)) / (1000 * 60),
               );
 
               let timeRemaining;
               if (hoursRemaining > 0) {
                 timeRemaining = `em ${hoursRemaining}h ${minutesRemaining}min`;
               } else {
-                timeRemaining = `amanhã`;
+                timeRemaining = `em ${minutesRemaining}min`;
               }
 
-              nextMedicationsTomorrow.push({
+              nextMedicationsToday.push({
                 ...alerta,
                 timeRemaining,
-                alertTime: alertTimeTomorrow,
-                isTomorrow: true,
+                alertTime,
               });
-
-              console.log(
-                'Adicionado à lista de amanhã:',
-                alerta.nomeRemedio,
-                timeRemaining,
-              );
             }
           } catch (error) {
             console.error('Erro ao processar horário:', error);
@@ -607,35 +398,12 @@ const Index = ({navigation}) => {
       }
     }
 
-    console.log('Próximos medicamentos hoje:', nextMedicationsToday.length);
-    console.log(
-      'Próximos medicamentos amanhã:',
-      nextMedicationsTomorrow.length,
-    );
-
     nextMedicationsToday.sort((a, b) => a.alertTime - b.alertTime);
-    nextMedicationsTomorrow.sort((a, b) => a.alertTime - b.alertTime);
-
     const nextMedication =
       nextMedicationsToday.length > 0 ? nextMedicationsToday[0] : null;
-    const nextMedicationTomorrow =
-      nextMedicationsTomorrow.length > 0 ? nextMedicationsTomorrow[0] : null;
-
-    console.log(
-      'Próximo medicamento hoje selecionado:',
-      nextMedication?.nomeRemedio,
-      nextMedication?.timeRemaining,
-    );
-    console.log(
-      'Próximo medicamento amanhã selecionado:',
-      nextMedicationTomorrow?.nomeRemedio,
-      nextMedicationTomorrow?.timeRemaining,
-    );
 
     return {
       nextMedication,
-      nextMedicationTomorrow,
-      hasAlarmsOtherDays,
     };
   };
 
@@ -684,6 +452,67 @@ const Index = ({navigation}) => {
     ]);
   };
 
+  const renderTutorial = () => {
+    const step = tutorialSteps[tutorialStep];
+
+    return (
+      <Modal
+        visible={tutorialVisible}
+        transparent={true}
+        animationType="none"
+        onRequestClose={skipTutorial}>
+        <Animated.View
+          style={[
+            styles.tutorialOverlay,
+            {
+              opacity: tutorialFade,
+            },
+          ]}>
+          <View style={styles.tutorialContent}>
+            <View
+              style={[styles.tutorialIconContainer, {backgroundColor: step.color}]}>
+              <Icon name={step.icon} size={40} color="#FFFFFF" />
+            </View>
+
+            <Text style={styles.tutorialTitle}>{step.title}</Text>
+            <Text style={styles.tutorialDescription}>{step.description}</Text>
+
+            <View style={styles.tutorialProgress}>
+              {tutorialSteps.map((_, index) => (
+                <View
+                  key={index}
+                  style={[
+                    styles.tutorialDot,
+                    index === tutorialStep && styles.tutorialDotActive,
+                  ]}
+                />
+              ))}
+            </View>
+
+            <View style={styles.tutorialButtons}>
+              <TouchableOpacity
+                style={styles.tutorialSkipButton}
+                onPress={skipTutorial}>
+                <Text style={styles.tutorialSkipText}>Pular</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.tutorialNextButton, {backgroundColor: step.color}]}
+                onPress={nextTutorialStep}>
+                <Text style={styles.tutorialNextText}>
+                  {tutorialStep === tutorialSteps.length - 1
+                    ? 'Começar'
+                    : 'Próximo'}
+                </Text>
+                <Icon name="arrow-forward" size={20} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Animated.View>
+      </Modal>
+    );
+  };
+
   const renderHamburgerMenu = () => (
     <Modal
       visible={menuVisible}
@@ -703,7 +532,9 @@ const Index = ({navigation}) => {
               <View style={styles.menuHeader}>
                 <View style={styles.userInfoContainer}>
                   <View style={styles.avatarContainer}>
-                    <Icon name="person" size={24} color="#FFFFFF" />
+                    <Text style={styles.avatarInitial}>
+                      {user?.displayName?.charAt(0)?.toUpperCase() || user?.email?.charAt(0)?.toUpperCase() || 'U'}
+                    </Text>
                   </View>
                   <View style={styles.userInfo}>
                     <Text style={styles.userName}>
@@ -744,10 +575,16 @@ const Index = ({navigation}) => {
                   style={styles.menuItem}
                   onPress={() => {
                     closeMenu();
-                    navigation.navigate('Ajuda');
+                    setTutorialVisible(true);
+                    setTutorialStep(0);
+                    Animated.timing(tutorialFade, {
+                      toValue: 1,
+                      duration: 500,
+                      useNativeDriver: true,
+                    }).start();
                   }}>
                   <Icon name="help-circle-outline" size={20} color="#e2e8f0" />
-                  <Text style={styles.menuItemText}>Ajuda</Text>
+                  <Text style={styles.menuItemText}>Tutorial</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -766,6 +603,145 @@ const Index = ({navigation}) => {
     </Modal>
   );
 
+  const renderDependentesDestaque = () => {
+    return (
+      <Animated.View
+        style={[
+          styles.dependentesSection,
+          {
+            opacity: fadeAnim,
+            transform: [{scale: pulseAnim}],
+          },
+        ]}>
+        <View style={styles.dependentesBanner}>
+          <View style={styles.dependentesHeader}>
+            <View style={styles.dependentesTitleContainer}>
+              <Icon name="people" size={24} color="#FFFFFF" />
+              <Text style={styles.dependentesTitle}>Cuide de Quem Ama</Text>
+            </View>
+            <View style={styles.dependentesBadge}>
+              <Text style={styles.dependentesBadgeText}>
+                {stats.dependentes}
+              </Text>
+            </View>
+          </View>
+
+          <Text style={styles.dependentesDescription}>
+            Gerencie os medicamentos de toda sua família em um só lugar
+          </Text>
+
+          {dependentes.length === 0 ? (
+            <View style={styles.dependentesEmpty}>
+              <Icon name="person-add" size={32} color="#64748b" />
+              <Text style={styles.dependentesEmptyText}>
+                Adicione seu primeiro dependente
+              </Text>
+              <TouchableOpacity
+                style={styles.dependentesAddButton}
+                onPress={() => navigation.navigate('DependentesMenu')}>
+                <Icon name="add" size={20} color="#FFFFFF" />
+                <Text style={styles.dependentesAddButtonText}>
+                  Adicionar Dependente
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.dependentesList}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.dependentesScroll}>
+                {dependentes.slice(0, 3).map((dep, index) => (
+                  <View key={dep.id} style={styles.dependenteCard}>
+                    <View style={styles.dependenteAvatar}>
+                      <Text style={styles.dependenteAvatarText}>
+                        {dep.nome?.charAt(0).toUpperCase() || 'D'}
+                      </Text>
+                    </View>
+                    <Text style={styles.dependenteNome} numberOfLines={1}>
+                      {dep.nome}
+                    </Text>
+                    <Text style={styles.dependenteRelacao} numberOfLines={1}>
+                      {dep.relacao || 'Dependente'}
+                    </Text>
+                  </View>
+                ))}
+                {dependentes.length > 3 && (
+                  <TouchableOpacity
+                    style={styles.dependenteCardMore}
+                    onPress={() => navigation.navigate('DependentesMenu')}>
+                    <Icon name="add" size={24} color="#10B981" />
+                    <Text style={styles.dependenteMoreText}>
+                      +{dependentes.length - 3}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </ScrollView>
+              <TouchableOpacity
+                style={styles.dependentesViewAllButton}
+                onPress={() => navigation.navigate('DependentesMenu')}>
+                <Text style={styles.dependentesViewAllText}>
+                  Ver Todos os Dependentes
+                </Text>
+                <Icon name="arrow-forward" size={16} color="#10B981" />
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      </Animated.View>
+    );
+  };
+
+  const renderNextMedication = () => {
+    return (
+      <Animated.View
+        style={[
+          styles.nextMedSection,
+          {
+            opacity: fadeAnim,
+            transform: [{translateY: slideUpAnim}],
+          },
+        ]}>
+        <View style={styles.sectionHeader}>
+          <Icon name="time" size={20} color="#10B981" />
+          <Text style={styles.sectionTitle}>Próximo Medicamento</Text>
+        </View>
+
+        {stats.nextMedication ? (
+          <View style={styles.nextMedCard}>
+            <View style={styles.nextMedTop}>
+              <View style={styles.nextMedIconContainer}>
+                <Icon name="alarm" size={24} color="#10B981" />
+              </View>
+              <View style={styles.nextMedInfo}>
+                <Text style={styles.nextMedTime}>
+                  {stats.nextMedication.horario}
+                </Text>
+                <Text style={styles.nextMedRemaining}>
+                  {stats.nextMedication.timeRemaining}
+                </Text>
+              </View>
+            </View>
+            <Text style={styles.nextMedName}>
+              {stats.nextMedication.nomeRemedio}
+            </Text>
+            <Text style={styles.nextMedDosage}>
+              {stats.nextMedication.dosagem}
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.nextMedCardEmpty}>
+            <Icon name="checkmark-circle" size={48} color="#10B981" />
+            <Text style={styles.nextMedEmptyTitle}>Tudo em dia!</Text>
+            <Text style={styles.nextMedEmptyText}>
+              Nenhum medicamento agendado para agora
+            </Text>
+          </View>
+        )}
+      </Animated.View>
+    );
+  };
+
   const renderQuickActions = () => {
     const actions = [
       {
@@ -773,32 +749,21 @@ const Index = ({navigation}) => {
         text: 'Alarmes',
         route: 'AlertasMenu',
         component: Icon,
-        color: '#4d96db',
-        description: 'Configure seus lembretes',
+        gradient: ['#4D97DB', '#3B82F6'],
       },
       {
         icon: 'medication',
         text: 'Remédios',
         route: 'RemediosMenu',
         component: MaterialIcons,
-        color: '#E53E3E',
-        description: 'Gerencie medicamentos',
-      },
-      {
-        icon: 'user-friends',
-        text: 'Dependentes',
-        route: 'DependentesMenu',
-        component: FontAwesome5,
-        color: '#10B981',
-        description: 'Cuide de quem ama',
+        gradient: ['#E53E3E', '#DC2626'],
       },
       {
         icon: 'bar-chart',
         text: 'Histórico',
         route: 'HistoricoMenu',
         component: Icon,
-        color: '#F59E0B',
-        description: 'Acompanhe o progresso',
+        gradient: ['#F59E0B', '#D97706'],
       },
     ];
 
@@ -811,185 +776,32 @@ const Index = ({navigation}) => {
             transform: [{translateY: slideUpAnim}],
           },
         ]}>
+        <View style={styles.sectionHeader}>
+          <Icon name="grid" size={20} color="#e2e8f0" />
+          <Text style={styles.sectionTitle}>Acesso Rápido</Text>
+        </View>
+
         <View style={styles.actionsGrid}>
           {actions.map((action, index) => (
-            <Animated.View
+            <TouchableOpacity
               key={index}
-              style={[
-                {
-                  opacity: fadeAnim,
-                  transform: [
-                    {
-                      translateY: slideUpAnim.interpolate({
-                        inputRange: [0, 30],
-                        outputRange: [0, 30 + index * 10],
-                      }),
-                    },
-                  ],
-                },
-              ]}>
-              <TouchableOpacity
+              style={styles.actionCard}
+              onPress={() => navigation.navigate(action.route)}>
+              <View
                 style={[
-                  styles.modernActionCard,
-                  {
-                    backgroundColor: action.color + '15',
-                    borderColor: action.color + '25',
-                    borderLeftColor: action.color,
-                  },
-                ]}
-                onPress={() => navigation.navigate(action.route)}>
-                <View style={styles.modernActionContent}>
-                  <View
-                    style={[
-                      styles.modernActionIcon,
-                      {backgroundColor: action.color},
-                    ]}>
-                    <action.component
-                      name={action.icon}
-                      size={action.component === FontAwesome5 ? 18 : 20}
-                      color="#FFFFFF"
-                    />
-                  </View>
-                  <View style={styles.modernActionText}>
-                    <Text style={styles.modernActionTitle}>{action.text}</Text>
-                    <Text style={styles.modernActionDescription}>
-                      {action.description}
-                    </Text>
-                  </View>
-                  <View style={styles.modernActionArrow}>
-                    <Icon name="chevron-forward" size={20} color="#94a3b8" />
-                  </View>
-                </View>
-              </TouchableOpacity>
-            </Animated.View>
+                  styles.actionIconContainer,
+                  {backgroundColor: action.gradient[0] + '25'},
+                ]}>
+                <action.component
+                  name={action.icon}
+                  size={action.component === FontAwesome5 ? 18 : 22}
+                  color={action.gradient[0]}
+                />
+              </View>
+              <Text style={styles.actionText}>{action.text}</Text>
+            </TouchableOpacity>
           ))}
         </View>
-      </Animated.View>
-    );
-  };
-
-  const renderNextMedication = () => {
-    let cardType = 'no-alarms';
-    let cardData = null;
-
-    if (stats.totalAlarms > 0) {
-      if (stats.nextMedication) {
-        cardType = 'next-today';
-        cardData = stats.nextMedication;
-      } else if (stats.hasAlarmsOtherDays) {
-        cardType = 'other-days';
-      } else {
-        cardType = 'no-active-today';
-      }
-    }
-
-    return (
-      <Animated.View
-        style={[
-          styles.nextMedSection,
-          {
-            opacity: fadeAnim,
-            transform: [{translateY: statsSlideAnim}],
-          },
-        ]}>
-        <View style={styles.nextMedHeader}>
-          <Text style={styles.nextMedTitle}>Próximo Medicamento</Text>
-          <Text style={styles.nextMedSubtitle}>
-            {cardType === 'no-alarms'
-              ? 'Configure seus lembretes'
-              : cardType === 'next-today'
-              ? 'Não esqueça do seu tratamento'
-              : cardType === 'other-days'
-              ? 'Pode descansar'
-              : 'Nenhum alarme para hoje'}
-          </Text>
-        </View>
-
-        {cardType === 'next-today' && (
-          <View style={[styles.nextMedCard, styles.nextMedCardToday]}>
-            <View
-              style={[styles.nextMedIconContainer, styles.nextMedIconToday]}>
-              <Icon name="alarm" size={20} color="#4D97DB" />
-            </View>
-
-            <View style={styles.nextMedContent}>
-              <Text style={styles.nextMedTime}>{cardData.horario}</Text>
-              <Text style={styles.nextMedName}>{cardData.nomeRemedio}</Text>
-              <Text style={styles.nextMedDosage}>
-                Dosagem: {cardData.dosagem}
-              </Text>
-              <Text
-                style={[styles.nextMedRemaining, styles.nextMedRemainingToday]}>
-                {cardData.timeRemaining}
-              </Text>
-            </View>
-          </View>
-        )}
-
-        {cardType === 'other-days' && (
-          <View style={[styles.nextMedCard, styles.nextMedCardOtherDays]}>
-            <View
-              style={[
-                styles.nextMedIconContainer,
-                styles.nextMedIconOtherDays,
-              ]}>
-              <Icon name="moon" size={20} color="#8B5CF6" />
-            </View>
-
-            <View style={styles.nextMedContent}>
-              <Text style={styles.nextMedName}>Tudo em dia por hoje</Text>
-              <Text style={styles.nextMedDosage}>
-                Descanse, você cumpriu seu tratamento hoje
-              </Text>
-              <Text
-                style={[
-                  styles.nextMedRemaining,
-                  styles.nextMedRemainingOtherDays,
-                ]}>
-                {stats.totalAlarms} alarme{stats.totalAlarms > 1 ? 's' : ''} em
-                outros dias
-              </Text>
-              <TouchableOpacity
-                style={[
-                  styles.configureButton,
-                  styles.configureButtonOtherDays,
-                ]}
-                onPress={() => navigation.navigate('AlertasMenu')}>
-                <Text
-                  style={[
-                    styles.configureButtonText,
-                    styles.configureButtonTextOtherDays,
-                  ]}>
-                  Ver Alarmes
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-
-        {cardType === 'no-alarms' && (
-          <View style={[styles.nextMedCard, styles.nextMedCardEmpty]}>
-            <View
-              style={[styles.nextMedIconContainer, styles.nextMedIconEmpty]}>
-              <Icon name="alarm" size={20} color="#4D97DB" />
-            </View>
-
-            <View style={styles.nextMedContent}>
-              <Text style={styles.nextMedTime}>--:--</Text>
-              <Text style={styles.nextMedName}>Nenhum alerta configurado</Text>
-              <Text style={styles.nextMedDosage}>
-                Configure seus medicamentos
-              </Text>
-              <TouchableOpacity
-                style={styles.configureButton}
-                onPress={() => navigation.navigate('AlertasMenu')}>
-                <Text style={styles.configureButtonText}>
-                  Configurar Alertas
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
       </Animated.View>
     );
   };
@@ -997,9 +809,9 @@ const Index = ({navigation}) => {
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor="#121A29" />
+        <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#4D97DB" />
+          <ActivityIndicator size="large" color="#10B981" />
           <Text style={styles.loadingText}>Carregando...</Text>
         </View>
       </SafeAreaView>
@@ -1008,7 +820,7 @@ const Index = ({navigation}) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#121A29" />
+      <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
 
       <Animated.View
         style={[
@@ -1018,14 +830,6 @@ const Index = ({navigation}) => {
               inputRange: [0, 1],
               outputRange: [0.03, 0.08],
             }),
-            transform: [
-              {
-                scale: backgroundAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [1, 1.1],
-                }),
-              },
-            ],
           },
         ]}
       />
@@ -1037,14 +841,6 @@ const Index = ({navigation}) => {
               inputRange: [0, 1],
               outputRange: [0.05, 0.03],
             }),
-            transform: [
-              {
-                scale: backgroundAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [1.1, 1],
-                }),
-              },
-            ],
           },
         ]}
       />
@@ -1057,26 +853,33 @@ const Index = ({navigation}) => {
             transform: [{translateY: slideUpAnim}],
           },
         ]}>
-        <View style={styles.headerTop}>
-          <TouchableOpacity style={styles.hamburgerButton} onPress={toggleMenu}>
-            <Icon name="menu" size={24} color="#FFFFFF" />
-          </TouchableOpacity>
-          <View style={styles.titleContainer}>
-            <Text style={styles.title}>PillCheck</Text>
-            <Text style={styles.subtitle}>Sua saúde em primeiro lugar</Text>
-          </View>
+        <TouchableOpacity style={styles.hamburgerButton} onPress={toggleMenu}>
+          <Icon name="menu" size={24} color="#FFFFFF" />
+        </TouchableOpacity>
+        <View style={styles.titleContainer}>
+          <Text style={styles.title}>PillCheck</Text>
+          <Text style={styles.subtitle}>
+            {new Date().toLocaleDateString('pt-BR', {
+              weekday: 'long',
+              day: 'numeric',
+              month: 'long',
+            })}
+          </Text>
         </View>
+        <View style={styles.headerSpacer} />
       </Animated.View>
 
       <ScrollView
         style={styles.content}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}>
-        {renderNextMedication()}
+        {renderDependentesDestaque()}
         {renderQuickActions()}
+        {renderNextMedication()}
       </ScrollView>
 
       {renderHamburgerMenu()}
+      {renderTutorial()}
     </SafeAreaView>
   );
 };
@@ -1084,14 +887,14 @@ const Index = ({navigation}) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121A29',
+    backgroundColor: '#0F172A',
   },
   backgroundCircle: {
     position: 'absolute',
     width: width * 2,
     height: width * 2,
     borderRadius: width,
-    backgroundColor: '#4D97DB',
+    backgroundColor: '#10B981',
     top: -width * 0.8,
     left: -width * 0.5,
   },
@@ -1100,271 +903,376 @@ const styles = StyleSheet.create({
     width: width * 1.5,
     height: width * 1.5,
     borderRadius: width * 0.75,
-    backgroundColor: '#E53E3E',
+    backgroundColor: '#10B981',
     bottom: -width * 0.6,
     right: -width * 0.4,
   },
   header: {
-    backgroundColor: 'rgba(30, 41, 59, 0.95)',
+    backgroundColor: 'rgba(20, 30, 48, 0.95)',
     paddingHorizontal: isSmallScreen ? 16 : 24,
-    paddingTop: Platform.OS === 'ios' ? 20 : 30,
-    paddingBottom: 30,
+    paddingTop: 55,
+    paddingBottom: 20,
     borderBottomLeftRadius: 25,
     borderBottomRightRadius: 25,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
+    shadowOffset: {width: 0, height: 4},
     shadowOpacity: 0.3,
     shadowRadius: 12,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
   },
-  headerTop: {
-    paddingTop: Platform.OS === 'ios' ? 15 : 25,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  titleContainer: {
-    flex: 1,
-    paddingLeft: 16,
-  },
-  title: {
-    fontSize: isMediumScreen ? 28 : 32,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    marginBottom: 6,
-    letterSpacing: -0.5,
-    fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
-  },
-  subtitle: {
-    fontSize: isSmallScreen ? 14 : 16,
-    color: '#94a3b8',
-    fontWeight: '500',
-    letterSpacing: 0.3,
-    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
-  },
   hamburgerButton: {
     backgroundColor: 'rgba(255, 255, 255, 0.12)',
-    width: isMediumScreen ? 38 : 44,
-    height: isMediumScreen ? 38 : 44,
+    width: 44,
+    height: 44,
     borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.15)',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+  },
+  headerSpacer: {
+    width: 44,
+  },
+  titleContainer: {
+    flex: 1,
+    alignItems: 'center',
+    paddingHorizontal: 16,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 2,
+    letterSpacing: -0.5,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
+  },
+  subtitle: {
+    fontSize: 13,
+    color: '#94a3b8',
+    fontWeight: '500',
+    letterSpacing: 0.3,
+    textTransform: 'capitalize',
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   content: {
     flex: 1,
   },
   scrollContent: {
     paddingHorizontal: isSmallScreen ? 16 : 24,
-    paddingTop: 30,
+    paddingTop: 25,
     paddingBottom: 30,
+  },
+  dependentesSection: {
+    marginBottom: 20,
+  },
+  dependentesBanner: {
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    borderRadius: 18,
+    padding: 18,
+    borderWidth: 2,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+    shadowColor: '#10B981',
+    shadowOffset: {width: 0, height: 6},
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+  },
+  dependentesHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  dependentesTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  dependentesTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.3,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
+  },
+  dependentesBadge: {
+    backgroundColor: '#10B981',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  dependentesBadgeText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+  dependentesDescription: {
+    fontSize: 13,
+    color: '#94a3b8',
+    marginBottom: 16,
+    lineHeight: 18,
+    letterSpacing: 0.2,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
+  },
+  dependentesEmpty: {
+    alignItems: 'center',
+    paddingVertical: 24,
+  },
+  dependentesEmptyText: {
+    fontSize: 14,
+    color: '#94a3b8',
+    marginTop: 10,
+    marginBottom: 16,
+    textAlign: 'center',
+    letterSpacing: 0.2,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
+  },
+  dependentesAddButton: {
+    backgroundColor: '#10B981',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 12,
+    gap: 6,
+    shadowColor: '#10B981',
+    shadowOffset: {width: 0, height: 3},
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+  },
+  dependentesAddButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    letterSpacing: 0.3,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
+  },
+  dependentesList: {
+    gap: 12,
+  },
+  dependentesScroll: {
+    gap: 10,
+    paddingBottom: 4,
+  },
+  dependenteCard: {
+    backgroundColor: 'rgba(30, 41, 59, 0.6)',
+    borderRadius: 12,
+    padding: 12,
+    alignItems: 'center',
+    minWidth: 80,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.2)',
+  },
+  dependenteAvatar: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#10B981',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 6,
+    shadowColor: '#10B981',
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+  },
+  dependenteAvatarText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
+  },
+  dependenteNome: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#f8fafc',
+    marginBottom: 2,
+    textAlign: 'center',
+    letterSpacing: 0.2,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
+  },
+  dependenteRelacao: {
+    fontSize: 10,
+    color: '#94a3b8',
+    textAlign: 'center',
+    letterSpacing: 0.1,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
+  },
+  dependenteCardMore: {
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    borderRadius: 12,
+    padding: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 80,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+  },
+  dependenteMoreText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#10B981',
+    marginTop: 4,
+    letterSpacing: 0.3,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
+  },
+  dependentesViewAllButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    gap: 6,
+  },
+  dependentesViewAllText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#10B981',
+    letterSpacing: 0.3,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 10,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#e2e8f0',
+    letterSpacing: 0.3,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
   },
   nextMedSection: {
     marginBottom: 25,
   },
-  nextMedHeader: {
-    marginBottom: 16,
-    paddingHorizontal: 4,
-  },
-  nextMedTitle: {
-    fontSize: isSmallScreen ? 20 : 22,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    marginBottom: 4,
-    letterSpacing: 0.2,
-    fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
-  },
-  nextMedSubtitle: {
-    fontSize: isSmallScreen ? 14 : 15,
-    color: '#94a3b8',
-    letterSpacing: 0.1,
-    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
-  },
   nextMedCard: {
-    backgroundColor: 'rgba(30, 41, 59, 0.8)',
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
     borderRadius: 18,
     padding: 20,
+    borderWidth: 2,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+    shadowColor: '#10B981',
+    shadowOffset: {width: 0, height: 4},
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+  },
+  nextMedTop: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderLeftWidth: 4,
-    borderLeftColor: '#4D97DB',
-    borderWidth: 1,
-    borderColor: 'rgba(77, 151, 219, 0.25)',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 3,
-    },
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-  },
-  nextMedCardToday: {},
-  nextMedCardOtherDays: {
-    borderLeftColor: '#8B5CF6',
-    borderColor: 'rgba(139, 92, 246, 0.25)',
-  },
-  nextMedCardEmpty: {
-    borderLeftColor: '#64748b',
-    borderColor: 'rgba(100, 116, 139, 0.25)',
+    marginBottom: 16,
   },
   nextMedIconContainer: {
-    width: isSmallScreen ? 44 : 48,
-    height: isSmallScreen ? 44 : 48,
-    borderRadius: isSmallScreen ? 22 : 24,
-    backgroundColor: 'rgba(77, 151, 219, 0.2)',
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(16, 185, 129, 0.25)',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(77, 151, 219, 0.3)',
+    borderWidth: 2,
+    borderColor: 'rgba(16, 185, 129, 0.4)',
   },
-  nextMedIconToday: {},
-  nextMedIconOtherDays: {
-    backgroundColor: 'rgba(139, 92, 246, 0.2)',
-    borderColor: 'rgba(139, 92, 246, 0.3)',
-  },
-  nextMedIconEmpty: {
-    backgroundColor: 'rgba(100, 116, 139, 0.2)',
-    borderColor: 'rgba(100, 116, 139, 0.3)',
-  },
-  nextMedContent: {
+  nextMedInfo: {
     flex: 1,
   },
   nextMedTime: {
-    fontSize: isSmallScreen ? 24 : 28,
+    fontSize: 32,
     fontWeight: '300',
     color: '#FFFFFF',
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
-    letterSpacing: -1,
+    letterSpacing: -1.5,
     marginBottom: 4,
   },
+  nextMedRemaining: {
+    fontSize: 14,
+    color: '#10B981',
+    fontWeight: '600',
+    letterSpacing: 0.3,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
+  },
   nextMedName: {
-    fontSize: isSmallScreen ? 16 : 17,
+    fontSize: 18,
     fontWeight: '600',
     color: '#f8fafc',
-    marginBottom: 3,
+    marginBottom: 6,
     letterSpacing: 0.2,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   nextMedDosage: {
-    fontSize: isSmallScreen ? 13 : 14,
+    fontSize: 14,
     color: '#94a3b8',
-    marginBottom: 6,
     letterSpacing: 0.1,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
-  nextMedRemaining: {
-    fontSize: isSmallScreen ? 12 : 13,
-    color: '#10B981',
-    fontWeight: '500',
-    letterSpacing: 0.2,
-    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
+  nextMedCardEmpty: {
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    borderRadius: 18,
+    padding: 30,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
   },
-  nextMedRemainingToday: {},
-  nextMedRemainingOtherDays: {
-    color: '#8B5CF6',
-  },
-  configureButton: {
-    backgroundColor: 'rgba(77, 151, 219, 0.15)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-    alignSelf: 'flex-start',
-    marginTop: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(77, 151, 219, 0.25)',
-  },
-  configureButtonOtherDays: {
-    backgroundColor: 'rgba(139, 92, 246, 0.15)',
-    borderColor: 'rgba(139, 92, 246, 0.25)',
-  },
-  configureButtonText: {
-    fontSize: isSmallScreen ? 12 : 13,
-    color: '#4D97DB',
+  nextMedEmptyTitle: {
+    fontSize: 20,
     fontWeight: '600',
+    color: '#10B981',
+    marginTop: 12,
+    marginBottom: 6,
+    letterSpacing: 0.3,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
+  },
+  nextMedEmptyText: {
+    fontSize: 14,
+    color: '#94a3b8',
+    textAlign: 'center',
     letterSpacing: 0.2,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
-  },
-  configureButtonTextOtherDays: {
-    color: '#8B5CF6',
   },
   actionsSection: {
-    marginBottom: 25,
+    marginBottom: 20,
   },
   actionsGrid: {
-    gap: 14,
-  },
-  modernActionCard: {
-    borderRadius: 16,
-    borderLeftWidth: 4,
-    borderWidth: 1,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 3,
-    },
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-  },
-  modernActionContent: {
     flexDirection: 'row',
-    alignItems: 'center',
-    padding: 18,
+    gap: 12,
   },
-  modernActionIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+  actionCard: {
+    flex: 1,
+    backgroundColor: 'rgba(30, 41, 59, 0.8)',
+    borderRadius: 16,
+    padding: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(51, 65, 85, 0.6)',
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+  },
+  actionIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 16,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
+    marginBottom: 10,
   },
-  modernActionText: {
-    flex: 1,
-  },
-  modernActionTitle: {
-    fontSize: isSmallScreen ? 16 : 17,
+  actionText: {
+    fontSize: 13,
     fontWeight: '600',
-    color: '#FFFFFF',
-    marginBottom: 3,
+    color: '#e2e8f0',
+    textAlign: 'center',
     letterSpacing: 0.2,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
-  },
-  modernActionDescription: {
-    fontSize: isSmallScreen ? 13 : 14,
-    color: '#94a3b8',
-    letterSpacing: 0.1,
-    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
-  },
-  modernActionArrow: {
-    marginLeft: 12,
-    opacity: 0.6,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 40,
   },
   loadingText: {
     marginTop: 16,
@@ -1386,10 +1294,7 @@ const styles = StyleSheet.create({
     width: 250,
     backgroundColor: 'rgba(30, 41, 59, 1)',
     shadowColor: '#000',
-    shadowOffset: {
-      width: 2,
-      height: 0,
-    },
+    shadowOffset: {width: 2, height: 0},
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
     borderRightWidth: 1,
@@ -1413,17 +1318,16 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#E53E3E',
+    backgroundColor: '#3B82F6',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
-    shadowColor: '#E53E3E',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
+  },
+  avatarInitial: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
   },
   userInfo: {
     flex: 1,
@@ -1472,6 +1376,113 @@ const styles = StyleSheet.create({
   },
   logoutText: {
     color: '#E53E3E',
+  },
+  tutorialOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 30,
+  },
+  tutorialContent: {
+    backgroundColor: 'rgba(30, 41, 59, 0.98)',
+    borderRadius: 24,
+    padding: 30,
+    width: '100%',
+    maxWidth: 350,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 12},
+    shadowOpacity: 0.4,
+    shadowRadius: 24,
+  },
+  tutorialIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 4},
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  tutorialTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginBottom: 12,
+    letterSpacing: 0.3,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
+  },
+  tutorialDescription: {
+    fontSize: 15,
+    color: '#94a3b8',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 30,
+    letterSpacing: 0.2,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
+  },
+  tutorialProgress: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 30,
+  },
+  tutorialDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  tutorialDotActive: {
+    backgroundColor: '#FFFFFF',
+    width: 24,
+  },
+  tutorialButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  tutorialSkipButton: {
+    flex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    paddingVertical: 14,
+    borderRadius: 14,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  tutorialSkipText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#94a3b8',
+    letterSpacing: 0.3,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
+  },
+  tutorialNextButton: {
+    flex: 1,
+    flexDirection: 'row',
+    paddingVertical: 14,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 4},
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  tutorialNextText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    letterSpacing: 0.3,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
 });
 

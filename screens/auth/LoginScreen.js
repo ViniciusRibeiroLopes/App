@@ -68,9 +68,8 @@ const isLargeScreen = width >= 400;
  * // Uso básico do componente
  * <LoginScreen />
  * 
- * @author Seu Nome
  * @version 1.0.0
- * @since 2024
+ * @since 2025
  */
 const LoginScreen = () => {
   // Estados do formulário

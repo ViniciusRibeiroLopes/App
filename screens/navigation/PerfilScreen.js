@@ -13,10 +13,12 @@ import {
   Alert,
   TextInput,
   ActivityIndicator,
+  Modal,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import auth from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 // Obtém as dimensões da tela do dispositivo
 const {width, height} = Dimensions.get('window');
@@ -33,6 +35,13 @@ const PerfilScreen = ({navigation}) => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  // Estados para data de nascimento
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [tempDate, setTempDate] = useState(new Date());
+
+  // Estados para tipo sanguíneo
+  const [showBloodTypeModal, setShowBloodTypeModal] = useState(false);
+
   // Estados para dados do usuário
   const [userData, setUserData] = useState({
     nome: '',
@@ -45,14 +54,6 @@ const PerfilScreen = ({navigation}) => {
     createdAt: null,
   });
 
-  // Estados para estatísticas
-  const [statistics, setStatistics] = useState({
-    diasConsecutivos: 0,
-    taxaAdesao: 0,
-    totalMedicamentos: 0,
-    alarmesAtivos: 0,
-  });
-
   // Referências para animações
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideUpAnim = useRef(new Animated.Value(30)).current;
@@ -61,6 +62,50 @@ const PerfilScreen = ({navigation}) => {
 
   // Usuário atual do Firebase Auth
   const currentUser = auth().currentUser;
+
+  // Tipos sanguíneos disponíveis
+  const tiposSanguineos = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+
+  /**
+   * Formata um número de telefone para o padrão brasileiro
+   */
+  const formatPhone = text => {
+    const cleaned = text.replace(/\D/g, '');
+    if (cleaned.length <= 10) {
+      return cleaned
+        .replace(/(\d{2})(\d)/, '($1) $2')
+        .replace(/(\d{4})(\d)/, '$1-$2');
+    }
+    return cleaned
+      .replace(/(\d{2})(\d)/, '($1) $2')
+      .replace(/(\d{5})(\d)/, '$1-$2')
+      .replace(/(-\d{4})\d+?$/, '$1');
+  };
+
+  /**
+   * Converte data ISO para Date object
+   */
+  const parseISODate = isoString => {
+    if (!isoString) return new Date();
+    try {
+      return new Date(isoString);
+    } catch {
+      return new Date();
+    }
+  };
+
+  /**
+   * Formata data para exibição (DD/MM/AAAA)
+   */
+  const formatDateDisplay = isoString => {
+    if (!isoString) return 'Não informado';
+    try {
+      const date = new Date(isoString);
+      return date.toLocaleDateString('pt-BR');
+    } catch {
+      return 'Não informado';
+    }
+  };
 
   /**
    * Carrega dados do usuário do Firestore
@@ -89,6 +134,11 @@ const PerfilScreen = ({navigation}) => {
           condicoesEspeciais: data.condicoesEspeciais || '',
           createdAt: data.createdAt,
         });
+
+        // Define tempDate se houver data de nascimento
+        if (data.dataNascimento) {
+          setTempDate(parseISODate(data.dataNascimento));
+        }
       } else {
         // Cria documento inicial do usuário
         const initialData = {
@@ -113,9 +163,6 @@ const PerfilScreen = ({navigation}) => {
           createdAt: new Date(),
         });
       }
-
-      // Carrega estatísticas
-      await loadStatistics();
     } catch (error) {
       console.error('Erro ao carregar dados do usuário:', error);
       Alert.alert('Erro', 'Não foi possível carregar os dados do perfil.');
@@ -125,91 +172,49 @@ const PerfilScreen = ({navigation}) => {
   };
 
   /**
-   * Carrega estatísticas do usuário
+   * Manipula mudança de data no DateTimePicker
    */
-  const loadStatistics = async () => {
-    try {
-      if (!currentUser) return;
+  const onDateChange = (event, selectedDate) => {
+    if (Platform.OS === 'android') {
+      setShowDatePicker(false);
+    }
 
-      // Carrega medicamentos do usuário
-      const medicamentosSnapshot = await firestore()
-        .collection('medicamentos')
-        .where('userId', '==', currentUser.uid)
-        .get();
-
-      const totalMedicamentos = medicamentosSnapshot.size;
-
-      // Carrega alarmes ativos
-      const alarmesSnapshot = await firestore()
-        .collection('alarmes')
-        .where('userId', '==', currentUser.uid)
-        .where('ativo', '==', true)
-        .get();
-
-      const alarmesAtivos = alarmesSnapshot.size;
-
-      // Carrega histórico de tomadas para calcular dias consecutivos e taxa de adesão
-      const historicoSnapshot = await firestore()
-        .collection('historico_tomadas')
-        .where('userId', '==', currentUser.uid)
-        .orderBy('data', 'desc')
-        .limit(30)
-        .get();
-
-      let diasConsecutivos = 0;
-      let tomadasRealizadas = 0;
-      let totalTomadas = 0;
-
-      if (!historicoSnapshot.empty) {
-        const hoje = new Date();
-        hoje.setHours(0, 0, 0, 0);
-
-        // Calcula dias consecutivos
-        historicoSnapshot.docs.forEach((doc, index) => {
-          const data = doc.data();
-          if (data.data && data.data.toDate) {
-            const dataTomada = data.data.toDate();
-            dataTomada.setHours(0, 0, 0, 0);
-
-            const diferencaDias = (hoje - dataTomada) / (1000 * 60 * 60 * 24);
-
-            if (diferencaDias === index && data.realizada) {
-              diasConsecutivos++;
-            }
-          }
-        });
-
-        // Calcula taxa de adesão
-        historicoSnapshot.docs.forEach(doc => {
-          const data = doc.data();
-          totalTomadas++;
-          if (data.realizada) {
-            tomadasRealizadas++;
-          }
-        });
-      }
-
-      const taxaAdesao =
-        totalTomadas > 0
-          ? Math.round((tomadasRealizadas / totalTomadas) * 100)
-          : 0;
-
-      setStatistics({
-        diasConsecutivos,
-        taxaAdesao,
-        totalMedicamentos,
-        alarmesAtivos,
-      });
-    } catch (error) {
-      console.error('Erro ao carregar estatísticas:', error);
-      // Define valores padrão em caso de erro
-      setStatistics({
-        diasConsecutivos: 0,
-        taxaAdesao: 0,
-        totalMedicamentos: 0,
-        alarmesAtivos: 0,
+    if (selectedDate) {
+      setTempDate(selectedDate);
+      setUserData({
+        ...userData,
+        dataNascimento: selectedDate.toISOString(),
       });
     }
+  };
+
+  /**
+   * Confirma seleção de data (iOS)
+   */
+  const confirmDateSelection = () => {
+    setShowDatePicker(false);
+    setUserData({
+      ...userData,
+      dataNascimento: tempDate.toISOString(),
+    });
+  };
+
+  /**
+   * Abre o seletor de data
+   */
+  const openDatePicker = () => {
+    if (userData.dataNascimento) {
+      setTempDate(parseISODate(userData.dataNascimento));
+    }
+    setShowDatePicker(true);
+  };
+
+  /**
+   * Seleciona tipo sanguíneo
+   */
+  const selectBloodType = type => {
+    setUserData({...userData, tipoSanguineo: type});
+    setShowBloodTypeModal(false);
   };
 
   /**
@@ -234,7 +239,7 @@ const PerfilScreen = ({navigation}) => {
       await firestore().collection('users').doc(currentUser.uid).update({
         nome: userData.nome.trim(),
         telefone: userData.telefone.trim(),
-        dataNascimento: userData.dataNascimento.trim(),
+        dataNascimento: userData.dataNascimento,
         tipoSanguineo: userData.tipoSanguineo.trim(),
         alergias: userData.alergias.trim(),
         condicoesEspeciais: userData.condicoesEspeciais.trim(),
@@ -320,41 +325,6 @@ const PerfilScreen = ({navigation}) => {
     return () => backgroundAnimation.stop();
   }, []);
 
-  // Dados das estatísticas atualizados
-  const statisticsData = [
-    {
-      id: 1,
-      title: 'Dias Consecutivos',
-      value: statistics.diasConsecutivos.toString(),
-      icon: 'flame',
-      color: '#F59E0B',
-      component: Icon,
-    },
-    {
-      id: 2,
-      title: 'Taxa de Adesão',
-      value: `${statistics.taxaAdesao}%`,
-      icon: 'trending-up',
-      color: '#10B981',
-      component: Icon,
-    },
-    {
-      id: 3,
-      title: 'Medicamentos',
-      value: statistics.totalMedicamentos.toString(),
-      icon: 'medical',
-      color: '#4D97DB',
-      component: Icon,
-    },
-    {
-      id: 4,
-      title: 'Alarmes Ativos',
-      value: statistics.alarmesAtivos.toString(),
-      icon: 'alarm',
-      color: '#8B5CF6',
-      component: Icon,
-    },
-  ];
 
   // Opções do menu atualizadas com funcionalidades
   const menuOptions = [
@@ -364,7 +334,7 @@ const PerfilScreen = ({navigation}) => {
       description: 'Gerencie perfis de familiares',
       icon: 'people',
       color: '#4D97DB',
-      action: () => navigation.navigate('Dependentes'),
+      action: () => navigation.navigate('DependentesMenu'),
     },
     {
       id: 2,
@@ -372,7 +342,7 @@ const PerfilScreen = ({navigation}) => {
       description: 'Registros e consultas anteriores',
       icon: 'document-text',
       color: '#10B981',
-      action: () => navigation.navigate('Historico'),
+      action: () => navigation.navigate('HistoricoMenu'),
     },
     {
       id: 5,
@@ -415,7 +385,13 @@ const PerfilScreen = ({navigation}) => {
       </View>
       <TouchableOpacity
         style={styles.editButton}
-        onPress={() => setIsEditing(!isEditing)}
+        onPress={() => {
+          if (isEditing) {
+            handleSaveProfile();
+          } else {
+            setIsEditing(true);
+          }
+        }}
         disabled={saving}>
         {saving ? (
           <ActivityIndicator size="small" color="#FFFFFF" />
@@ -480,38 +456,6 @@ const PerfilScreen = ({navigation}) => {
   );
 
   /**
-   * Renderiza estatísticas
-   */
-  const renderStatistics = () => (
-    <Animated.View
-      style={[
-        styles.section,
-        {
-          opacity: fadeAnim,
-          transform: [{translateY: slideUpAnim}],
-        },
-      ]}>
-      <Text style={styles.sectionTitle}>Estatísticas</Text>
-      <View style={styles.statisticsGrid}>
-        {statisticsData.map(stat => (
-          <View
-            key={stat.id}
-            style={[
-              styles.statisticCard,
-              {backgroundColor: stat.color + '15'},
-            ]}>
-            <View style={[styles.statisticIcon, {backgroundColor: stat.color}]}>
-              <stat.component name={stat.icon} size={18} color="#FFFFFF" />
-            </View>
-            <Text style={styles.statisticValue}>{stat.value}</Text>
-            <Text style={styles.statisticTitle}>{stat.title}</Text>
-          </View>
-        ))}
-      </View>
-    </Animated.View>
-  );
-
-  /**
    * Renderiza informações médicas
    */
   const renderMedicalInfo = () => (
@@ -530,18 +474,17 @@ const PerfilScreen = ({navigation}) => {
           <Icon name="calendar" size={20} color="#8B5CF6" />
           <Text style={styles.medicalInfoLabel}>Nascimento:</Text>
           {isEditing ? (
-            <TextInput
-              style={styles.medicalInfoInput}
-              value={userData.dataNascimento}
-              onChangeText={text =>
-                setUserData({...userData, dataNascimento: text})
-              }
-              placeholder="DD/MM/AAAA"
-              placeholderTextColor="#64748b"
-            />
+            <TouchableOpacity
+              style={styles.datePickerButton}
+              onPress={openDatePicker}>
+              <Text style={styles.datePickerButtonText}>
+                {formatDateDisplay(userData.dataNascimento)}
+              </Text>
+              <Icon name="chevron-down" size={16} color="#4D97DB" />
+            </TouchableOpacity>
           ) : (
             <Text style={styles.medicalInfoValue}>
-              {userData.dataNascimento || 'Não informado'}
+              {formatDateDisplay(userData.dataNascimento)}
             </Text>
           )}
         </View>
@@ -554,7 +497,9 @@ const PerfilScreen = ({navigation}) => {
             <TextInput
               style={styles.medicalInfoInput}
               value={userData.telefone}
-              onChangeText={text => setUserData({...userData, telefone: text})}
+              onChangeText={text =>
+                setUserData({...userData, telefone: formatPhone(text)})
+              }
               placeholder="(11) 99999-9999"
               placeholderTextColor="#64748b"
               keyboardType="phone-pad"
@@ -571,15 +516,14 @@ const PerfilScreen = ({navigation}) => {
           <Icon name="water" size={20} color="#4D97DB" />
           <Text style={styles.medicalInfoLabel}>Tipo Sanguíneo:</Text>
           {isEditing ? (
-            <TextInput
-              style={styles.medicalInfoInput}
-              value={userData.tipoSanguineo}
-              onChangeText={text =>
-                setUserData({...userData, tipoSanguineo: text})
-              }
-              placeholder="A+, B-, O+, etc."
-              placeholderTextColor="#64748b"
-            />
+            <TouchableOpacity
+              style={styles.bloodTypeButton}
+              onPress={() => setShowBloodTypeModal(true)}>
+              <Text style={styles.bloodTypeButtonText}>
+                {userData.tipoSanguineo || 'Selecione'}
+              </Text>
+              <Icon name="chevron-down" size={16} color="#4D97DB" />
+            </TouchableOpacity>
           ) : (
             <Text style={styles.medicalInfoValue}>
               {userData.tipoSanguineo || 'Não informado'}
@@ -673,6 +617,53 @@ const PerfilScreen = ({navigation}) => {
     </Animated.View>
   );
 
+  /**
+   * Modal para seleção de tipo sanguíneo
+   */
+  const renderBloodTypeModal = () => (
+    <Modal
+      visible={showBloodTypeModal}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={() => setShowBloodTypeModal(false)}>
+      <TouchableOpacity
+        style={styles.modalOverlay}
+        activeOpacity={1}
+        onPress={() => setShowBloodTypeModal(false)}>
+        <View style={styles.modalContent}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Selecione o Tipo Sanguíneo</Text>
+            <TouchableOpacity onPress={() => setShowBloodTypeModal(false)}>
+              <Icon name="close" size={24} color="#94a3b8" />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.bloodTypeGrid}>
+            {tiposSanguineos.map(tipo => (
+              <TouchableOpacity
+                key={tipo}
+                style={[
+                  styles.bloodTypeOption,
+                  userData.tipoSanguineo === tipo &&
+                    styles.bloodTypeOptionSelected,
+                ]}
+                onPress={() => selectBloodType(tipo)}>
+                <Text
+                  style={[
+                    styles.bloodTypeOptionText,
+                    userData.tipoSanguineo === tipo &&
+                      styles.bloodTypeOptionTextSelected,
+                  ]}>
+                  {tipo}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      </TouchableOpacity>
+    </Modal>
+  );
+
   // Loading state
   if (loading) {
     return (
@@ -739,26 +730,8 @@ const PerfilScreen = ({navigation}) => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}>
         {renderProfileInfo()}
-        {renderStatistics()}
         {renderMedicalInfo()}
         {renderMenuOptions()}
-
-        {/* Botão de salvar quando em modo de edição */}
-        {isEditing && (
-          <TouchableOpacity
-            style={[styles.saveButton, saving && styles.saveButtonDisabled]}
-            onPress={handleSaveProfile}
-            disabled={saving}>
-            {saving ? (
-              <View style={styles.saveButtonContent}>
-                <ActivityIndicator size="small" color="#FFFFFF" />
-                <Text style={styles.saveButtonText}>Salvando...</Text>
-              </View>
-            ) : (
-              <Text style={styles.saveButtonText}>Salvar Alterações</Text>
-            )}
-          </TouchableOpacity>
-        )}
 
         {/* Seção de informações do aplicativo */}
         <View style={styles.appInfoSection}>
@@ -768,6 +741,61 @@ const PerfilScreen = ({navigation}) => {
           </Text>
         </View>
       </ScrollView>
+
+      {/* DateTimePicker */}
+      {showDatePicker && (
+        <>
+          {Platform.OS === 'ios' ? (
+            <Modal
+              visible={true}
+              transparent={true}
+              animationType="slide"
+              onRequestClose={() => setShowDatePicker(false)}>
+              <TouchableOpacity
+                style={styles.modalOverlay}
+                activeOpacity={1}
+                onPress={() => setShowDatePicker(false)}>
+                <View style={styles.datePickerModal}>
+                  <View style={styles.datePickerHeader}>
+                    <TouchableOpacity onPress={() => setShowDatePicker(false)}>
+                      <Text style={styles.datePickerCancel}>Cancelar</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.datePickerTitle}>
+                      Data de Nascimento
+                    </Text>
+                    <TouchableOpacity onPress={confirmDateSelection}>
+                      <Text style={styles.datePickerConfirm}>Confirmar</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <DateTimePicker
+                    value={tempDate}
+                    mode="date"
+                    display="spinner"
+                    onChange={onDateChange}
+                    maximumDate={new Date()}
+                    minimumDate={new Date(1900, 0, 1)}
+                    textColor="#FFFFFF"
+                    locale="pt-BR"
+                  />
+                </View>
+              </TouchableOpacity>
+            </Modal>
+          ) : (
+            <DateTimePicker
+              value={tempDate}
+              mode="date"
+              display="default"
+              onChange={onDateChange}
+              maximumDate={new Date()}
+              minimumDate={new Date(1900, 0, 1)}
+              locale="pt-BR"
+            />
+          )}
+        </>
+      )}
+
+      {/* Modal de tipo sanguíneo */}
+      {renderBloodTypeModal()}
     </SafeAreaView>
   );
 };
@@ -1028,6 +1056,42 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     minWidth: 120,
   },
+  datePickerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(77, 151, 219, 0.15)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#4D97DB',
+    gap: 8,
+    flex: 1,
+  },
+  datePickerButtonText: {
+    fontSize: 14,
+    color: '#FFFFFF',
+    fontWeight: '500',
+    flex: 1,
+  },
+  bloodTypeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(77, 151, 219, 0.15)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#4D97DB',
+    gap: 8,
+    flex: 1,
+  },
+  bloodTypeButtonText: {
+    fontSize: 14,
+    color: '#FFFFFF',
+    fontWeight: '500',
+    flex: 1,
+  },
   menuContainer: {
     gap: 12,
   },
@@ -1069,37 +1133,6 @@ const styles = StyleSheet.create({
     color: '#94a3b8',
     letterSpacing: 0.1,
   },
-  saveButton: {
-    backgroundColor: '#4D97DB',
-    borderRadius: 16,
-    padding: 18,
-    alignItems: 'center',
-    marginTop: 20,
-    marginBottom: 30,
-    shadowColor: '#4D97DB',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(77, 151, 219, 0.3)',
-  },
-  saveButtonDisabled: {
-    opacity: 0.7,
-  },
-  saveButtonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  saveButtonText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    letterSpacing: 0.3,
-  },
   appInfoSection: {
     alignItems: 'center',
     padding: 30,
@@ -1118,6 +1151,101 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     letterSpacing: 0.1,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#1E293B',
+    borderRadius: 20,
+    padding: 24,
+    width: width * 0.85,
+    maxWidth: 400,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.2,
+  },
+  bloodTypeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    justifyContent: 'center',
+  },
+  bloodTypeOption: {
+    width: 70,
+    height: 60,
+    backgroundColor: 'rgba(30, 41, 59, 0.8)',
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  bloodTypeOptionSelected: {
+    backgroundColor: 'rgba(77, 151, 219, 0.25)',
+    borderColor: '#4D97DB',
+    shadowColor: '#4D97DB',
+    shadowOffset: {
+      width: 0,
+      height: 0,
+    },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  bloodTypeOptionText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  bloodTypeOptionTextSelected: {
+    color: '#4D97DB',
+  },
+  datePickerModal: {
+    backgroundColor: '#1E293B',
+    borderRadius: 20,
+    padding: 20,
+    width: width * 0.9,
+    maxWidth: 400,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  datePickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingHorizontal: 8,
+  },
+  datePickerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.2,
+  },
+  datePickerCancel: {
+    fontSize: 16,
+    color: '#94a3b8',
+    fontWeight: '600',
+  },
+  datePickerConfirm: {
+    fontSize: 16,
+    color: '#4D97DB',
+    fontWeight: '700',
   },
 });
 
