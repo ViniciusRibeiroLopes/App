@@ -14,35 +14,26 @@ import {
   TextInput,
   ActivityIndicator,
   Modal,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import auth from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
-// Obtém as dimensões da tela do dispositivo
 const {width, height} = Dimensions.get('window');
 
-// Define breakpoints para responsividade baseado na largura da tela
 const isSmallScreen = width < 360;
 const isMediumScreen = width >= 360 && width < 400;
 
-/**
- * Componente de tela de Perfil do aplicativo PillCheck com Firebase
- */
 const PerfilScreen = ({navigation}) => {
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-
-  // Estados para data de nascimento
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [tempDate, setTempDate] = useState(new Date());
-
-  // Estados para tipo sanguíneo
   const [showBloodTypeModal, setShowBloodTypeModal] = useState(false);
 
-  // Estados para dados do usuário
   const [userData, setUserData] = useState({
     nome: '',
     email: '',
@@ -54,21 +45,14 @@ const PerfilScreen = ({navigation}) => {
     createdAt: null,
   });
 
-  // Referências para animações
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideUpAnim = useRef(new Animated.Value(30)).current;
   const backgroundAnim = useRef(new Animated.Value(0)).current;
   const avatarScaleAnim = useRef(new Animated.Value(0.8)).current;
 
-  // Usuário atual do Firebase Auth
   const currentUser = auth().currentUser;
-
-  // Tipos sanguíneos disponíveis
   const tiposSanguineos = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
-  /**
-   * Formata um número de telefone para o padrão brasileiro
-   */
   const formatPhone = text => {
     const cleaned = text.replace(/\D/g, '');
     if (cleaned.length <= 10) {
@@ -82,9 +66,6 @@ const PerfilScreen = ({navigation}) => {
       .replace(/(-\d{4})\d+?$/, '$1');
   };
 
-  /**
-   * Converte data ISO para Date object
-   */
   const parseISODate = isoString => {
     if (!isoString) return new Date();
     try {
@@ -94,9 +75,6 @@ const PerfilScreen = ({navigation}) => {
     }
   };
 
-  /**
-   * Formata data para exibição (DD/MM/AAAA)
-   */
   const formatDateDisplay = isoString => {
     if (!isoString) return 'Não informado';
     try {
@@ -107,9 +85,6 @@ const PerfilScreen = ({navigation}) => {
     }
   };
 
-  /**
-   * Carrega dados do usuário do Firestore
-   */
   const loadUserData = async () => {
     try {
       if (!currentUser) {
@@ -135,12 +110,10 @@ const PerfilScreen = ({navigation}) => {
           createdAt: data.createdAt,
         });
 
-        // Define tempDate se houver data de nascimento
         if (data.dataNascimento) {
           setTempDate(parseISODate(data.dataNascimento));
         }
       } else {
-        // Cria documento inicial do usuário
         const initialData = {
           nome: currentUser.displayName || '',
           email: currentUser.email || '',
@@ -171,9 +144,6 @@ const PerfilScreen = ({navigation}) => {
     }
   };
 
-  /**
-   * Manipula mudança de data no DateTimePicker
-   */
   const onDateChange = (event, selectedDate) => {
     if (Platform.OS === 'android') {
       setShowDatePicker(false);
@@ -188,9 +158,6 @@ const PerfilScreen = ({navigation}) => {
     }
   };
 
-  /**
-   * Confirma seleção de data (iOS)
-   */
   const confirmDateSelection = () => {
     setShowDatePicker(false);
     setUserData({
@@ -199,9 +166,6 @@ const PerfilScreen = ({navigation}) => {
     });
   };
 
-  /**
-   * Abre o seletor de data
-   */
   const openDatePicker = () => {
     if (userData.dataNascimento) {
       setTempDate(parseISODate(userData.dataNascimento));
@@ -209,17 +173,11 @@ const PerfilScreen = ({navigation}) => {
     setShowDatePicker(true);
   };
 
-  /**
-   * Seleciona tipo sanguíneo
-   */
   const selectBloodType = type => {
     setUserData({...userData, tipoSanguineo: type});
     setShowBloodTypeModal(false);
   };
 
-  /**
-   * Salva os dados do perfil no Firestore
-   */
   const handleSaveProfile = async () => {
     try {
       setSaving(true);
@@ -229,13 +187,11 @@ const PerfilScreen = ({navigation}) => {
         return;
       }
 
-      // Valida campos obrigatórios
       if (!userData.nome.trim()) {
         Alert.alert('Erro', 'O nome é obrigatório.');
         return;
       }
 
-      // Atualiza documento no Firestore
       await firestore().collection('users').doc(currentUser.uid).update({
         nome: userData.nome.trim(),
         telefone: userData.telefone.trim(),
@@ -246,7 +202,6 @@ const PerfilScreen = ({navigation}) => {
         updatedAt: firestore.FieldValue.serverTimestamp(),
       });
 
-      // Atualiza perfil do Firebase Auth se necessário
       if (userData.nome !== currentUser.displayName) {
         await currentUser.updateProfile({
           displayName: userData.nome,
@@ -263,9 +218,6 @@ const PerfilScreen = ({navigation}) => {
     }
   };
 
-  /**
-   * Logout do usuário
-   */
   const handleLogout = () => {
     Alert.alert('Sair da Conta', 'Tem certeza que deseja sair?', [
       {text: 'Cancelar', style: 'cancel'},
@@ -282,11 +234,9 @@ const PerfilScreen = ({navigation}) => {
     ]);
   };
 
-  // Inicialização das animações e carregamento de dados
   useEffect(() => {
     loadUserData();
 
-    // Animações iniciais
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -305,17 +255,16 @@ const PerfilScreen = ({navigation}) => {
       }),
     ]).start();
 
-    // Animação de fundo contínua
     const backgroundAnimation = Animated.loop(
       Animated.sequence([
         Animated.timing(backgroundAnim, {
           toValue: 1,
-          duration: 10000,
+          duration: 8000,
           useNativeDriver: true,
         }),
         Animated.timing(backgroundAnim, {
           toValue: 0,
-          duration: 10000,
+          duration: 8000,
           useNativeDriver: true,
         }),
       ]),
@@ -325,15 +274,13 @@ const PerfilScreen = ({navigation}) => {
     return () => backgroundAnimation.stop();
   }, []);
 
-
-  // Opções do menu atualizadas com funcionalidades
   const menuOptions = [
     {
       id: 1,
       title: 'Dependentes',
       description: 'Gerencie perfis de familiares',
       icon: 'people',
-      color: '#4D97DB',
+      color: '#3B82F6',
       action: () => navigation.navigate('DependentesMenu'),
     },
     {
@@ -341,11 +288,11 @@ const PerfilScreen = ({navigation}) => {
       title: 'Histórico Médico',
       description: 'Registros e consultas anteriores',
       icon: 'document-text',
-      color: '#10B981',
+      color: '#F59E0B',
       action: () => navigation.navigate('HistoricoMenu'),
     },
     {
-      id: 5,
+      id: 3,
       title: 'Configurações',
       description: 'Personalize o aplicativo',
       icon: 'settings',
@@ -353,7 +300,7 @@ const PerfilScreen = ({navigation}) => {
       action: () => navigation.navigate('Configuracoes'),
     },
     {
-      id: 6,
+      id: 4,
       title: 'Sair da Conta',
       description: 'Fazer logout do aplicativo',
       icon: 'log-out',
@@ -362,9 +309,6 @@ const PerfilScreen = ({navigation}) => {
     },
   ];
 
-  /**
-   * Renderiza o cabeçalho da tela
-   */
   const renderHeader = () => (
     <Animated.View
       style={[
@@ -377,11 +321,11 @@ const PerfilScreen = ({navigation}) => {
       <TouchableOpacity
         style={styles.backButton}
         onPress={() => navigation.goBack()}>
-        <Icon name="arrow-back" size={24} color="#FFFFFF" />
+        <Icon name="chevron-back" size={24} color="#FFFFFF" />
       </TouchableOpacity>
-      <View style={styles.headerContent}>
-        <Text style={styles.headerTitle}>Meu Perfil</Text>
-        <Text style={styles.headerSubtitle}>Gerencie suas informações</Text>
+      <View style={styles.titleContainer}>
+        <Text style={styles.title}>Meu Perfil</Text>
+        <Text style={styles.subtitle}>Gerencie suas informações</Text>
       </View>
       <TouchableOpacity
         style={styles.editButton}
@@ -406,9 +350,6 @@ const PerfilScreen = ({navigation}) => {
     </Animated.View>
   );
 
-  /**
-   * Renderiza informações do perfil
-   */
   const renderProfileInfo = () => (
     <Animated.View
       style={[
@@ -455,9 +396,6 @@ const PerfilScreen = ({navigation}) => {
     </Animated.View>
   );
 
-  /**
-   * Renderiza informações médicas
-   */
   const renderMedicalInfo = () => (
     <Animated.View
       style={[
@@ -467,9 +405,11 @@ const PerfilScreen = ({navigation}) => {
           transform: [{translateY: slideUpAnim}],
         },
       ]}>
-      <Text style={styles.sectionTitle}>Informações Médicas</Text>
+      <View style={styles.sectionHeader}>
+        <Icon name="medical" size={20} color="#10B981" />
+        <Text style={styles.sectionTitle}>Informações Médicas</Text>
+      </View>
       <View style={styles.medicalInfoCard}>
-        {/* Data de Nascimento */}
         <View style={styles.medicalInfoRow}>
           <Icon name="calendar" size={20} color="#8B5CF6" />
           <Text style={styles.medicalInfoLabel}>Nascimento:</Text>
@@ -480,7 +420,7 @@ const PerfilScreen = ({navigation}) => {
               <Text style={styles.datePickerButtonText}>
                 {formatDateDisplay(userData.dataNascimento)}
               </Text>
-              <Icon name="chevron-down" size={16} color="#4D97DB" />
+              <Icon name="chevron-down" size={16} color="#10B981" />
             </TouchableOpacity>
           ) : (
             <Text style={styles.medicalInfoValue}>
@@ -489,7 +429,6 @@ const PerfilScreen = ({navigation}) => {
           )}
         </View>
 
-        {/* Telefone */}
         <View style={styles.medicalInfoRow}>
           <Icon name="call" size={20} color="#10B981" />
           <Text style={styles.medicalInfoLabel}>Telefone:</Text>
@@ -511,9 +450,8 @@ const PerfilScreen = ({navigation}) => {
           )}
         </View>
 
-        {/* Tipo Sanguíneo */}
         <View style={styles.medicalInfoRow}>
-          <Icon name="water" size={20} color="#4D97DB" />
+          <Icon name="water" size={20} color="#3B82F6" />
           <Text style={styles.medicalInfoLabel}>Tipo Sanguíneo:</Text>
           {isEditing ? (
             <TouchableOpacity
@@ -522,7 +460,7 @@ const PerfilScreen = ({navigation}) => {
               <Text style={styles.bloodTypeButtonText}>
                 {userData.tipoSanguineo || 'Selecione'}
               </Text>
-              <Icon name="chevron-down" size={16} color="#4D97DB" />
+              <Icon name="chevron-down" size={16} color="#10B981" />
             </TouchableOpacity>
           ) : (
             <Text style={styles.medicalInfoValue}>
@@ -531,7 +469,6 @@ const PerfilScreen = ({navigation}) => {
           )}
         </View>
 
-        {/* Alergias */}
         <View style={styles.medicalInfoRow}>
           <Icon name="warning" size={20} color="#F59E0B" />
           <Text style={styles.medicalInfoLabel}>Alergias:</Text>
@@ -551,7 +488,6 @@ const PerfilScreen = ({navigation}) => {
           )}
         </View>
 
-        {/* Condições Especiais */}
         <View style={styles.medicalInfoRow}>
           <Icon name="medkit" size={20} color="#10B981" />
           <Text style={styles.medicalInfoLabel}>Condições:</Text>
@@ -576,9 +512,6 @@ const PerfilScreen = ({navigation}) => {
     </Animated.View>
   );
 
-  /**
-   * Renderiza menu de opções
-   */
   const renderMenuOptions = () => (
     <Animated.View
       style={[
@@ -588,13 +521,17 @@ const PerfilScreen = ({navigation}) => {
           transform: [{translateY: slideUpAnim}],
         },
       ]}>
-      <Text style={styles.sectionTitle}>Menu Rápido</Text>
+      <View style={styles.sectionHeader}>
+        <Icon name="grid" size={20} color="#10B981" />
+        <Text style={styles.sectionTitle}>Menu Rápido</Text>
+      </View>
       <View style={styles.menuContainer}>
         {menuOptions.map(option => (
           <TouchableOpacity
             key={option.id}
             style={styles.menuItem}
-            onPress={option.action}>
+            onPress={option.action}
+            activeOpacity={0.8}>
             <View style={styles.menuItemLeft}>
               <View
                 style={[
@@ -617,72 +554,68 @@ const PerfilScreen = ({navigation}) => {
     </Animated.View>
   );
 
-  /**
-   * Modal para seleção de tipo sanguíneo
-   */
   const renderBloodTypeModal = () => (
     <Modal
       visible={showBloodTypeModal}
       transparent={true}
       animationType="fade"
       onRequestClose={() => setShowBloodTypeModal(false)}>
-      <TouchableOpacity
-        style={styles.modalOverlay}
-        activeOpacity={1}
-        onPress={() => setShowBloodTypeModal(false)}>
-        <View style={styles.modalContent}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Selecione o Tipo Sanguíneo</Text>
-            <TouchableOpacity onPress={() => setShowBloodTypeModal(false)}>
-              <Icon name="close" size={24} color="#94a3b8" />
-            </TouchableOpacity>
-          </View>
+      <TouchableWithoutFeedback onPress={() => setShowBloodTypeModal(false)}>
+        <View style={styles.modalOverlay}>
+          <TouchableWithoutFeedback>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Tipo Sanguíneo</Text>
+                <TouchableOpacity onPress={() => setShowBloodTypeModal(false)}>
+                  <Icon name="close" size={24} color="#94a3b8" />
+                </TouchableOpacity>
+              </View>
 
-          <View style={styles.bloodTypeGrid}>
-            {tiposSanguineos.map(tipo => (
-              <TouchableOpacity
-                key={tipo}
-                style={[
-                  styles.bloodTypeOption,
-                  userData.tipoSanguineo === tipo &&
-                    styles.bloodTypeOptionSelected,
-                ]}
-                onPress={() => selectBloodType(tipo)}>
-                <Text
-                  style={[
-                    styles.bloodTypeOptionText,
-                    userData.tipoSanguineo === tipo &&
-                      styles.bloodTypeOptionTextSelected,
-                  ]}>
-                  {tipo}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+              <View style={styles.bloodTypeGrid}>
+                {tiposSanguineos.map(tipo => (
+                  <TouchableOpacity
+                    key={tipo}
+                    style={[
+                      styles.bloodTypeOption,
+                      userData.tipoSanguineo === tipo &&
+                        styles.bloodTypeOptionSelected,
+                    ]}
+                    onPress={() => selectBloodType(tipo)}
+                    activeOpacity={0.8}>
+                    <Text
+                      style={[
+                        styles.bloodTypeOptionText,
+                        userData.tipoSanguineo === tipo &&
+                          styles.bloodTypeOptionTextSelected,
+                      ]}>
+                      {tipo}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          </TouchableWithoutFeedback>
         </View>
-      </TouchableOpacity>
+      </TouchableWithoutFeedback>
     </Modal>
   );
 
-  // Loading state
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor="#121A29" />
+        <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#4D97DB" />
-          <Text style={styles.loadingText}>Carregando perfil...</Text>
+          <ActivityIndicator size="large" color="#10B981" />
+          <Text style={styles.loadingText}>Carregando...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
-  // Renderização principal do componente
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#121A29" />
+      <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
 
-      {/* Elementos de fundo animados para efeito visual */}
       <Animated.View
         style={[
           styles.backgroundCircle,
@@ -691,14 +624,6 @@ const PerfilScreen = ({navigation}) => {
               inputRange: [0, 1],
               outputRange: [0.03, 0.08],
             }),
-            transform: [
-              {
-                scale: backgroundAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [1, 1.1],
-                }),
-              },
-            ],
           },
         ]}
       />
@@ -710,19 +635,10 @@ const PerfilScreen = ({navigation}) => {
               inputRange: [0, 1],
               outputRange: [0.05, 0.03],
             }),
-            transform: [
-              {
-                scale: backgroundAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [1.1, 1],
-                }),
-              },
-            ],
           },
         ]}
       />
 
-      {/* Renderização das seções da tela */}
       {renderHeader()}
 
       <ScrollView
@@ -733,7 +649,6 @@ const PerfilScreen = ({navigation}) => {
         {renderMedicalInfo()}
         {renderMenuOptions()}
 
-        {/* Seção de informações do aplicativo */}
         <View style={styles.appInfoSection}>
           <Text style={styles.appInfoVersion}>PillCheck v1.0.0</Text>
           <Text style={styles.appInfoCopyright}>
@@ -742,7 +657,6 @@ const PerfilScreen = ({navigation}) => {
         </View>
       </ScrollView>
 
-      {/* DateTimePicker */}
       {showDatePicker && (
         <>
           {Platform.OS === 'ios' ? (
@@ -751,34 +665,39 @@ const PerfilScreen = ({navigation}) => {
               transparent={true}
               animationType="slide"
               onRequestClose={() => setShowDatePicker(false)}>
-              <TouchableOpacity
-                style={styles.modalOverlay}
-                activeOpacity={1}
+              <TouchableWithoutFeedback
                 onPress={() => setShowDatePicker(false)}>
-                <View style={styles.datePickerModal}>
-                  <View style={styles.datePickerHeader}>
-                    <TouchableOpacity onPress={() => setShowDatePicker(false)}>
-                      <Text style={styles.datePickerCancel}>Cancelar</Text>
-                    </TouchableOpacity>
-                    <Text style={styles.datePickerTitle}>
-                      Data de Nascimento
-                    </Text>
-                    <TouchableOpacity onPress={confirmDateSelection}>
-                      <Text style={styles.datePickerConfirm}>Confirmar</Text>
-                    </TouchableOpacity>
-                  </View>
-                  <DateTimePicker
-                    value={tempDate}
-                    mode="date"
-                    display="spinner"
-                    onChange={onDateChange}
-                    maximumDate={new Date()}
-                    minimumDate={new Date(1900, 0, 1)}
-                    textColor="#FFFFFF"
-                    locale="pt-BR"
-                  />
+                <View style={styles.modalOverlay}>
+                  <TouchableWithoutFeedback>
+                    <View style={styles.datePickerModal}>
+                      <View style={styles.datePickerHeader}>
+                        <TouchableOpacity
+                          onPress={() => setShowDatePicker(false)}>
+                          <Text style={styles.datePickerCancel}>Cancelar</Text>
+                        </TouchableOpacity>
+                        <Text style={styles.datePickerTitle}>
+                          Data de Nascimento
+                        </Text>
+                        <TouchableOpacity onPress={confirmDateSelection}>
+                          <Text style={styles.datePickerConfirm}>
+                            Confirmar
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                      <DateTimePicker
+                        value={tempDate}
+                        mode="date"
+                        display="spinner"
+                        onChange={onDateChange}
+                        maximumDate={new Date()}
+                        minimumDate={new Date(1900, 0, 1)}
+                        textColor="#FFFFFF"
+                        locale="pt-BR"
+                      />
+                    </View>
+                  </TouchableWithoutFeedback>
                 </View>
-              </TouchableOpacity>
+              </TouchableWithoutFeedback>
             </Modal>
           ) : (
             <DateTimePicker
@@ -794,38 +713,35 @@ const PerfilScreen = ({navigation}) => {
         </>
       )}
 
-      {/* Modal de tipo sanguíneo */}
       {renderBloodTypeModal()}
     </SafeAreaView>
   );
 };
 
-/**
- * Estilos do componente PerfilScreen
- */
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121A29',
+    backgroundColor: '#0F172A',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#121A29',
   },
   loadingText: {
     fontSize: 16,
     color: '#94a3b8',
     marginTop: 16,
     fontWeight: '500',
+    letterSpacing: 0.3,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   backgroundCircle: {
     position: 'absolute',
     width: width * 2,
     height: width * 2,
     borderRadius: width,
-    backgroundColor: '#4D97DB',
+    backgroundColor: '#10B981',
     top: -width * 0.8,
     left: -width * 0.5,
   },
@@ -839,19 +755,17 @@ const styles = StyleSheet.create({
     right: -width * 0.4,
   },
   header: {
-    backgroundColor: 'rgba(30, 41, 59, 0.95)',
+    backgroundColor: 'rgba(20, 30, 48, 0.95)',
     paddingHorizontal: isSmallScreen ? 16 : 24,
-    paddingTop: Platform.OS === 'ios' ? 20 : 30,
-    paddingBottom: 30,
-    flexDirection: 'row',
-    alignItems: 'center',
+    paddingTop: 55,
+    paddingBottom: 20,
     borderBottomLeftRadius: 25,
     borderBottomRightRadius: 25,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
+    shadowOffset: {width: 0, height: 4},
     shadowOpacity: 0.3,
     shadowRadius: 12,
     borderWidth: 1,
@@ -866,22 +780,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.15)',
-    marginRight: 16,
   },
-  headerContent: {
+  titleContainer: {
     flex: 1,
+    alignItems: 'center',
+    paddingHorizontal: 16,
   },
-  headerTitle: {
-    fontSize: isMediumScreen ? 24 : 28,
+  title: {
+    fontSize: 24,
     fontWeight: '700',
     color: '#FFFFFF',
-    paddingTop: 17,
-    marginBottom: 4,
+    marginBottom: 2,
     letterSpacing: -0.5,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
   },
-  headerSubtitle: {
-    fontSize: isSmallScreen ? 14 : 16,
+  subtitle: {
+    fontSize: 13,
     color: '#94a3b8',
     fontWeight: '500',
     letterSpacing: 0.3,
@@ -902,7 +816,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: isSmallScreen ? 16 : 24,
-    paddingTop: 30,
+    paddingTop: 25,
     paddingBottom: 30,
   },
   profileSection: {
@@ -917,16 +831,13 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: '#4D97DB',
+    backgroundColor: '#10B981',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 3,
     borderColor: 'rgba(255, 255, 255, 0.2)',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
+    shadowColor: '#10B981',
+    shadowOffset: {width: 0, height: 4},
     shadowOpacity: 0.3,
     shadowRadius: 12,
   },
@@ -945,6 +856,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     marginBottom: 4,
     letterSpacing: -0.5,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
   },
   nameInput: {
     fontSize: 24,
@@ -952,7 +864,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     marginBottom: 4,
     borderBottomWidth: 1,
-    borderBottomColor: '#4D97DB',
+    borderBottomColor: '#10B981',
     paddingBottom: 4,
     paddingHorizontal: 20,
     textAlign: 'center',
@@ -962,6 +874,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#94a3b8',
     marginBottom: 12,
+    letterSpacing: 0.2,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   membershipBadge: {
     flexDirection: 'row',
@@ -978,57 +892,31 @@ const styles = StyleSheet.create({
     color: '#10B981',
     marginLeft: 6,
     fontWeight: '600',
+    letterSpacing: 0.2,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   section: {
-    marginBottom: 30,
+    marginBottom: 25,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 16,
   },
   sectionTitle: {
-    fontSize: isSmallScreen ? 20 : 22,
+    fontSize: 18,
     fontWeight: '700',
-    color: '#FFFFFF',
-    marginBottom: 16,
-    letterSpacing: 0.2,
+    color: '#e2e8f0',
+    letterSpacing: 0.3,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
-  },
-  statisticsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  statisticCard: {
-    flex: 1,
-    minWidth: (width - 60) / 2,
-    borderRadius: 16,
-    padding: 16,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  statisticIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  statisticValue: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    marginBottom: 4,
-  },
-  statisticTitle: {
-    fontSize: 12,
-    color: '#94a3b8',
-    textAlign: 'center',
   },
   medicalInfoCard: {
     backgroundColor: 'rgba(30, 41, 59, 0.8)',
-    borderRadius: 16,
+    borderRadius: 18,
     padding: 18,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: 'rgba(51, 65, 85, 0.6)',
     gap: 16,
   },
   medicalInfoRow: {
@@ -1041,30 +929,36 @@ const styles = StyleSheet.create({
     color: '#94a3b8',
     fontWeight: '600',
     minWidth: 100,
+    letterSpacing: 0.2,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   medicalInfoValue: {
     fontSize: 14,
     color: '#FFFFFF',
     flex: 1,
+    letterSpacing: 0.2,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   medicalInfoInput: {
     fontSize: 14,
     color: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#4D97DB',
+    borderBottomColor: '#10B981',
     paddingBottom: 2,
     paddingHorizontal: 8,
     minWidth: 120,
+    letterSpacing: 0.2,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   datePickerButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(77, 151, 219, 0.15)',
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 8,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#4D97DB',
+    borderColor: '#10B981',
     gap: 8,
     flex: 1,
   },
@@ -1073,16 +967,18 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '500',
     flex: 1,
+    letterSpacing: 0.2,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   bloodTypeButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(77, 151, 219, 0.15)',
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 8,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#4D97DB',
+    borderColor: '#10B981',
     gap: 8,
     flex: 1,
   },
@@ -1091,6 +987,8 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '500',
     flex: 1,
+    letterSpacing: 0.2,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   menuContainer: {
     gap: 12,
@@ -1103,7 +1001,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: 'rgba(51, 65, 85, 0.6)',
   },
   menuItemLeft: {
     flexDirection: 'row',
@@ -1127,11 +1025,13 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     marginBottom: 2,
     letterSpacing: 0.2,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   menuItemDescription: {
     fontSize: 13,
     color: '#94a3b8',
     letterSpacing: 0.1,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   appInfoSection: {
     alignItems: 'center',
@@ -1154,18 +1054,22 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: '#1E293B',
-    borderRadius: 20,
+    backgroundColor: 'rgba(30, 41, 59, 0.98)',
+    borderRadius: 24,
     padding: 24,
     width: width * 0.85,
     maxWidth: 400,
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: 'rgba(255, 255, 255, 0.1)',
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 12},
+    shadowOpacity: 0.4,
+    shadowRadius: 24,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -1177,7 +1081,8 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     color: '#FFFFFF',
-    letterSpacing: 0.2,
+    letterSpacing: 0.3,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
   },
   bloodTypeGrid: {
     flexDirection: 'row',
@@ -1196,32 +1101,29 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   bloodTypeOptionSelected: {
-    backgroundColor: 'rgba(77, 151, 219, 0.25)',
-    borderColor: '#4D97DB',
-    shadowColor: '#4D97DB',
-    shadowOffset: {
-      width: 0,
-      height: 0,
-    },
+    backgroundColor: 'rgba(16, 185, 129, 0.25)',
+    borderColor: '#10B981',
+    shadowColor: '#10B981',
+    shadowOffset: {width: 0, height: 4},
     shadowOpacity: 0.5,
     shadowRadius: 8,
-    elevation: 4,
   },
   bloodTypeOptionText: {
     fontSize: 18,
     fontWeight: '700',
     color: '#FFFFFF',
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
   },
   bloodTypeOptionTextSelected: {
-    color: '#4D97DB',
+    color: '#10B981',
   },
   datePickerModal: {
-    backgroundColor: '#1E293B',
-    borderRadius: 20,
+    backgroundColor: 'rgba(30, 41, 59, 0.98)',
+    borderRadius: 24,
     padding: 20,
     width: width * 0.9,
     maxWidth: 400,
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   datePickerHeader: {
@@ -1236,16 +1138,19 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
     letterSpacing: 0.2,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
   },
   datePickerCancel: {
     fontSize: 16,
     color: '#94a3b8',
     fontWeight: '600',
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   datePickerConfirm: {
     fontSize: 16,
-    color: '#4D97DB',
+    color: '#10B981',
     fontWeight: '700',
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
 });
 

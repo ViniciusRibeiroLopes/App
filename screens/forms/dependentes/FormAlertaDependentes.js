@@ -15,55 +15,17 @@ import {
   Platform,
   Animated,
 } from 'react-native';
-import {Picker} from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
 import Icon from 'react-native-vector-icons/Ionicons';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 
-import notifee, {
-  TimestampTrigger,
-  TriggerType,
-  AndroidImportance,
-  AndroidVisibility,
-  AndroidCategory,
-  RepeatFrequency,
-} from '@notifee/react-native';
-import AlarmSystem from '../../../components/AlarmSystem';
-
-/**
- * Obtém as dimensões da tela do dispositivo
- * @type {Object}
- * @property {number} width - Largura da tela
- * @property {number} height - Altura da tela
- */
 const {width, height} = Dimensions.get('window');
 
-/**
- * Determina se a tela é considerada pequena (largura < 360px)
- * @type {boolean}
- */
 const isSmallScreen = width < 360;
-
-/**
- * Determina se a tela é considerada média (largura entre 360px e 400px)
- * @type {boolean}
- */
 const isMediumScreen = width >= 360 && width < 400;
 
-/**
- * Determina se a tela é considerada grande (largura >= 400px)
- * @type {boolean}
- */
-const isLargeScreen = width >= 400;
-
-/**
- * Array com os dias da semana em formato abreviado e completo
- * @type {Array<Object>}
- * @property {string} abrev - Abreviação do dia da semana
- * @property {string} completo - Nome completo do dia da semana
- */
 const diasSemana = [
   {abrev: 'Dom', completo: 'Domingo'},
   {abrev: 'Seg', completo: 'Segunda'},
@@ -74,78 +36,37 @@ const diasSemana = [
   {abrev: 'Sáb', completo: 'Sábado'},
 ];
 
-/**
- * Componente formulário para criação de alertas de medicamento para dependentes
- * 
- * Este componente oferece funcionalidades completas para:
- * - Criação de alertas/lembretes de medicamentos para dependentes
- * - Seleção de medicamentos cadastrados pelo usuário administrador
- * - Configuração de horários e dias da semana para o alerta
- * - Definição de dosagem específica
- * - Integração com Firebase Firestore para persistência
- * - Sistema de notificações com @notifee/react-native
- * - Validação completa de formulário
- * - Interface responsiva com animações suaves
- * - Estados de loading e tratamento de erros
- * - Modal personalizado para seleção de medicamentos
- * - Preview/resumo do alerta antes da criação
- * 
- * @component
- * @param {Object} props - Props do componente
- * @param {Object} props.navigation - Objeto de navegação do React Navigation
- * @param {Object} props.route - Objeto de rota com parâmetros
- * @param {string} props.route.params.dependenteId - ID do dependente para o qual será criado o alerta
- * @returns {React.JSX.Element} O componente do formulário de alerta
- * 
- * @example
- * // Navegação para o componente com parâmetros
- * navigation.navigate('FormAlertaDependente', {
- *   dependenteId: 'dep123'
- * });
- * 
- * @example
- * // Uso direto do componente
- * <FormAlertaDependente 
- *   navigation={navigation} 
- *   route={{params: {dependenteId: 'dep123'}}} 
- * />
- * 
- * @version 1.0.0
- * @since 2025
- */
 const FormAlertaDependente = ({navigation, route}) => {
-  // Estados do formulário
   const [remedios, setRemedios] = useState([]);
   const [dependente, setDependente] = useState(null);
   const [remedioSelecionado, setRemedioSelecionado] = useState('');
-  const [diasSelecionados, setDiasSelecionados] = useState([]);
   const [dosagem, setDosagem] = useState('');
-  const [horario, setHorario] = useState(new Date());
-  
-  // Estados de interface
-  const [showTimePicker, setShowTimePicker] = useState(false);
-  const [showPickerModal, setShowPickerModal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingRemedios, setLoadingRemedios] = useState(true);
   const [userInfo, setUserInfo] = useState(null);
+  const [showPickerModal, setShowPickerModal] = useState(false);
+
+  const [tipoAlerta, setTipoAlerta] = useState('dias');
+  
+  const [diasSelecionados, setDiasSelecionados] = useState([]);
+  const [horario, setHorario] = useState(new Date());
+  const [showTimePicker, setShowTimePicker] = useState(false);
+
+  const [intervaloHoras, setIntervaloHoras] = useState('');
+  const [horarioInicio, setHorarioInicio] = useState(new Date());
+  const [showTimePickerInicio, setShowTimePickerInicio] = useState(false);
+  
+  const [usarDataLimite, setUsarDataLimite] = useState(false);
+  const [dataLimite, setDataLimite] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   const {dependenteId} = route.params || {};
 
-  // Referências para animações
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideUpAnim = useRef(new Animated.Value(30)).current;
   const backgroundAnim = useRef(new Animated.Value(0)).current;
 
-  /**
-   * Efeito para inicializar as animações da tela
-   * Executa animações paralelas de fade e slide para entrada suave
-   * e uma animação contínua de fundo
-   * 
-   * @function
-   * @name useEffect
-   */
   useEffect(() => {
-    // Animações iniciais
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -159,7 +80,6 @@ const FormAlertaDependente = ({navigation, route}) => {
       }),
     ]).start();
 
-    // Animação de fundo contínua
     const backgroundAnimation = Animated.loop(
       Animated.sequence([
         Animated.timing(backgroundAnim, {
@@ -177,33 +97,15 @@ const FormAlertaDependente = ({navigation, route}) => {
     backgroundAnimation.start();
 
     return () => backgroundAnimation.stop();
-  }, [backgroundAnim, fadeAnim, slideUpAnim]);
+  }, []);
 
-  /**
-   * Efeito para obter e monitorar informações do usuário autenticado
-   * Configura listener para mudanças no estado de autenticação
-   * e obtém as informações do usuário atual
-   * 
-   * @function
-   * @name useEffect
-   */
   useEffect(() => {
-    /**
-     * Obtém informações do usuário atualmente autenticado
-     * @function getCurrentUser
-     */
     const getCurrentUser = () => {
       const user = auth().currentUser;
       if (user) {
-        console.log('Usuário autenticado:', {
-          uid: user.uid,
-          email: user.email,
-          displayName: user.displayName,
-        });
         setUserInfo(user);
       } else {
-        console.log('Nenhum usuário autenticado');
-        Alert.alert('Erro', 'Usuário não autenticado. Faça login novamente.');
+        Alert.alert('Erro', 'Usuário não autenticado.');
         navigation.goBack();
       }
     };
@@ -217,18 +119,9 @@ const FormAlertaDependente = ({navigation, route}) => {
     });
 
     getCurrentUser();
-
     return () => unsubscribeAuth();
   }, [navigation]);
 
-  /**
-   * Efeito para inicializar dados quando usuário e dependente estão disponíveis
-   * Carrega informações do dependente e lista de medicamentos do usuário
-   * 
-   * @function
-   * @name useEffect
-   * @throws {Error} Erro ao carregar dados do Firestore
-   */
   useEffect(() => {
     if (!userInfo?.uid || !dependenteId) {
       if (!dependenteId) {
@@ -238,18 +131,10 @@ const FormAlertaDependente = ({navigation, route}) => {
       return;
     }
 
-    /**
-     * Função para inicializar dados do dependente e medicamentos
-     * @async
-     * @function inicializar
-     * @throws {Error} Erro ao buscar dados no Firestore
-     */
     const inicializar = async () => {
       try {
         setLoadingRemedios(true);
 
-        // Buscar informações do dependente
-        console.log('Buscando dependente:', dependenteId);
         const dependenteDoc = await firestore()
           .collection('users_dependentes')
           .doc(dependenteId)
@@ -260,7 +145,6 @@ const FormAlertaDependente = ({navigation, route}) => {
             id: dependenteDoc.id,
             ...dependenteDoc.data(),
           };
-          console.log('Dependente encontrado:', dependenteData);
           setDependente(dependenteData);
         } else {
           Alert.alert('Erro', 'Dependente não encontrado.');
@@ -268,33 +152,15 @@ const FormAlertaDependente = ({navigation, route}) => {
           return;
         }
 
-        // Buscar medicamentos do usuário administrador
-        console.log('Buscando medicamentos do usuário:', userInfo.uid);
         const remediosSnapshot = await firestore()
           .collection('remedios')
           .where('usuarioId', '==', userInfo.uid)
           .get();
 
-        console.log('Medicamentos encontrados:', remediosSnapshot.size);
-
-        const lista = remediosSnapshot.docs.map(doc => {
-          const data = doc.data();
-          console.log('Processando medicamento:', {
-            id: doc.id,
-            nome: data.nome,
-            dosagem: data.dosagem,
-            frequencia: data.frequencia,
-          });
-
-          return {
-            id: doc.id,
-            nome: data.nome,
-            dosagem: data.dosagem,
-            frequencia: data.frequencia,
-            descricao: data.descricao,
-            ...data,
-          };
-        });
+        const lista = remediosSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
 
         setRemedios(lista);
       } catch (error) {
@@ -309,116 +175,80 @@ const FormAlertaDependente = ({navigation, route}) => {
     inicializar();
   }, [userInfo, dependenteId]);
 
-  /**
-   * Efeito para configurar listener em tempo real para medicamentos
-   * Monitora mudanças na coleção de medicamentos do usuário
-   * e atualiza a lista automaticamente
-   * 
-   * @function
-   * @name useEffect
-   */
   useEffect(() => {
     if (!userInfo?.uid) return;
-
-    console.log('Configurando listener em tempo real para medicamentos');
 
     const unsubscribe = firestore()
       .collection('remedios')
       .where('usuarioId', '==', userInfo.uid)
       .onSnapshot(
         snapshot => {
-          console.log(
-            '📡 Snapshot em tempo real recebido:',
-            snapshot.size,
-            'documentos',
-          );
-
           if (!snapshot.empty) {
-            const lista = snapshot.docs.map(doc => {
-              const data = doc.data();
-              console.log('Medicamento atualizado via listener:', {
-                id: doc.id,
-                nome: data.nome,
-              });
-
-              return {
-                id: doc.id,
-                nome: data.nome,
-                dosagem: data.dosagem,
-                frequencia: data.frequencia,
-                descricao: data.descricao,
-                ...data,
-              };
-            });
-
-            console.log(
-              'Atualizando lista via listener:',
-              lista.length,
-              'medicamentos',
-            );
+            const lista = snapshot.docs.map(doc => ({
+              id: doc.id,
+              ...doc.data(),
+            }));
             setRemedios(lista);
           } else {
-            console.log('Listener: Nenhum medicamento encontrado');
             setRemedios([]);
           }
-
           setLoadingRemedios(false);
         },
         error => {
-          console.error('❌ Erro no listener de medicamentos:', error);
+          console.error('Erro no listener:', error);
           setLoadingRemedios(false);
         },
       );
 
-    return () => {
-      console.log('Desconectando listener de medicamentos');
-      unsubscribe();
-    };
+    return () => unsubscribe();
   }, [userInfo]);
 
-  /**
-   * Alterna a seleção de um dia da semana
-   * Adiciona ou remove um dia da lista de dias selecionados
-   * 
-   * @function toggleDia
-   * @param {string} dia - Abreviação do dia da semana (Dom, Seg, Ter, etc.)
-   * 
-   * @example
-   * // Seleciona/deseleciona segunda-feira
-   * toggleDia('Seg');
-   */
+  const formatarHorario = date => {
+    return date.toLocaleTimeString('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  const formatarData = date => {
+    return date.toLocaleDateString('pt-BR');
+  };
+
   const toggleDia = dia => {
     setDiasSelecionados(prev =>
       prev.includes(dia) ? prev.filter(d => d !== dia) : [...prev, dia],
     );
   };
 
-  /**
-   * Salva o alerta de medicamento no Firestore
-   * Valida todos os campos obrigatórios e cria o documento de alerta
-   * 
-   * @async
-   * @function salvarAviso
-   * @throws {Error} Erro ao salvar no Firestore
-   * 
-   * @example
-   * // Chamado quando usuário pressiona "Ativar Alerta"
-   * await salvarAviso();
-   */
-  const salvarAviso = async () => {
-    if (
-      !remedioSelecionado ||
-      diasSelecionados.length === 0 ||
-      !horario ||
-      !dosagem.trim()
-    ) {
-      Alert.alert(
-        'Campos obrigatórios',
-        'Preencha todos os campos para continuar.',
-      );
-      return;
+  const validarCampos = () => {
+    if (!remedioSelecionado) {
+      Alert.alert('Atenção', 'Selecione um medicamento');
+      return false;
     }
 
+    if (!dosagem.trim()) {
+      Alert.alert('Atenção', 'Informe a dosagem');
+      return false;
+    }
+
+    if (tipoAlerta === 'dias') {
+      if (diasSelecionados.length === 0) {
+        Alert.alert('Atenção', 'Selecione pelo menos um dia da semana');
+        return false;
+      }
+    } else {
+      const intervalo = parseInt(intervaloHoras);
+      if (!intervaloHoras || isNaN(intervalo) || intervalo < 1 || intervalo > 24) {
+        Alert.alert('Atenção', 'Informe um intervalo válido entre 1 e 24 horas');
+        return false;
+      }
+    }
+
+    return true;
+  };
+
+  const salvarAviso = async () => {
+    if (!validarCampos()) return;
     if (!userInfo?.uid || !dependenteId) {
       Alert.alert('Erro', 'Usuário ou dependente não identificado.');
       return;
@@ -427,90 +257,56 @@ const FormAlertaDependente = ({navigation, route}) => {
     setLoading(true);
 
     try {
-      const alertaData = {
+      const alertaBase = {
         usuarioId: userInfo.uid,
         dependenteId: dependenteId,
         remedioId: remedioSelecionado,
-        dias: diasSelecionados,
-        horario: horario.toTimeString().slice(0, 5),
         dosagem: dosagem.trim(),
         ativo: true,
         criadoEm: firestore.FieldValue.serverTimestamp(),
+        tipoAlerta: tipoAlerta,
+        usarDataLimite: usarDataLimite,
       };
 
-      console.log('Salvando alerta para dependente:', alertaData);
+      if (usarDataLimite) {
+        alertaBase.dataLimite = dataLimite.toISOString();
+      }
 
-      const docRef = await firestore()
-        .collection('alertas_dependentes')
-        .add(alertaData);
-      console.log('Alerta salvo com ID:', docRef.id);
+      if (tipoAlerta === 'dias') {
+        alertaBase.dias = diasSelecionados;
+        alertaBase.horario = horario.toTimeString().slice(0, 5);
+      } else {
+        alertaBase.intervaloHoras = parseInt(intervaloHoras);
+        alertaBase.horarioInicio = horarioInicio.toTimeString().slice(0, 5);
+      }
+
+      await firestore().collection('alertas_dependentes').add(alertaBase);
 
       const remedio = remedios.find(r => r.id === remedioSelecionado);
+      const mensagem =
+        tipoAlerta === 'dias'
+          ? `Alerta criado para ${remedio?.nome} às ${formatarHorario(horario)}`
+          : `Alerta criado para ${remedio?.nome} a cada ${intervaloHoras} hora(s)`;
 
-      Alert.alert(
-        'Sucesso!',
-        `Alerta criado para ${
-          dependente?.nome || dependente?.nomeCompleto
-        }\nMedicamento: ${remedio?.nome}\nHorário: ${formatarHorario(horario)}`,
-        [
-          {
-            text: 'OK',
-            onPress: () => navigation.goBack(),
-          },
-        ],
-      );
+      Alert.alert('Sucesso!', mensagem, [
+        {
+          text: 'OK',
+          onPress: () => navigation.goBack(),
+        },
+      ]);
     } catch (error) {
-      console.error('❌ Erro ao salvar alerta:', error);
-      Alert.alert(
-        'Erro',
-        `Não foi possível salvar o alerta.\n\nDetalhes: ${error.message}`,
-      );
+      console.error('Erro ao salvar:', error);
+      Alert.alert('Erro', 'Não foi possível salvar o alerta.');
     } finally {
       setLoading(false);
     }
   };
 
-  /**
-   * Formata um objeto Date para string de horário no formato HH:MM
-   * 
-   * @function formatarHorario
-   * @param {Date} date - Objeto Date a ser formatado
-   * @returns {string} Horário formatado em HH:MM
-   * 
-   * @example
-   * const horario = new Date();
-   * const horarioFormatado = formatarHorario(horario); // "14:30"
-   */
-  const formatarHorario = date => {
-    return date.toLocaleTimeString([], {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    });
-  };
-
-  /**
-   * Obtém o nome do medicamento selecionado
-   * 
-   * @function getRemedioNome
-   * @returns {string} Nome do medicamento ou texto padrão
-   * 
-   * @example
-   * const nome = getRemedioNome(); // "Paracetamol 500mg" ou "Selecionar medicamento"
-   */
   const getRemedioNome = () => {
     const remedio = remedios.find(r => r.id === remedioSelecionado);
     return remedio ? remedio.nome : 'Selecionar medicamento';
   };
 
-  /**
-   * Renderiza o modal de seleção de medicamentos
-   * Modal personalizado com lista de medicamentos, estados de loading
-   * e opção para navegar para cadastro de novos medicamentos
-   * 
-   * @function renderPickerModal
-   * @returns {React.JSX.Element} Componente Modal com seleção de medicamentos
-   */
   const renderPickerModal = () => (
     <Modal
       visible={showPickerModal}
@@ -519,7 +315,6 @@ const FormAlertaDependente = ({navigation, route}) => {
       onRequestClose={() => setShowPickerModal(false)}>
       <View style={styles.modalOverlay}>
         <View style={styles.pickerModalContent}>
-          {/* Header do modal */}
           <View style={styles.pickerHeader}>
             <Text style={styles.pickerTitle}>Selecionar Medicamento</Text>
             <TouchableOpacity
@@ -529,27 +324,21 @@ const FormAlertaDependente = ({navigation, route}) => {
             </TouchableOpacity>
           </View>
 
-          {/* Conteúdo do modal */}
           {loadingRemedios ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#4D97DB" />
-              <Text style={styles.loadingText}>Carregando medicamentos...</Text>
+              <ActivityIndicator size="large" color="#3B82F6" />
+              <Text style={styles.loadingText}>Carregando...</Text>
             </View>
           ) : remedios.length === 0 ? (
-            /* Estado vazio - sem medicamentos */
             <View style={styles.noRemediosContainer}>
               <View style={styles.emptyStateIconContainer}>
-                <MaterialIcons
-                  name="medication"
-                  size={isSmallScreen ? 40 : 48}
-                  color="#64748b"
-                />
+                <MaterialIcons name="medication" size={48} color="#64748b" />
               </View>
               <Text style={styles.emptyStateTitle}>
                 Nenhum medicamento cadastrado
               </Text>
               <Text style={styles.emptyStateDescription}>
-                Você precisa cadastrar um medicamento antes de criar alertas
+                Cadastre um medicamento antes de criar alertas
               </Text>
               <TouchableOpacity
                 style={styles.addRemedioButton}
@@ -564,67 +353,40 @@ const FormAlertaDependente = ({navigation, route}) => {
               </TouchableOpacity>
             </View>
           ) : (
-            /* Lista de medicamentos */
-            <View style={styles.customPickerContainer}>
-              <ScrollView
-                style={styles.customPickerScrollView}
-                showsVerticalScrollIndicator={false}>
-                {remedios.map(remedio => (
-                  <TouchableOpacity
-                    key={remedio.id}
-                    style={[
-                      styles.customPickerItem,
-                      remedioSelecionado === remedio.id &&
-                        styles.customPickerItemSelected,
-                    ]}
-                    onPress={() => {
-                      setRemedioSelecionado(remedio.id);
-                      setShowPickerModal(false);
-                    }}>
-                    <View style={styles.customPickerItemContent}>
-                      <View style={styles.medicationIconContainer}>
-                        <MaterialIcons
-                          name="medication"
-                          size={20}
-                          color="#4D97DB"
-                        />
-                      </View>
-                      <View style={styles.customPickerItemInfo}>
-                        <Text style={styles.customPickerItemText}>
-                          {remedio.nome}
-                        </Text>
-                        {remedio.dosagem && (
-                          <Text style={styles.customPickerItemSubtext}>
-                            {remedio.dosagem}
-                          </Text>
-                        )}
-                      </View>
-                    </View>
-                    {remedioSelecionado === remedio.id && (
-                      <Icon name="checkmark-circle" size={20} color="#10B981" />
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
+            <ScrollView style={styles.customPickerScrollView}>
+              {remedios.map(remedio => (
+                <TouchableOpacity
+                  key={remedio.id}
+                  style={[
+                    styles.customPickerItem,
+                    remedioSelecionado === remedio.id &&
+                      styles.customPickerItemSelected,
+                  ]}
+                  onPress={() => {
+                    setRemedioSelecionado(remedio.id);
+                    setShowPickerModal(false);
+                  }}>
+                  <View style={styles.customPickerItemContent}>
+                    <MaterialIcons name="medication" size={20} color="#3B82F6" />
+                    <Text style={styles.customPickerItemText}>
+                      {remedio.nome}
+                    </Text>
+                  </View>
+                  {remedioSelecionado === remedio.id && (
+                    <Icon name="checkmark-circle" size={20} color="#10B981" />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
           )}
         </View>
       </View>
     </Modal>
   );
 
-  /**
-   * Renderiza o grid de seleção de dias da semana
-   * Cria layout responsivo para diferentes tamanhos de tela
-   * com botões clicáveis para cada dia
-   * 
-   * @function renderDiasGrid
-   * @returns {React.JSX.Element} Grid com botões dos dias da semana
-   */
   const renderDiasGrid = () => {
     const itemsPerRow = isSmallScreen ? 4 : 7;
     const rows = [];
-
     for (let i = 0; i < diasSemana.length; i += itemsPerRow) {
       rows.push(diasSemana.slice(i, i + itemsPerRow));
     }
@@ -657,22 +419,22 @@ const FormAlertaDependente = ({navigation, route}) => {
     );
   };
 
-  // Loading inicial enquanto carrega dependente
   if (loadingRemedios && !dependente) {
     return (
-      <SafeAreaView style={[styles.container, styles.initialLoadingContainer]}>
-        <StatusBar barStyle="light-content" backgroundColor="#121A29" />
-        <ActivityIndicator size="large" color="#4D97DB" />
-        <Text style={styles.initialLoadingText}>Carregando...</Text>
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#3B82F6" />
+          <Text style={styles.loadingText}>Carregando...</Text>
+        </View>
       </SafeAreaView>
     );
   }
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#121A29" />
+      <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
 
-      {/* Círculos de fundo animados */}
       <Animated.View
         style={[
           styles.backgroundCircle,
@@ -681,14 +443,6 @@ const FormAlertaDependente = ({navigation, route}) => {
               inputRange: [0, 1],
               outputRange: [0.03, 0.08],
             }),
-            transform: [
-              {
-                scale: backgroundAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [1, 1.1],
-                }),
-              },
-            ],
           },
         ]}
       />
@@ -700,19 +454,10 @@ const FormAlertaDependente = ({navigation, route}) => {
               inputRange: [0, 1],
               outputRange: [0.05, 0.03],
             }),
-            transform: [
-              {
-                scale: backgroundAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [1.1, 1],
-                }),
-              },
-            ],
           },
         ]}
       />
 
-      {/* Header da tela */}
       <Animated.View
         style={[
           styles.header,
@@ -730,65 +475,33 @@ const FormAlertaDependente = ({navigation, route}) => {
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>Novo Alerta</Text>
           <Text style={styles.headerSubtitle}>
-            Lembrete para {dependente?.nome || dependente?.nomeCompleto}
+            Configure seu lembrete
           </Text>
         </View>
 
-        <View style={styles.headerRight} />
+        <View style={styles.headerSpacer} />
       </Animated.View>
 
-      {/* Conteúdo principal */}
-      <Animated.View
-        style={[
-          styles.content,
-          {
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}>
+        <Animated.View
+          style={{
             opacity: fadeAnim,
             transform: [{translateY: slideUpAnim}],
-          },
-        ]}>
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}>
-          
-          {/* Card do Dependente */}
-          {dependente && (
-            <View style={styles.dependenteCard}>
-              <View style={styles.dependenteIcon}>
-                <Icon name="person" size={24} color="#4D97DB" />
-              </View>
-              <View style={styles.dependenteInfo}>
-                <Text style={styles.dependenteNome}>
-                  {dependente.nome || dependente.nomeCompleto}
-                </Text>
-                <Text style={styles.dependenteLabel}>Dependente</Text>
-              </View>
-              <View style={styles.dependenteStatus}>
-                <View style={styles.statusIndicator} />
-              </View>
-            </View>
-          )}
-
-          {/* Seção Medicamento */}
+          }}>
+          {/* Medicamento */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <MaterialIcons name="medication" size={20} color="#4D97DB" />
+              <MaterialIcons name="medication" size={20} color="#3B82F6" />
               <Text style={styles.sectionTitle}>Medicamento</Text>
-              {loadingRemedios && (
-                <ActivityIndicator
-                  size="small"
-                  color="#4D97DB"
-                  style={styles.loadingIcon}
-                />
-              )}
             </View>
 
             <TouchableOpacity
               style={styles.inputContainer}
               onPress={() => setShowPickerModal(true)}>
               <View style={styles.inputContent}>
-                <View style={styles.medicationIconContainer}>
-                  <MaterialIcons name="medication" size={20} color="#4D97DB" />
-                </View>
                 <Text
                   style={[
                     styles.inputText,
@@ -801,142 +514,256 @@ const FormAlertaDependente = ({navigation, route}) => {
             </TouchableOpacity>
           </View>
 
-          {/* Seção Dosagem */}
+          {/* Dosagem */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Icon name="fitness" size={20} color="#4D97DB" />
+              <Icon name="fitness" size={20} color="#3B82F6" />
               <Text style={styles.sectionTitle}>Dosagem</Text>
             </View>
 
             <View style={styles.inputContainer}>
-              <View style={styles.inputContent}>
-                <View style={styles.medicationIconContainer}>
-                  <Icon name="fitness" size={18} color="#4D97DB" />
-                </View>
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="Ex: 30mg, 1 comprimido, 5ml..."
-                  placeholderTextColor="#64748b"
-                  value={dosagem}
-                  onChangeText={setDosagem}
-                  autoCapitalize="none"
-                />
-              </View>
+              <TextInput
+                style={styles.textInput}
+                placeholder="Ex: 1 comprimido, 30mg, 5ml..."
+                placeholderTextColor="#64748b"
+                value={dosagem}
+                onChangeText={setDosagem}
+              />
             </View>
           </View>
 
-          {/* Seção Horário */}
+          {/* Tipo de Alerta */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Icon name="time" size={20} color="#4D97DB" />
-              <Text style={styles.sectionTitle}>Horário</Text>
+              <Icon name="options" size={20} color="#3B82F6" />
+              <Text style={styles.sectionTitle}>Tipo de Alerta</Text>
+            </View>
+
+            <View style={styles.tipoAlertaContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.tipoAlertaButton,
+                  tipoAlerta === 'dias' && styles.tipoAlertaButtonSelected,
+                ]}
+                onPress={() => setTipoAlerta('dias')}>
+                <Icon
+                  name="calendar"
+                  size={24}
+                  color={tipoAlerta === 'dias' ? '#3B82F6' : '#64748b'}
+                />
+                <Text
+                  style={[
+                    styles.tipoAlertaText,
+                    tipoAlerta === 'dias' && styles.tipoAlertaTextSelected,
+                  ]}>
+                  Dias Específicos
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.tipoAlertaButton,
+                  tipoAlerta === 'intervalo' && styles.tipoAlertaButtonSelected,
+                ]}
+                onPress={() => setTipoAlerta('intervalo')}>
+                <Icon
+                  name="time"
+                  size={24}
+                  color={tipoAlerta === 'intervalo' ? '#3B82F6' : '#64748b'}
+                />
+                <Text
+                  style={[
+                    styles.tipoAlertaText,
+                    tipoAlerta === 'intervalo' && styles.tipoAlertaTextSelected,
+                  ]}>
+                  Por Intervalo
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Configurações por tipo */}
+          {tipoAlerta === 'dias' ? (
+            <>
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <Icon name="time" size={20} color="#3B82F6" />
+                  <Text style={styles.sectionTitle}>Horário</Text>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.timeContainer}
+                  onPress={() => setShowTimePicker(true)}>
+                  <Text style={styles.timeText}>{formatarHorario(horario)}</Text>
+                  <Icon name="alarm" size={24} color="#3B82F6" />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <Icon name="calendar" size={20} color="#3B82F6" />
+                  <Text style={styles.sectionTitle}>Dias da Semana</Text>
+                </View>
+
+                {renderDiasGrid()}
+
+                {diasSelecionados.length > 0 && (
+                  <View style={styles.diasSelecionadosInfo}>
+                    <Text style={styles.diasSelecionadosText}>
+                      {diasSelecionados.length === 7
+                        ? 'Todos os dias'
+                        : `${diasSelecionados.length} dia${
+                            diasSelecionados.length > 1 ? 's' : ''
+                          } selecionado${diasSelecionados.length > 1 ? 's' : ''}`}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </>
+          ) : (
+            <>
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <Icon name="time" size={20} color="#3B82F6" />
+                  <Text style={styles.sectionTitle}>Horário de Início</Text>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.timeContainer}
+                  onPress={() => setShowTimePickerInicio(true)}>
+                  <Text style={styles.timeText}>
+                    {formatarHorario(horarioInicio)}
+                  </Text>
+                  <Icon name="play-circle" size={24} color="#3B82F6" />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <Icon name="hourglass" size={20} color="#3B82F6" />
+                  <Text style={styles.sectionTitle}>Intervalo</Text>
+                </View>
+
+                <View style={styles.intervaloContainer}>
+                  <TextInput
+                    style={styles.intervaloInput}
+                    placeholder="Ex: 6, 8, 12..."
+                    placeholderTextColor="#64748b"
+                    value={intervaloHoras}
+                    onChangeText={setIntervaloHoras}
+                    keyboardType="numeric"
+                    maxLength={2}
+                  />
+                  <Text style={styles.intervaloLabel}>horas</Text>
+                </View>
+
+                {intervaloHoras && parseInt(intervaloHoras) > 0 && (
+                  <View style={styles.intervaloInfo}>
+                    <Icon name="information-circle" size={16} color="#3B82F6" />
+                    <Text style={styles.intervaloInfoText}>
+                      Alerta a cada {intervaloHoras} hora
+                      {parseInt(intervaloHoras) > 1 ? 's' : ''}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </>
+          )}
+
+          {/* Data Limite */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Icon name="calendar-outline" size={20} color="#F59E0B" />
+              <Text style={styles.sectionTitle}>Data Limite (Opcional)</Text>
             </View>
 
             <TouchableOpacity
-              style={styles.timeContainer}
-              onPress={() => setShowTimePicker(true)}>
-              <View style={styles.timeDisplay}>
-                <Text style={styles.timeText}>{formatarHorario(horario)}</Text>
-                <Text style={styles.timeLabel}>Toque para alterar</Text>
+              style={[
+                styles.checkboxContainer,
+                usarDataLimite && styles.checkboxContainerActive,
+              ]}
+              onPress={() => setUsarDataLimite(!usarDataLimite)}>
+              <View
+                style={[
+                  styles.checkbox,
+                  usarDataLimite && styles.checkboxChecked,
+                ]}>
+                {usarDataLimite && (
+                  <Icon name="checkmark" size={16} color="#FFFFFF" />
+                )}
               </View>
-              <View style={styles.timeIcon}>
-                <Icon name="alarm" size={24} color="#4D97DB" />
-              </View>
+              <Text style={styles.checkboxText}>
+                Desativar automaticamente após uma data
+              </Text>
             </TouchableOpacity>
-          </View>
 
-          {/* Seção Dias da Semana */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Icon name="calendar" size={20} color="#4D97DB" />
-              <Text style={styles.sectionTitle}>Dias da Semana</Text>
-            </View>
-
-            {renderDiasGrid()}
-
-            {diasSelecionados.length > 0 && (
-              <View style={styles.diasSelecionadosInfo}>
-                <Text style={styles.diasSelecionadosText}>
-                  {diasSelecionados.length === 7
-                    ? 'Todos os dias'
-                    : `${diasSelecionados.length} dia${
-                        diasSelecionados.length > 1 ? 's' : ''
-                      } selecionado${diasSelecionados.length > 1 ? 's' : ''}`}
-                </Text>
-              </View>
+            {usarDataLimite && (
+              <TouchableOpacity
+                style={styles.dateContainer}
+                onPress={() => setShowDatePicker(true)}>
+                <Icon name="calendar" size={20} color="#F59E0B" />
+                <Text style={styles.dateText}>{formatarData(dataLimite)}</Text>
+                <Icon name="chevron-down" size={20} color="#94a3b8" />
+              </TouchableOpacity>
             )}
           </View>
-
-          {/* Seção Resumo */}
-          {remedioSelecionado && dosagem && diasSelecionados.length > 0 && (
-            <View style={styles.resumoContainer}>
-              <View style={styles.resumoHeader}>
-                <Icon name="information-circle" size={20} color="#4D97DB" />
-                <Text style={styles.resumoTitle}>Resumo do Alerta</Text>
-              </View>
-              <View style={styles.resumoContent}>
-                <Text style={styles.resumoItem}>
-                  <Text style={styles.resumoLabel}>Dependente:</Text>{' '}
-                  {dependente?.nome || dependente?.nomeCompleto}
-                </Text>
-                <Text style={styles.resumoItem}>
-                  <Text style={styles.resumoLabel}>Medicamento:</Text>{' '}
-                  {getRemedioNome()}
-                </Text>
-                <Text style={styles.resumoItem}>
-                  <Text style={styles.resumoLabel}>Dosagem:</Text> {dosagem}
-                </Text>
-                <Text style={styles.resumoItem}>
-                  <Text style={styles.resumoLabel}>Horário:</Text>{' '}
-                  {formatarHorario(horario)}
-                </Text>
-                <Text style={styles.resumoItem}>
-                  <Text style={styles.resumoLabel}>Frequência:</Text>{' '}
-                  {diasSelecionados.length === 7
-                    ? 'Todos os dias'
-                    : diasSelecionados.join(', ')}
-                </Text>
-              </View>
-            </View>
-          )}
 
           {/* Botão Salvar */}
           <TouchableOpacity
-            style={[
-              styles.salvarButton,
-              loading && styles.salvarButtonDisabled,
-            ]}
+            style={[styles.salvarButton, loading && styles.salvarButtonDisabled]}
             onPress={salvarAviso}
-            disabled={loading}
-            activeOpacity={0.8}>
+            disabled={loading}>
             {loading ? (
-              <View style={styles.loadingContent}>
+              <>
                 <ActivityIndicator size="small" color="#FFFFFF" />
-                <Text style={styles.salvarButtonText}>Criando alerta...</Text>
-              </View>
+                <Text style={styles.salvarButtonText}>Salvando...</Text>
+              </>
             ) : (
-              <View style={styles.buttonContent}>
+              <>
                 <Icon name="checkmark-circle" size={20} color="#FFFFFF" />
                 <Text style={styles.salvarButtonText}>Ativar Alerta</Text>
-              </View>
+              </>
             )}
           </TouchableOpacity>
-        </ScrollView>
-      </Animated.View>
+        </Animated.View>
+      </ScrollView>
 
-      {/* Time Picker */}
       {showTimePicker && (
         <DateTimePicker
           value={horario}
           mode="time"
           is24Hour={true}
-          display="spinner"
+          display="default"
           onChange={(event, selectedDate) => {
-            setShowTimePicker(false);
-            if (event.type === 'set' && selectedDate) {
-              setHorario(selectedDate);
-            }
+            setShowTimePicker(Platform.OS === 'ios');
+            if (selectedDate) setHorario(selectedDate);
           }}
+        />
+      )}
+
+      {showTimePickerInicio && (
+        <DateTimePicker
+          value={horarioInicio}
+          mode="time"
+          is24Hour={true}
+          display="default"
+          onChange={(event, selectedDate) => {
+            setShowTimePickerInicio(Platform.OS === 'ios');
+            if (selectedDate) setHorarioInicio(selectedDate);
+          }}
+        />
+      )}
+
+      {showDatePicker && (
+        <DateTimePicker
+          value={dataLimite}
+          mode="date"
+          display="default"
+          onChange={(event, selectedDate) => {
+            setShowDatePicker(Platform.OS === 'ios');
+            if (selectedDate) setDataLimite(selectedDate);
+          }}
+          minimumDate={new Date()}
         />
       )}
 
@@ -945,24 +772,17 @@ const FormAlertaDependente = ({navigation, route}) => {
   );
 };
 
-/**
- * Estilos do componente FormAlertaDependente
- * Define a aparência visual de todos os elementos da tela,
- * incluindo responsividade, animações e estados interativos
- * 
- * @type {Object}
- */
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121A29',
+    backgroundColor: '#0F172A',
   },
   backgroundCircle: {
     position: 'absolute',
     width: width * 2,
     height: width * 2,
     borderRadius: width,
-    backgroundColor: '#4D97DB',
+    backgroundColor: '#3B82F6',
     top: -width * 0.8,
     left: -width * 0.5,
   },
@@ -971,276 +791,193 @@ const styles = StyleSheet.create({
     width: width * 1.5,
     height: width * 1.5,
     borderRadius: width * 0.75,
-    backgroundColor: '#E53E3E',
+    backgroundColor: '#3B82F6',
     bottom: -width * 0.6,
     right: -width * 0.4,
   },
-  initialLoadingContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  initialLoadingText: {
-    color: '#4D97DB',
-    fontSize: 16,
-    fontWeight: '500',
-    marginTop: 12,
-    letterSpacing: 0.3,
-    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
-  },
   header: {
-    backgroundColor: 'rgba(30, 41, 59, 0.95)',
+    backgroundColor: 'rgba(20, 30, 48, 0.95)',
     paddingHorizontal: isSmallScreen ? 16 : 24,
-    paddingTop: Platform.OS === 'ios' ? 40 : 50,
-    paddingBottom: isMediumScreen ? 20 : 30,
+    paddingTop: 55,
+    paddingBottom: 20,
     borderBottomLeftRadius: 25,
     borderBottomRightRadius: 25,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
+    shadowOffset: {width: 0, height: 4},
     shadowOpacity: 0.3,
     shadowRadius: 12,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
-    marginTop: isMediumScreen ? -30 : 0,
   },
   backButton: {
-    width: isMediumScreen ? 38 : 44,
-    height: isMediumScreen ? 38 : 44,
-    borderRadius: 22,
     backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.15)',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
   },
   headerCenter: {
     flex: 1,
     alignItems: 'center',
-    marginHorizontal: 16,
+    paddingHorizontal: 16,
   },
   headerTitle: {
-    fontSize: isMediumScreen ? 22 : 24,
+    fontSize: 24,
     fontWeight: '700',
     color: '#FFFFFF',
-    marginBottom: 4,
+    marginBottom: 2,
     letterSpacing: -0.5,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
   },
   headerSubtitle: {
-    fontSize: isMediumScreen ? 13 : 14,
+    fontSize: 13,
     color: '#94a3b8',
-    textAlign: 'center',
     fontWeight: '500',
     letterSpacing: 0.3,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
-  headerRight: {
+  headerSpacer: {
     width: 44,
   },
   content: {
     flex: 1,
-    paddingHorizontal: isSmallScreen ? 16 : 24,
   },
   scrollContent: {
+    paddingHorizontal: isSmallScreen ? 16 : 24,
     paddingTop: 25,
     paddingBottom: 30,
   },
-  dependenteCard: {
-    backgroundColor: 'rgba(77, 151, 219, 0.1)',
-    borderRadius: 18,
-    padding: 20,
-    marginBottom: 25,
-    borderWidth: 1,
-    borderColor: 'rgba(77, 151, 219, 0.25)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-  },
-  dependenteIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: 'rgba(77, 151, 219, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
-    shadowColor: '#4D97DB',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-  },
-  dependenteInfo: {
-    flex: 1,
-  },
-  dependenteNome: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#e2e8f0',
-    marginBottom: 2,
-    letterSpacing: 0.3,
-    fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
-  },
-  dependenteLabel: {
-    fontSize: 14,
-    color: '#4D97DB',
-    fontWeight: '500',
-    letterSpacing: 0.2,
-    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
-  },
-  dependenteStatus: {
-    alignItems: 'center',
-  },
-  statusIndicator: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#10B981',
-    shadowColor: '#10B981',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.5,
-    shadowRadius: 2,
-  },
   section: {
-    marginBottom: 25,
+    marginBottom: 24,
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
-    gap: 8,
+    marginBottom: 16,
+    gap: 10,
   },
   sectionTitle: {
-    fontSize: isSmallScreen ? 16 : 18,
+    fontSize: 18,
     fontWeight: '700',
     color: '#e2e8f0',
     letterSpacing: 0.3,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
   },
-  loadingIcon: {
-    marginLeft: 8,
-  },
   inputContainer: {
     backgroundColor: 'rgba(30, 41, 59, 0.8)',
-    borderRadius: 18,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: 'rgba(51, 65, 85, 0.6)',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
+    padding: 16,
   },
   inputContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-  },
-  medicationIconContainer: {
-    width: isSmallScreen ? 32 : 36,
-    height: isSmallScreen ? 32 : 36,
-    borderRadius: isSmallScreen ? 16 : 18,
-    backgroundColor: 'rgba(77, 151, 219, 0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
+    justifyContent: 'space-between',
   },
   inputText: {
     fontSize: 16,
     color: '#f8fafc',
-    fontWeight: '500',
     flex: 1,
-    letterSpacing: 0.2,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   inputPlaceholder: {
     color: '#64748b',
-    fontWeight: '400',
   },
   textInput: {
     fontSize: 16,
     color: '#f8fafc',
-    fontWeight: '500',
-    flex: 1,
-    letterSpacing: 0.2,
+    padding: 0,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
+  tipoAlertaContainer: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  tipoAlertaButton: {
+    flex: 1,
+    backgroundColor: 'rgba(30, 41, 59, 0.8)',
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: 'rgba(51, 65, 85, 0.6)',
+    padding: 16,
+    alignItems: 'center',
+    gap: 8,
+  },
+  tipoAlertaButtonSelected: {
+    backgroundColor: 'rgba(59, 130, 246, 0.15)',
+    borderColor: '#3B82F6',
+  },
+  tipoAlertaText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#94a3b8',
+    textAlign: 'center',
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
+  },
+  tipoAlertaTextSelected: {
+    color: '#3B82F6',
+  },
   timeContainer: {
-    backgroundColor: 'rgba(77, 151, 219, 0.1)',
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: 'rgba(77, 151, 219, 0.25)',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  timeDisplay: {
-    flex: 1,
+    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.25)',
+    padding: 20,
   },
   timeText: {
-    fontSize: isSmallScreen ? 32 : 40,
+    fontSize: 32,
     fontWeight: '300',
     color: '#FFFFFF',
-    fontFamily: 'monospace',
-    letterSpacing: -1,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
+    letterSpacing: -1.5,
   },
-  timeLabel: {
-    fontSize: 12,
-    color: '#94a3b8',
-    fontWeight: '500',
-    marginTop: 4,
-    letterSpacing: 0.2,
+  intervaloContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(30, 41, 59, 0.8)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(51, 65, 85, 0.6)',
+    padding: 16,
+    gap: 12,
+  },
+  intervaloInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#f8fafc',
+    padding: 0,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
-  timeIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: 'rgba(77, 151, 219, 0.2)',
-    justifyContent: 'center',
+  intervaloLabel: {
+    fontSize: 16,
+    color: '#94a3b8',
+    fontWeight: '600',
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
+  },
+  intervaloInfo: {
+    flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#4D97DB',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
+    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+    padding: 12,
+    borderRadius: 12,
+    gap: 8,
+    marginTop: 12,
+  },
+  intervaloInfoText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#3B82F6',
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   diasGrid: {
     gap: 12,
@@ -1253,31 +990,21 @@ const styles = StyleSheet.create({
   diaButton: {
     flex: 1,
     aspectRatio: 1,
-    borderRadius: isSmallScreen ? 20 : 25,
+    borderRadius: 16,
     backgroundColor: 'rgba(30, 41, 59, 0.8)',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
     borderColor: 'rgba(51, 65, 85, 0.6)',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
   },
   diaSelecionado: {
-    backgroundColor: '#4D97DB',
-    borderColor: '#4D97DB',
-    shadowColor: '#4D97DB',
-    shadowOpacity: 0.3,
+    backgroundColor: '#3B82F6',
+    borderColor: '#3B82F6',
   },
   diaTexto: {
     color: '#e2e8f0',
-    fontSize: isSmallScreen ? 10 : 12,
+    fontSize: 12,
     fontWeight: '600',
-    letterSpacing: 0.5,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   diaTextoSelecionado: {
@@ -1286,94 +1013,92 @@ const styles = StyleSheet.create({
   diasSelecionadosInfo: {
     marginTop: 12,
     padding: 12,
-    backgroundColor: 'rgba(77, 151, 219, 0.1)',
+    backgroundColor: 'rgba(59, 130, 246, 0.1)',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(77, 151, 219, 0.2)',
+    borderColor: 'rgba(59, 130, 246, 0.2)',
   },
   diasSelecionadosText: {
     fontSize: 14,
-    color: '#4D97DB',
+    color: '#3B82F6',
     fontWeight: '500',
     textAlign: 'center',
-    letterSpacing: 0.3,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
-  resumoContainer: {
-    backgroundColor: 'rgba(16, 185, 129, 0.08)',
-    borderRadius: 18,
-    padding: 20,
-    marginBottom: 25,
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.2)',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  resumoHeader: {
+  checkboxContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
-    gap: 8,
+    backgroundColor: 'rgba(30, 41, 59, 0.8)',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(51, 65, 85, 0.6)',
+    gap: 12,
   },
-  resumoTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#e2e8f0',
-    letterSpacing: 0.3,
-    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
+  checkboxContainerActive: {
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    borderColor: 'rgba(245, 158, 11, 0.3)',
   },
-  resumoContent: {
-    gap: 8,
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#64748b',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  resumoItem: {
+  checkboxChecked: {
+    backgroundColor: '#F59E0B',
+    borderColor: '#F59E0B',
+  },
+  checkboxText: {
+    flex: 1,
     fontSize: 14,
-    color: '#94a3b8',
-    lineHeight: 20,
-    letterSpacing: 0.2,
+    color: '#e2e8f0',
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
-  resumoLabel: {
+  dateContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    borderRadius: 16,
+    padding: 16,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.3)',
+    gap: 12,
+  },
+  dateText: {
+    flex: 1,
+    fontSize: 16,
+    color: '#FFFFFF',
     fontWeight: '600',
-    color: '#10B981',
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   salvarButton: {
-    backgroundColor: '#4D97DB',
+    flexDirection: 'row',
+    backgroundColor: '#3B82F6',
     borderRadius: 20,
     paddingVertical: 18,
     alignItems: 'center',
-    marginTop: 10,
-    shadowColor: '#4D97DB',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
+    justifyContent: 'center',
+    marginTop: 20,
+    gap: 8,
+    shadowColor: '#3B82F6',
+    shadowOffset: {width: 0, height: 4},
     shadowOpacity: 0.3,
     shadowRadius: 8,
   },
   salvarButtonDisabled: {
     backgroundColor: '#64748b',
-    shadowOpacity: 0.1,
-  },
-  buttonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  loadingContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
   },
   salvarButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '700',
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   modalOverlay: {
@@ -1382,28 +1107,19 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   pickerModalContent: {
-    backgroundColor: 'rgba(30, 41, 59, 0.95)',
+    backgroundColor: 'rgba(30, 41, 59, 0.98)',
     borderTopLeftRadius: 25,
     borderTopRightRadius: 25,
     maxHeight: height * 0.7,
-    borderTopWidth: 1,
-    borderLeftWidth: 1,
-    borderRightWidth: 1,
-    borderColor: 'rgba(51, 65, 85, 0.6)',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: -4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
+    paddingBottom: Platform.OS === 'ios' ? 20 : 0,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   pickerHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    paddingVertical: 20,
+    padding: 20,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(51, 65, 85, 0.6)',
   },
@@ -1411,7 +1127,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: '#e2e8f0',
-    letterSpacing: 0.3,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
   },
   modalCloseButton: {
@@ -1421,19 +1136,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.12)',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
-  },
-  customPickerContainer: {
-    paddingHorizontal: 24,
-    paddingVertical: 20,
-    maxHeight: 300,
   },
   customPickerScrollView: {
-    backgroundColor: 'rgba(30, 41, 59, 0.5)',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(51, 65, 85, 0.4)',
+    maxHeight: 400,
+    padding: 20,
   },
   customPickerItem: {
     flexDirection: 'row',
@@ -1443,10 +1149,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(51, 65, 85, 0.3)',
+    backgroundColor: 'rgba(30, 41, 59, 0.5)',
+    borderRadius: 12,
+    marginBottom: 8,
   },
   customPickerItemSelected: {
-    backgroundColor: 'rgba(77, 151, 219, 0.1)',
-    borderBottomColor: 'rgba(77, 151, 219, 0.2)',
+    backgroundColor: 'rgba(59, 130, 246, 0.15)',
   },
   customPickerItemContent: {
     flexDirection: 'row',
@@ -1454,24 +1162,15 @@ const styles = StyleSheet.create({
     gap: 12,
     flex: 1,
   },
-  customPickerItemInfo: {
-    flex: 1,
-  },
   customPickerItemText: {
     fontSize: 16,
     color: '#f8fafc',
     fontWeight: '500',
-    letterSpacing: 0.2,
-    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
-  },
-  customPickerItemSubtext: {
-    fontSize: 14,
-    color: '#94a3b8',
-    marginTop: 2,
-    letterSpacing: 0.1,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: 40,
   },
@@ -1489,9 +1188,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 40,
   },
   emptyStateIconContainer: {
-    width: isSmallScreen ? 64 : 80,
-    height: isSmallScreen ? 64 : 80,
-    borderRadius: isSmallScreen ? 32 : 40,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     backgroundColor: 'rgba(30, 41, 59, 0.8)',
     justifyContent: 'center',
     alignItems: 'center',
@@ -1500,44 +1199,39 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(51, 65, 85, 0.6)',
   },
   emptyStateTitle: {
-    fontSize: isSmallScreen ? 18 : 20,
+    fontSize: 18,
     fontWeight: '600',
     color: '#e2e8f0',
     marginBottom: 8,
     textAlign: 'center',
-    letterSpacing: 0.3,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
   },
   emptyStateDescription: {
-    fontSize: isSmallScreen ? 14 : 16,
+    fontSize: 14,
     color: '#94a3b8',
     textAlign: 'center',
-    lineHeight: 22,
+    lineHeight: 20,
     marginBottom: 24,
-    letterSpacing: 0.2,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   addRemedioButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#4D97DB',
+    backgroundColor: '#3B82F6',
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 20,
     gap: 8,
-    shadowColor: '#4D97DB',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowColor: '#3B82F6',
+    shadowOffset: {width: 0, height: 4},
     shadowOpacity: 0.3,
-    shadowRadius: 4,
+    shadowRadius: 8,
   },
   addRemedioButtonText: {
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '600',
-    letterSpacing: 0.3,
+    letterSpacing: 0.2,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
 });

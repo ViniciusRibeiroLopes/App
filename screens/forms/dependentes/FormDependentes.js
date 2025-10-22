@@ -26,32 +26,10 @@ const { width, height } = Dimensions.get('window');
 
 const isSmallScreen = width < 360;
 const isMediumScreen = width >= 360 && width < 400;
-const isLargeScreen = width >= 400;
 
-/**
- * Componente para adicionar e editar dependentes no sistema.
- * Permite o cadastro de pessoas sob os cuidados do usuário atual,
- * criando automaticamente uma conta no Firebase Authentication para o dependente.
- * 
- * @param {Object} props - Propriedades do componente
- * @param {Object} props.navigation - Objeto de navegação do React Navigation
- * @param {Object} props.route - Objeto de rota contendo parâmetros de navegação
- * @param {Object} [props.route.params.dependente] - Dados do dependente para edição (opcional)
- * @returns {JSX.Element} Componente de cadastro/edição de dependentes
- */
 const AdicionarDependentes = ({ navigation, route }) => {
   const [loading, setLoading] = useState(false);
   
-  /**
-   * Estado do formulário contendo todos os dados do dependente
-   * @type {Object}
-   * @property {string} nomeCompleto - Nome completo do dependente
-   * @property {string} email - Email do dependente
-   * @property {string} senha - Senha para criação da conta
-   * @property {string} parentesco - Tipo de parentesco com o usuário
-   * @property {string} genero - Gênero do dependente (masculino/feminino)
-   * @property {Date} dataNascimento - Data de nascimento do dependente
-   */
   const [formData, setFormData] = useState({
     nomeCompleto: '',
     email: '',
@@ -66,17 +44,11 @@ const AdicionarDependentes = ({ navigation, route }) => {
   const user = auth().currentUser;
   const isEditing = route?.params?.dependente;
 
-  // Referências para animações
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideUpAnim = useRef(new Animated.Value(30)).current;
   const backgroundAnim = useRef(new Animated.Value(0)).current;
 
-  /**
-   * Hook de efeito para inicializar as animações da tela
-   * Configura animações de fade-in, slide-up e animação contínua de fundo
-   */
   useEffect(() => {
-    // Animações iniciais
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -90,7 +62,6 @@ const AdicionarDependentes = ({ navigation, route }) => {
       }),
     ]).start();
 
-    // Animação de fundo contínua
     const backgroundAnimation = Animated.loop(
       Animated.sequence([
         Animated.timing(backgroundAnim, {
@@ -108,12 +79,8 @@ const AdicionarDependentes = ({ navigation, route }) => {
     backgroundAnimation.start();
 
     return () => backgroundAnimation.stop();
-  }, [backgroundAnim, fadeAnim, slideUpAnim]);
+  }, []);
 
-  /**
-   * Hook de efeito para preencher o formulário quando em modo de edição
-   * Carrega os dados do dependente existente nos campos do formulário
-   */
   React.useEffect(() => {
     if (isEditing) {
       const dep = route.params.dependente;
@@ -128,13 +95,6 @@ const AdicionarDependentes = ({ navigation, route }) => {
     }
   }, [isEditing]);
 
-  /**
-   * Array de opções de parentesco disponíveis para seleção
-   * @type {Array<Object>}
-   * @property {string} id - Identificador único da opção
-   * @property {string} label - Texto exibido para o usuário
-   * @property {string} icon - Nome do ícone do Ionicons
-   */
   const parentescoOptions = [
     { id: 'pai-mae', label: 'Pai/Mãe', icon: 'people' },
     { id: 'avo-avo', label: 'Avô/Avó', icon: 'people-outline' },
@@ -148,13 +108,6 @@ const AdicionarDependentes = ({ navigation, route }) => {
     { id: 'outro', label: 'Outro', icon: 'person-add' }
   ];
 
-  /**
-   * Valida todos os campos do formulário antes do envio
-   * Verifica se todos os campos obrigatórios estão preenchidos
-   * e se os valores estão no formato correto
-   * 
-   * @returns {boolean} true se o formulário é válido, false caso contrário
-   */
   const validarFormulario = () => {
     const { nomeCompleto, email, senha, parentesco, genero } = formData;
 
@@ -204,15 +157,6 @@ const AdicionarDependentes = ({ navigation, route }) => {
     return true;
   };
 
-  /**
-   * Cria um novo usuário no Firebase Authentication através da API externa
-   * Faz uma requisição HTTP POST para o backend que gerencia a criação de usuários
-   * 
-   * @param {string} email - Email do novo usuário
-   * @param {string} senha - Senha do novo usuário
-   * @returns {Promise<string>} UID do usuário criado no Firebase
-   * @throws {Error} Erro com mensagem personalizada baseada no tipo de erro
-   */
   const criarUsuarioViaAPI = async (email, senha) => {
     try {
       const response = await fetch('https://pillcheck-backend.onrender.com/criar-usuario', {
@@ -252,14 +196,6 @@ const AdicionarDependentes = ({ navigation, route }) => {
     }
   };
 
-  /**
-   * Salva ou atualiza os dados do dependente no Firestore
-   * No modo de criação: cria um novo usuário via API e salva os dados
-   * No modo de edição: apenas atualiza os dados existentes
-   * 
-   * @async
-   * @returns {Promise<void>}
-   */
   const salvarDependente = async () => {
     if (!validarFormulario()) return;
 
@@ -268,7 +204,6 @@ const AdicionarDependentes = ({ navigation, route }) => {
     try {
       let dependenteUid = null;
 
-      // Criar usuário apenas se não estiver editando
       if (!isEditing) {
         dependenteUid = await criarUsuarioViaAPI(
           formData.email,
@@ -276,7 +211,6 @@ const AdicionarDependentes = ({ navigation, route }) => {
         );
       }
 
-      // Dados para salvar no Firestore
       const dadosDependente = {
         usuarioId: user.uid,
         dependenteUid: isEditing ? route.params.dependente.dependenteUid : dependenteUid,
@@ -289,7 +223,6 @@ const AdicionarDependentes = ({ navigation, route }) => {
       };
 
       if (isEditing) {
-        // Atualizar dependente existente
         await firestore()
           .collection('users_dependentes')
           .doc(route.params.dependente.id)
@@ -297,7 +230,6 @@ const AdicionarDependentes = ({ navigation, route }) => {
         
         Alert.alert('Sucesso', 'Dependente atualizado com sucesso!');
       } else {
-        // Criar novo dependente
         await firestore()
           .collection('users_dependentes')
           .doc(dadosDependente.dependenteUid)
@@ -325,13 +257,6 @@ const AdicionarDependentes = ({ navigation, route }) => {
     }
   };
 
-  /**
-   * Manipula a mudança de data no DateTimePicker
-   * Atualiza o estado do formulário com a nova data selecionada
-   * 
-   * @param {Object} event - Evento do DateTimePicker
-   * @param {Date} selectedDate - Data selecionada pelo usuário
-   */
   const handleDateChange = (event, selectedDate) => {
     setShowDatePicker(false);
     if (event.type === 'set' && selectedDate) {
@@ -342,50 +267,28 @@ const AdicionarDependentes = ({ navigation, route }) => {
     }
   };
 
-  /**
-   * Formata uma data para exibição no formato brasileiro (DD/MM/AAAA)
-   * 
-   * @param {Date} data - Data a ser formatada
-   * @returns {string} Data formatada como string
-   */
   const formatarData = (data) => {
     return data.toLocaleDateString('pt-BR');
   };
 
-  /**
-   * Obtém o texto do parentesco selecionado ou placeholder
-   * 
-   * @returns {string} Label do parentesco ou texto padrão
-   */
   const getParentescoLabel = () => {
     const parentesco = parentescoOptions.find(p => p.label === formData.parentesco);
     return parentesco ? parentesco.label : 'Selecionar parentesco';
   };
 
-  /**
-   * Renderiza o modal de seleção de parentesco
-   * Exibe uma lista scrollável com todas as opções de parentesco disponíveis
-   * 
-   * @returns {JSX.Element} Modal com opções de parentesco
-   */
   const renderParentescoModal = () => (
     <Modal
       visible={showParentescoModal}
       transparent={true}
-      animationType="slide"
+      animationType="fade"
       onRequestClose={() => setShowParentescoModal(false)}
     >
       <TouchableWithoutFeedback onPress={() => setShowParentescoModal(false)}>
         <View style={styles.modalOverlay}>
           <TouchableWithoutFeedback>
-            <View style={styles.pickerModalContent}>
-              <View style={styles.pickerHeader}>
-                <View style={styles.pickerHeaderLeft}>
-                  <View style={styles.pickerIconContainer}>
-                    <Icon name="people" size={20} color="#4D97DB" />
-                  </View>
-                  <Text style={styles.pickerTitle}>Selecionar Parentesco</Text>
-                </View>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Selecionar Parentesco</Text>
                 <TouchableOpacity 
                   style={styles.modalCloseButton}
                   onPress={() => setShowParentescoModal(false)}
@@ -394,33 +297,34 @@ const AdicionarDependentes = ({ navigation, route }) => {
                 </TouchableOpacity>
               </View>
 
-              <ScrollView style={styles.customPickerScrollView}>
+              <ScrollView style={styles.modalList}>
                 {parentescoOptions.map((opcao) => (
                   <TouchableOpacity
                     key={opcao.id}
                     style={[
-                      styles.customPickerItem,
-                      formData.parentesco === opcao.label && styles.customPickerItemSelected
+                      styles.modalItem,
+                      formData.parentesco === opcao.label && styles.modalItemSelected
                     ]}
                     onPress={() => {
                       setFormData(prev => ({...prev, parentesco: opcao.label}));
                       setShowParentescoModal(false);
                     }}
+                    activeOpacity={0.8}
                   >
-                    <View style={styles.customPickerItemContent}>
+                    <View style={styles.modalItemContent}>
                       <View style={[
-                        styles.customPickerIconContainer,
-                        formData.parentesco === opcao.label && styles.customPickerIconContainerSelected
+                        styles.modalItemIcon,
+                        formData.parentesco === opcao.label && styles.modalItemIconSelected
                       ]}>
                         <Icon 
                           name={opcao.icon} 
                           size={18} 
-                          color={formData.parentesco === opcao.label ? "#FFFFFF" : "#4D97DB"} 
+                          color={formData.parentesco === opcao.label ? "#FFFFFF" : "#3B82F6"} 
                         />
                       </View>
                       <Text style={[
-                        styles.customPickerItemText,
-                        formData.parentesco === opcao.label && styles.customPickerItemTextSelected
+                        styles.modalItemText,
+                        formData.parentesco === opcao.label && styles.modalItemTextSelected
                       ]}>
                         {opcao.label}
                       </Text>
@@ -438,12 +342,6 @@ const AdicionarDependentes = ({ navigation, route }) => {
     </Modal>
   );
 
-  /**
-   * Renderiza o seletor de gênero com botões estilizados
-   * Permite selecionar entre masculino e feminino com feedback visual
-   * 
-   * @returns {JSX.Element} Seção de seleção de gênero
-   */
   const renderGeneroSelector = () => (
     <Animated.View 
       style={[
@@ -455,9 +353,7 @@ const AdicionarDependentes = ({ navigation, route }) => {
       ]}
     >
       <View style={styles.sectionHeader}>
-        <View style={styles.sectionIconContainer}>
-          <Icon name="person" size={18} color="#4D97DB" />
-        </View>
+        <Icon name="person" size={20} color="#3B82F6" />
         <Text style={styles.sectionTitle}>Gênero</Text>
       </View>
       <View style={styles.generoContainer}>
@@ -476,7 +372,7 @@ const AdicionarDependentes = ({ navigation, route }) => {
             <Icon 
               name="man" 
               size={24} 
-              color={formData.genero === 'masculino' ? '#FFFFFF' : '#4D97DB'} 
+              color={formData.genero === 'masculino' ? '#FFFFFF' : '#3B82F6'} 
             />
           </View>
           <Text style={[
@@ -502,7 +398,7 @@ const AdicionarDependentes = ({ navigation, route }) => {
             <Icon 
               name="woman" 
               size={24} 
-              color={formData.genero === 'feminino' ? '#FFFFFF' : '#4D97DB'} 
+              color={formData.genero === 'feminino' ? '#FFFFFF' : '#3B82F6'} 
             />
           </View>
           <Text style={[
@@ -518,9 +414,8 @@ const AdicionarDependentes = ({ navigation, route }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#121A29" />
+      <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
       
-      {/* Círculos de fundo animados para efeito visual */}
       <Animated.View
         style={[
           styles.backgroundCircle,
@@ -529,14 +424,6 @@ const AdicionarDependentes = ({ navigation, route }) => {
               inputRange: [0, 1],
               outputRange: [0.03, 0.08],
             }),
-            transform: [
-              {
-                scale: backgroundAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [1, 1.1],
-                }),
-              },
-            ],
           },
         ]}
       />
@@ -548,19 +435,10 @@ const AdicionarDependentes = ({ navigation, route }) => {
               inputRange: [0, 1],
               outputRange: [0.05, 0.03],
             }),
-            transform: [
-              {
-                scale: backgroundAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [1.1, 1],
-                }),
-              },
-            ],
           },
         ]}
       />
       
-      {/* Cabeçalho da tela com botão de voltar e título */}
       <Animated.View 
         style={[
           styles.header,
@@ -573,30 +451,27 @@ const AdicionarDependentes = ({ navigation, route }) => {
         <TouchableOpacity 
           style={styles.backButton}
           onPress={() => navigation.goBack()}
-          activeOpacity={0.8}
         >
           <Icon name="chevron-back" size={24} color="#FFFFFF" />
         </TouchableOpacity>
         
-        <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>
+        <View style={styles.titleContainer}>
+          <Text style={styles.title}>
             {isEditing ? 'Editar Dependente' : 'Novo Dependente'}
           </Text>
-          <Text style={styles.headerSubtitle}>
-            {isEditing ? 'Atualize as informações' : 'Cadastre uma pessoa sob seus cuidados'}
+          <Text style={styles.subtitle}>
+            {isEditing ? 'Atualize as informações' : 'Cadastre uma pessoa'}
           </Text>
         </View>
         
-        <View style={styles.headerRight} />
+        <View style={styles.headerSpacer} />
       </Animated.View>
 
-      {/* Conteúdo scrollável com formulário */}
       <ScrollView 
         style={styles.content}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Campo Nome Completo */}
         <Animated.View 
           style={[
             styles.section,
@@ -607,16 +482,14 @@ const AdicionarDependentes = ({ navigation, route }) => {
           ]}
         >
           <View style={styles.sectionHeader}>
-            <View style={styles.sectionIconContainer}>
-              <Icon name="person-outline" size={18} color="#4D97DB" />
-            </View>
+            <Icon name="person-outline" size={20} color="#3B82F6" />
             <Text style={styles.sectionTitle}>Nome Completo</Text>
           </View>
           
           <View style={styles.inputContainer}>
             <View style={styles.inputContent}>
               <View style={styles.inputIconContainer}>
-                <Icon name="person-outline" size={18} color="#4D97DB" />
+                <Icon name="person-outline" size={18} color="#3B82F6" />
               </View>
               <TextInput
                 style={styles.textInput}
@@ -630,7 +503,6 @@ const AdicionarDependentes = ({ navigation, route }) => {
           </View>
         </Animated.View>
 
-        {/* Campo Email */}
         <Animated.View 
           style={[
             styles.section,
@@ -641,16 +513,14 @@ const AdicionarDependentes = ({ navigation, route }) => {
           ]}
         >
           <View style={styles.sectionHeader}>
-            <View style={styles.sectionIconContainer}>
-              <Icon name="mail-outline" size={18} color="#4D97DB" />
-            </View>
+            <Icon name="mail-outline" size={20} color="#3B82F6" />
             <Text style={styles.sectionTitle}>Email</Text>
           </View>
           
           <View style={styles.inputContainer}>
             <View style={styles.inputContent}>
               <View style={styles.inputIconContainer}>
-                <Icon name="mail-outline" size={18} color="#4D97DB" />
+                <Icon name="mail-outline" size={18} color="#3B82F6" />
               </View>
               <TextInput
                 style={styles.textInput}
@@ -667,7 +537,6 @@ const AdicionarDependentes = ({ navigation, route }) => {
 
         {renderGeneroSelector()}
 
-        {/* Campo Senha - apenas no modo de criação */}
         {!isEditing && (
           <Animated.View 
             style={[
@@ -679,16 +548,14 @@ const AdicionarDependentes = ({ navigation, route }) => {
             ]}
           >
             <View style={styles.sectionHeader}>
-              <View style={styles.sectionIconContainer}>
-                <Icon name="lock-closed-outline" size={18} color="#4D97DB" />
-              </View>
+              <Icon name="lock-closed-outline" size={20} color="#3B82F6" />
               <Text style={styles.sectionTitle}>Senha</Text>
             </View>
             
             <View style={styles.inputContainer}>
               <View style={styles.inputContent}>
                 <View style={styles.inputIconContainer}>
-                  <Icon name="lock-closed-outline" size={18} color="#4D97DB" />
+                  <Icon name="lock-closed-outline" size={18} color="#3B82F6" />
                 </View>
                 <TextInput
                   style={styles.textInput}
@@ -703,7 +570,6 @@ const AdicionarDependentes = ({ navigation, route }) => {
           </Animated.View>
         )}
 
-        {/* Campo Parentesco */}
         <Animated.View 
           style={[
             styles.section,
@@ -714,9 +580,7 @@ const AdicionarDependentes = ({ navigation, route }) => {
           ]}
         >
           <View style={styles.sectionHeader}>
-            <View style={styles.sectionIconContainer}>
-              <Icon name="people-outline" size={18} color="#4D97DB" />
-            </View>
+            <Icon name="people-outline" size={20} color="#3B82F6" />
             <Text style={styles.sectionTitle}>Parentesco</Text>
           </View>
           
@@ -727,7 +591,7 @@ const AdicionarDependentes = ({ navigation, route }) => {
           >
             <View style={styles.inputContent}>
               <View style={styles.inputIconContainer}>
-                <Icon name="people-outline" size={18} color="#4D97DB" />
+                <Icon name="people-outline" size={18} color="#3B82F6" />
               </View>
               <Text style={[
                 styles.inputText,
@@ -740,7 +604,6 @@ const AdicionarDependentes = ({ navigation, route }) => {
           </TouchableOpacity>
         </Animated.View>
 
-        {/* Campo Data de Nascimento */}
         <Animated.View 
           style={[
             styles.section,
@@ -751,9 +614,7 @@ const AdicionarDependentes = ({ navigation, route }) => {
           ]}
         >
           <View style={styles.sectionHeader}>
-            <View style={styles.sectionIconContainer}>
-              <Icon name="calendar-outline" size={18} color="#4D97DB" />
-            </View>
+            <Icon name="calendar-outline" size={20} color="#3B82F6" />
             <Text style={styles.sectionTitle}>Data de Nascimento</Text>
           </View>
           
@@ -764,7 +625,7 @@ const AdicionarDependentes = ({ navigation, route }) => {
           >
             <View style={styles.inputContent}>
               <View style={styles.inputIconContainer}>
-                <Icon name="calendar-outline" size={18} color="#4D97DB" />
+                <Icon name="calendar-outline" size={18} color="#3B82F6" />
               </View>
               <Text style={styles.inputText}>
                 {formatarData(formData.dataNascimento)}
@@ -774,7 +635,6 @@ const AdicionarDependentes = ({ navigation, route }) => {
           </TouchableOpacity>
         </Animated.View>
 
-        {/* Card informativo com detalhes sobre o processo */}
         <Animated.View 
           style={[
             styles.infoCard,
@@ -786,39 +646,25 @@ const AdicionarDependentes = ({ navigation, route }) => {
         >
           <View style={styles.infoHeader}>
             <View style={styles.infoIconContainer}>
-              <Icon name="information-circle" size={18} color="#4D97DB" />
+              <Icon name="information-circle" size={18} color="#3B82F6" />
             </View>
             <Text style={styles.infoTitle}>Informações Importantes</Text>
           </View>
           <View style={styles.infoContent}>
             <View style={styles.infoItem}>
-              <View style={styles.infoItemIconContainer}>
-                <Icon name="checkmark-circle" size={14} color="#10B981" />
-              </View>
+              <Icon name="checkmark-circle" size={14} color="#10B981" />
               <Text style={styles.infoText}>
-                Uma conta será criada automaticamente para o dependente
+                Uma conta será criada automaticamente
               </Text>
             </View>
             <View style={styles.infoItem}>
-              <View style={styles.infoItemIconContainer}>
-                <Icon name="information-circle-outline" size={14} color="#F59E0B" />
-              </View>
+              <Icon name="key" size={14} color="#3B82F6" />
               <Text style={styles.infoText}>
-                O login NÃO será feito automaticamente no dispositivo
+                O dependente poderá acessar com email e senha
               </Text>
             </View>
             <View style={styles.infoItem}>
-              <View style={styles.infoItemIconContainer}>
-                <Icon name="key" size={14} color="#6366F1" />
-              </View>
-              <Text style={styles.infoText}>
-                O dependente poderá acessar com email e senha fornecidos
-              </Text>
-            </View>
-            <View style={styles.infoItem}>
-              <View style={styles.infoItemIconContainer}>
-                <MaterialIcons name="medication" size={14} color="#EC4899" />
-              </View>
+              <MaterialIcons name="medication" size={14} color="#E53E3E" />
               <Text style={styles.infoText}>
                 Você gerenciará os medicamentos desta pessoa
               </Text>
@@ -826,7 +672,6 @@ const AdicionarDependentes = ({ navigation, route }) => {
           </View>
         </Animated.View>
 
-        {/* Botão de salvar/atualizar */}
         <Animated.View 
           style={{
             opacity: fadeAnim,
@@ -843,7 +688,7 @@ const AdicionarDependentes = ({ navigation, route }) => {
             activeOpacity={0.8}
           >
             {loading ? (
-              <View style={styles.loadingContent}>
+              <View style={styles.buttonContent}>
                 <ActivityIndicator size="small" color="#FFFFFF" />
                 <Text style={styles.saveButtonText}>
                   {isEditing ? 'Atualizando...' : 'Cadastrando...'}
@@ -865,7 +710,6 @@ const AdicionarDependentes = ({ navigation, route }) => {
         </Animated.View>
       </ScrollView>
 
-      {/* DateTimePicker para seleção de data */}
       {showDatePicker && (
         <DateTimePicker
           value={formData.dataNascimento}
@@ -881,276 +725,153 @@ const AdicionarDependentes = ({ navigation, route }) => {
   );
 };
 
-/**
- * Estilos do componente AdicionarDependentes
- * Contém todos os estilos visuais organizados por seção:
- * - Layout principal e background
- * - Header e navegação
- * - Formulário e inputs
- * - Modais e seletores
- * - Botões e interações
- * - Responsividade para diferentes tamanhos de tela
- */
 const styles = StyleSheet.create({
-  /**
-   * Container principal da tela
-   */
   container: {
     flex: 1,
-    backgroundColor: '#121A29',
+    backgroundColor: '#0F172A',
   },
-  
-  /**
-   * Círculo de fundo animado - principal
-   */
   backgroundCircle: {
     position: 'absolute',
     width: width * 2,
     height: width * 2,
     borderRadius: width,
-    backgroundColor: '#4D97DB',
+    backgroundColor: '#3B82F6',
     top: -width * 0.8,
     left: -width * 0.5,
   },
-  
-  /**
-   * Círculo de fundo animado - secundário
-   */
   backgroundCircle2: {
     position: 'absolute',
     width: width * 1.5,
     height: width * 1.5,
     borderRadius: width * 0.75,
-    backgroundColor: '#10B981',
+    backgroundColor: '#3B82F6',
     bottom: -width * 0.6,
     right: -width * 0.4,
   },
-  
-  /**
-   * Cabeçalho da tela com título e botão de voltar
-   */
   header: {
-    backgroundColor: 'rgba(30, 41, 59, 0.95)',
+    backgroundColor: 'rgba(20, 30, 48, 0.95)',
     paddingHorizontal: isSmallScreen ? 16 : 24,
-    paddingTop: Platform.OS === 'ios' ? 40 : 50,
-    paddingBottom: 15,
+    paddingTop: 55,
+    paddingBottom: 20,
     borderBottomLeftRadius: 25,
     borderBottomRightRadius: 25,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
+    shadowOffset: {width: 0, height: 4},
     shadowOpacity: 0.3,
     shadowRadius: 12,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
-    marginTop: isMediumScreen ? -30 : 0,
   },
-  
-  /**
-   * Botão de voltar no cabeçalho
-   */
   backButton: {
-    width: isMediumScreen ? 38 : 44,
-    height: isMediumScreen ? 38 : 44,
-    borderRadius: 22,
     backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.15)',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
   },
-  
-  /**
-   * Container central do cabeçalho
-   */
-  headerCenter: {
+  titleContainer: {
     flex: 1,
     alignItems: 'center',
-    marginHorizontal: 16,
+    paddingHorizontal: 16,
   },
-  
-  /**
-   * Título principal do cabeçalho
-   */
-  headerTitle: {
-    fontSize: isMediumScreen ? 22 : 24,
+  title: {
+    fontSize: 24,
     fontWeight: '700',
     color: '#FFFFFF',
-    marginBottom: 4,
+    marginBottom: 2,
     letterSpacing: -0.5,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
   },
-  
-  /**
-   * Subtítulo do cabeçalho
-   */
-  headerSubtitle: {
-    fontSize: isMediumScreen ? 13 : 14,
+  subtitle: {
+    fontSize: 13,
     color: '#94a3b8',
-    textAlign: 'center',
     fontWeight: '500',
     letterSpacing: 0.3,
+    textAlign: 'center',
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
-  
-  /**
-   * Espaçador direito do cabeçalho
-   */
-  headerRight: {
+  headerSpacer: {
     width: 44,
   },
-  
-  /**
-   * Área de conteúdo scrollável
-   */
   content: {
     flex: 1,
-    paddingHorizontal: isSmallScreen ? 16 : 24,
   },
-  
-  /**
-   * Container do scroll com padding
-   */
   scrollContent: {
+    paddingHorizontal: isSmallScreen ? 16 : 24,
     paddingTop: 25,
     paddingBottom: 30,
   },
-  
-  /**
-   * Seção do formulário
-   */
   section: {
-    marginBottom: 25,
+    marginBottom: 20,
   },
-  
-  /**
-   * Cabeçalho de cada seção
-   */
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 12,
-    gap: 8,
+    gap: 10,
   },
-  
-  /**
-   * Container do ícone da seção
-   */
-  sectionIconContainer: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(77, 151, 219, 0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  
-  /**
-   * Título da seção
-   */
   sectionTitle: {
-    fontSize: isSmallScreen ? 16 : 18,
+    fontSize: 18,
     fontWeight: '700',
     color: '#e2e8f0',
     letterSpacing: 0.3,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
   },
-  
-  /**
-   * Container do campo de input
-   */
   inputContainer: {
     backgroundColor: 'rgba(30, 41, 59, 0.8)',
     borderRadius: 18,
     borderWidth: 1,
     borderColor: 'rgba(51, 65, 85, 0.6)',
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowOffset: {width: 0, height: 2},
     shadowOpacity: 0.15,
     shadowRadius: 8,
   },
-  
-  /**
-   * Conteúdo interno do input
-   */
   inputContent: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 18,
+    paddingVertical: 16,
     gap: 12,
   },
-  
-  /**
-   * Container do ícone do input
-   */
   inputIconContainer: {
-    width: isSmallScreen ? 32 : 36,
-    height: isSmallScreen ? 32 : 36,
-    borderRadius: isSmallScreen ? 16 : 18,
-    backgroundColor: 'rgba(77, 151, 219, 0.15)',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(59, 130, 246, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  
-  /**
-   * Campo de texto editável
-   */
   textInput: {
-    fontSize: isSmallScreen ? 14 : 16,
+    fontSize: 16,
     color: '#f8fafc',
     fontWeight: '500',
     flex: 1,
     letterSpacing: 0.2,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
-  
-  /**
-   * Texto do input não editável
-   */
   inputText: {
-    fontSize: isSmallScreen ? 14 : 16,
+    fontSize: 16,
     color: '#f8fafc',
     fontWeight: '500',
     flex: 1,
     letterSpacing: 0.2,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
-  
-  /**
-   * Estilo para placeholder dos inputs
-   */
   inputPlaceholder: {
     color: '#64748b',
     fontWeight: '400',
   },
-  
-  /**
-   * Container dos botões de gênero
-   */
   generoContainer: {
     flexDirection: 'row',
     gap: 12,
   },
-  
-  /**
-   * Botão de opção de gênero
-   */
   generoOption: {
     flex: 1,
     backgroundColor: 'rgba(30, 41, 59, 0.8)',
@@ -1159,258 +880,133 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(51, 65, 85, 0.6)',
     paddingVertical: 20,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.15,
+  },
+  generoOptionSelected: {
+    backgroundColor: '#3B82F6',
+    borderColor: '#3B82F6',
+    shadowColor: '#3B82F6',
+    shadowOffset: {width: 0, height: 4},
+    shadowOpacity: 0.3,
     shadowRadius: 8,
   },
-  
-  /**
-   * Estado selecionado do botão de gênero
-   */
-  generoOptionSelected: {
-    backgroundColor: '#4D97DB',
-    borderColor: '#4D97DB',
-    shadowColor: '#4D97DB',
-    shadowOpacity: 0.3,
-  },
-  
-  /**
-   * Container do ícone de gênero
-   */
   generoIconContainer: {
-    width: isSmallScreen ? 40 : 48,
-    height: isSmallScreen ? 40 : 48,
-    borderRadius: isSmallScreen ? 20 : 24,
-    backgroundColor: 'rgba(77, 151, 219, 0.15)',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(59, 130, 246, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 8,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
   },
-  
-  /**
-   * Estado selecionado do ícone de gênero
-   */
   generoIconContainerSelected: {
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
-  
-  /**
-   * Texto do botão de gênero
-   */
   generoText: {
-    fontSize: isSmallScreen ? 12 : 14,
+    fontSize: 14,
     fontWeight: '600',
     color: '#e2e8f0',
     letterSpacing: 0.2,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
-  
-  /**
-   * Estado selecionado do texto de gênero
-   */
   generoTextSelected: {
     color: '#FFFFFF',
   },
-  
-  /**
-   * Card informativo
-   */
   infoCard: {
     backgroundColor: 'rgba(30, 41, 59, 0.8)',
     borderRadius: 18,
     padding: 20,
-    marginBottom: 25,
+    marginBottom: 20,
     borderWidth: 1,
     borderColor: 'rgba(51, 65, 85, 0.6)',
     borderLeftWidth: 4,
-    borderLeftColor: '#4D97DB',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
+    borderLeftColor: '#3B82F6',
   },
-  
-  /**
-   * Cabeçalho do card informativo
-   */
   infoHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 16,
     gap: 8,
   },
-  
-  /**
-   * Container do ícone do card informativo
-   */
   infoIconContainer: {
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: 'rgba(77, 151, 219, 0.15)',
+    backgroundColor: 'rgba(59, 130, 246, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  
-  /**
-   * Título do card informativo
-   */
   infoTitle: {
-    fontSize: isSmallScreen ? 14 : 16,
+    fontSize: 16,
     fontWeight: '600',
     color: '#f8fafc',
     letterSpacing: 0.2,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
-  
-  /**
-   * Conteúdo do card informativo
-   */
   infoContent: {
     gap: 12,
   },
-  
-  /**
-   * Item individual do card informativo
-   */
   infoItem: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 8,
   },
-  
-  /**
-   * Container do ícone do item informativo
-   */
-  infoItemIconContainer: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 1,
-  },
-  
-  /**
-   * Texto do item informativo
-   */
   infoText: {
-    fontSize: isSmallScreen ? 12 : 14,
+    fontSize: 14,
     color: '#94a3b8',
     flex: 1,
     lineHeight: 20,
     letterSpacing: 0.1,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
-  
-  /**
-   * Botão principal de salvar
-   */
   saveButton: {
-    backgroundColor: '#4D97DB',
-    borderRadius: 20,
-    paddingVertical: 18,
+    backgroundColor: '#3B82F6',
+    borderRadius: 24,
+    paddingVertical: 16,
     alignItems: 'center',
     marginTop: 10,
-    shadowColor: '#4D97DB',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
+    shadowColor: '#3B82F6',
+    shadowOffset: {width: 0, height: 4},
     shadowOpacity: 0.3,
     shadowRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(77, 151, 219, 0.3)',
   },
-  
-  /**
-   * Estado desabilitado do botão de salvar
-   */
   saveButtonDisabled: {
     backgroundColor: '#64748b',
     shadowColor: '#000',
     shadowOpacity: 0.1,
-    borderColor: 'rgba(100, 116, 139, 0.3)',
   },
-  
-  /**
-   * Container do conteúdo do botão
-   */
   buttonContent: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
-  
-  /**
-   * Container do conteúdo de loading
-   */
-  loadingContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  
-  /**
-   * Texto do botão de salvar
-   */
   saveButtonText: {
     color: '#FFFFFF',
-    fontSize: isSmallScreen ? 14 : 16,
-    fontWeight: '700',
-    letterSpacing: 0.5,
+    fontSize: 16,
+    fontWeight: '600',
+    letterSpacing: 0.3,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
-  
-  /**
-   * Overlay do modal
-   */
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 30,
   },
-  
-  /**
-   * Conteúdo do modal de seleção
-   */
-  pickerModalContent: {
-    backgroundColor: 'rgba(30, 41, 59, 0.95)',
-    borderTopLeftRadius: 25,
-    borderTopRightRadius: 25,
+  modalContent: {
+    backgroundColor: 'rgba(30, 41, 59, 0.98)',
+    borderRadius: 24,
+    width: '100%',
+    maxWidth: 400,
     maxHeight: height * 0.7,
-    borderTopWidth: 1,
-    borderLeftWidth: 1,
-    borderRightWidth: 1,
-    borderColor: 'rgba(51, 65, 85, 0.6)',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: -4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
+    shadowOffset: {width: 0, height: 12},
+    shadowOpacity: 0.4,
+    shadowRadius: 24,
   },
-  
-  /**
-   * Cabeçalho do modal de seleção
-   */
-  pickerHeader: {
+  modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -1419,124 +1015,70 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(51, 65, 85, 0.6)',
   },
-  
-  /**
-   * Lado esquerdo do cabeçalho do modal
-   */
-  pickerHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flex: 1,
-  },
-  
-  /**
-   * Container do ícone do modal
-   */
-  pickerIconContainer: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(77, 151, 219, 0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  
-  /**
-   * Título do modal de seleção
-   */
-  pickerTitle: {
-    fontSize: isSmallScreen ? 16 : 18,
+  modalTitle: {
+    fontSize: 20,
     fontWeight: '700',
-    color: '#f8fafc',
+    color: '#FFFFFF',
     letterSpacing: 0.3,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
   },
-  
-  /**
-   * Botão de fechar do modal
-   */
   modalCloseButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.15)',
   },
-  
-  /**
-   * ScrollView do modal de seleção
-   */
-  customPickerScrollView: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
+  modalList: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
   },
-  
-  /**
-   * Item da lista de seleção
-   */
-  customPickerItem: {
+  modalItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 16,
+    paddingVertical: 14,
     paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(51, 65, 85, 0.3)',
-    borderRadius: 12,
-    marginBottom: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.02)',
+    borderRadius: 14,
+    marginBottom: 8,
+    backgroundColor: 'rgba(30, 41, 59, 0.6)',
+    borderWidth: 1,
+    borderColor: 'rgba(51, 65, 85, 0.4)',
   },
-  
-  /**
-   * Estado selecionado do item
-   */
-  customPickerItemSelected: {
-    backgroundColor: 'rgba(77, 151, 219, 0.15)',
-    borderBottomColor: 'rgba(77, 151, 219, 0.3)',
+  modalItemSelected: {
+    backgroundColor: 'rgba(59, 130, 246, 0.15)',
+    borderColor: 'rgba(59, 130, 246, 0.3)',
   },
-  
-  /**
-   * Conteúdo do item de seleção
-   */
-  customPickerItemContent: {
+  modalItemContent: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     flex: 1,
   },
-  
-  /**
-   * Container do ícone do item
-   */
-  customPickerIconContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(77, 151, 219, 0.15)',
+  modalItemIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(59, 130, 246, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  
-  /**
-   * Estado selecionado do ícone do item
-   */
-  customPickerIconContainerSelected: {
-    backgroundColor: '#4D97DB',
+  modalItemIconSelected: {
+    backgroundColor: '#3B82F6',
   },
-  
-  /**
-   * Texto do item de seleção
-   */
-  customPickerItemText: {
-    fontSize: isSmallScreen ? 14 : 16,
-    color: '#e2e8f0',
+  modalItemText: {
+    fontSize: 16,
+    color: '#f8fafc',
     fontWeight: '500',
     letterSpacing: 0.2,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
+  },
+  modalItemTextSelected: {
+    color: '#FFFFFF',
+    fontWeight: '600',
   },
 });
 

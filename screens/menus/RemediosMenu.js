@@ -1,11 +1,3 @@
-/**
- * @fileoverview Tela principal para gerenciamento de remédios/medicamentos
- * Permite visualizar, adicionar, editar, excluir e marcar remédios como tomados
- *
- * @author Seu Nome
- * @version 1.0.0
- */
-
 import React, {useEffect, useState, useRef} from 'react';
 import {
   View,
@@ -31,103 +23,49 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 
 const {width, height} = Dimensions.get('window');
 
-// Breakpoints responsivos para diferentes tamanhos de tela
 const isSmallScreen = width < 360;
 const isMediumScreen = width >= 360 && width < 400;
-const isLargeScreen = width >= 400;
 
-/**
- * Componente principal da tela de gerenciamento de remédios
- *
- * @component
- * @param {Object} props - Props do componente
- * @param {Object} props.navigation - Objeto de navegação do React Navigation
- * @returns {JSX.Element} Componente da tela de remédios
- *
- * @example
- * <RemediosScreen navigation={navigation} />
- */
 const RemediosScreen = ({navigation}) => {
-  // Estados para gerenciamento de dados
-  /** @type {Array} Lista de remédios do usuário */
   const [remedios, setRemedios] = useState([]);
-
-  /** @type {boolean} Estado de carregamento da tela */
   const [loading, setLoading] = useState(true);
-
-  /** @type {boolean} Visibilidade do modal de exclusão */
   const [modalVisible, setModalVisible] = useState(false);
-
-  /** @type {boolean} Visibilidade do modal de tomar remédio */
   const [modalTomarVisible, setModalTomarVisible] = useState(false);
-
-  /** @type {Object|null} Remédio selecionado para exclusão */
   const [remedioParaExcluir, setRemedioParaExcluir] = useState(null);
-
-  /** @type {Object|null} Remédio selecionado para marcar como tomado */
   const [remedioParaTomar, setRemedioParaTomar] = useState(null);
-
-  /** @type {string} Valor da dosagem inserida pelo usuário */
   const [dosagemInput, setDosagemInput] = useState('');
 
-  /** @type {Object} Usuário autenticado atual */
   const user = auth().currentUser;
 
-  // Referências para animações
-  /** @type {Animated.Value} Animação de fade in */
   const fadeAnim = useRef(new Animated.Value(0)).current;
-
-  /** @type {Animated.Value} Animação de slide para cima */
   const slideUpAnim = useRef(new Animated.Value(30)).current;
-
-  /** @type {Animated.Value} Animação dos círculos de fundo */
   const backgroundAnim = useRef(new Animated.Value(0)).current;
 
-  /** @type {Animated.Value} Animação do slide do header */
-  const headerSlideAnim = useRef(new Animated.Value(-50)).current;
-
-  /**
-   * Mapeamento de tipos de medicamentos para ícones e cores
-   * @constant {Object}
-   */
   const tipoIconMap = {
     comprimido: {name: 'medical', color: '#E53E3E', bg: '#E53E3E15'},
-    capsula: {name: 'ellipse', color: '#4D97DB', bg: '#4D97DB15'},
+    capsula: {name: 'ellipse', color: '#3B82F6', bg: '#3B82F615'},
     xarope: {name: 'flask', color: '#9F7AEA', bg: '#9F7AEA15'},
-    gotas: {name: 'water', color: '#38B2AC', bg: '#38B2AC15'},
-    pomada: {name: 'bandage', color: '#ED8936', bg: '#ED893615'},
-    injecao: {name: 'medical-outline', color: '#F56565', bg: '#F5656515'},
-    spray: {name: 'cloud', color: '#48BB78', bg: '#48BB7815'},
-    outro: {name: 'help-circle', color: '#718096', bg: '#71809615'},
+    gotas: {name: 'water', color: '#10B981', bg: '#10B98115'},
+    pomada: {name: 'bandage', color: '#F59E0B', bg: '#F59E0B15'},
+    injecao: {name: 'medical-outline', color: '#E53E3E', bg: '#E53E3E15'},
+    spray: {name: 'cloud', color: '#10B981', bg: '#10B98115'},
+    outro: {name: 'help-circle', color: '#64748b', bg: '#64748b15'},
   };
 
-  /**
-   * Effect para inicializar animações da tela
-   * Executa animações paralelas de entrada e uma animação contínua de fundo
-   */
   useEffect(() => {
-    // Animações iniciais
     Animated.parallel([
-      Animated.timing(headerSlideAnim, {
-        toValue: 0,
-        duration: 800,
-        useNativeDriver: true,
-      }),
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 1000,
-        delay: 200,
+        duration: 800,
         useNativeDriver: true,
       }),
       Animated.timing(slideUpAnim, {
         toValue: 0,
-        duration: 800,
-        delay: 300,
+        duration: 600,
         useNativeDriver: true,
       }),
     ]).start();
 
-    // Animação de fundo contínua
     const backgroundAnimation = Animated.loop(
       Animated.sequence([
         Animated.timing(backgroundAnim, {
@@ -145,12 +83,8 @@ const RemediosScreen = ({navigation}) => {
     backgroundAnimation.start();
 
     return () => backgroundAnimation.stop();
-  }, [backgroundAnim, fadeAnim, headerSlideAnim, slideUpAnim]);
+  }, []);
 
-  /**
-   * Effect para carregar e sincronizar dados dos remédios em tempo real
-   * Configura listener do Firestore para updates automáticos
-   */
   useEffect(() => {
     if (!user) {
       setLoading(false);
@@ -162,28 +96,20 @@ const RemediosScreen = ({navigation}) => {
       .where('usuarioId', '==', user.uid)
       .onSnapshot(
         snapshot => {
-          try {
-            if (!snapshot || !snapshot.docs) {
-              console.warn('Snapshot vazio ou inválido');
-              setLoading(false);
-              return;
-            }
-
-            const lista = snapshot.docs.map(doc => ({
-              id: doc.id,
-              ...doc.data(),
-            }));
-            setRemedios(lista);
+          if (!snapshot || !snapshot.docs) {
             setLoading(false);
-          } catch (error) {
-            console.error('Erro ao processar medicamentos:', error);
-            Alert.alert('Erro', 'Não foi possível processar os dados.');
-            setLoading(false);
+            return;
           }
+
+          const lista = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+          }));
+          setRemedios(lista);
+          setLoading(false);
         },
         error => {
           console.error('Erro ao buscar medicamentos:', error);
-          Alert.alert('Erro', 'Não foi possível carregar os dados.');
           setLoading(false);
         },
       );
@@ -191,21 +117,11 @@ const RemediosScreen = ({navigation}) => {
     return () => unsubscribe();
   }, [user]);
 
-  /**
-   * Prepara modal de confirmação para exclusão de remédio
-   * @param {Object} remedio - Objeto do remédio a ser excluído
-   */
   const confirmarExclusao = remedio => {
     setRemedioParaExcluir(remedio);
     setModalVisible(true);
   };
 
-  /**
-   * Executa a exclusão do remédio selecionado
-   * Remove o documento do Firestore e exibe feedback ao usuário
-   * @async
-   * @function
-   */
   const excluirRemedio = async () => {
     try {
       await firestore()
@@ -222,22 +138,12 @@ const RemediosScreen = ({navigation}) => {
     }
   };
 
-  /**
-   * Prepara modal para marcar remédio como tomado
-   * @param {Object} remedio - Objeto do remédio a ser marcado como tomado
-   */
   const confirmarTomarRemedio = remedio => {
     setRemedioParaTomar(remedio);
     setDosagemInput(remedio.dosagem || '1');
     setModalTomarVisible(true);
   };
 
-  /**
-   * Registra que o remédio foi tomado na coleção de histórico
-   * Cria um novo documento com data, horário e dosagem
-   * @async
-   * @function
-   */
   const marcarComoTomado = async () => {
     try {
       const agora = new Date();
@@ -275,21 +181,11 @@ const RemediosScreen = ({navigation}) => {
     }
   };
 
-  /**
-   * Obtém ícone e cor baseado no tipo do medicamento
-   * @param {string} tipo - Tipo do medicamento
-   * @returns {Object} Objeto contendo nome do ícone, cor e cor de fundo
-   */
   const getTipoIcon = tipo => {
     const tipoLower = tipo?.toLowerCase() || 'outro';
     return tipoIconMap[tipoLower] || tipoIconMap['outro'];
   };
 
-  /**
-   * Formata timestamp para exibição amigável da data de atualização
-   * @param {*} timestamp - Timestamp do Firestore ou Date
-   * @returns {string|null} String formatada da data ou null se inválido
-   */
   const formatarDataAtualizacao = timestamp => {
     if (!timestamp) return null;
 
@@ -299,44 +195,28 @@ const RemediosScreen = ({navigation}) => {
       const diferenca = agora - data;
       const dias = Math.floor(diferenca / (1000 * 60 * 60 * 24));
 
-      if (dias === 0) {
-        return 'Hoje';
-      } else if (dias === 1) {
-        return 'Ontem';
-      } else if (dias < 7) {
-        return `${dias} dias atrás`;
-      } else {
-        return data.toLocaleDateString('pt-BR');
-      }
+      if (dias === 0) return 'Hoje';
+      if (dias === 1) return 'Ontem';
+      if (dias < 7) return `${dias} dias atrás`;
+      return data.toLocaleDateString('pt-BR');
     } catch (error) {
       return null;
     }
   };
 
-  /**
-   * Componente para renderizar um card individual de remédio
-   * @component
-   * @param {Object} props - Props do componente
-   * @param {Object} props.remedio - Dados do remédio
-   * @param {number} props.index - Índice do card para animação escalonada
-   * @returns {JSX.Element|null} Card do remédio ou null se remédio inválido
-   */
   const RemedioCard = ({remedio, index}) => {
-    /** @type {Animated.Value} Animação específica do card */
     const cardAnimation = useRef(new Animated.Value(0)).current;
 
     useEffect(() => {
       Animated.timing(cardAnimation, {
         toValue: 1,
         duration: 600,
-        delay: index * 150,
+        delay: index * 100,
         useNativeDriver: true,
       }).start();
-    }, [cardAnimation, index]);
+    }, []);
 
-    if (!remedio) {
-      return null;
-    }
+    if (!remedio) return null;
 
     const tipoIcon = getTipoIcon(remedio.tipo);
     const dataAtualizacao = formatarDataAtualizacao(remedio.updatedAt);
@@ -351,24 +231,19 @@ const RemediosScreen = ({navigation}) => {
               {
                 translateY: cardAnimation.interpolate({
                   inputRange: [0, 1],
-                  outputRange: [50, 0],
+                  outputRange: [30, 0],
                 }),
               },
             ],
           },
         ]}>
-        {/* Header */}
         <View style={styles.cardHeader}>
           <View style={[styles.medicineIcon, {backgroundColor: tipoIcon.bg}]}>
-            <Icon
-              name={tipoIcon.name}
-              size={isSmallScreen ? 18 : 20}
-              color={tipoIcon.color}
-            />
+            <Icon name={tipoIcon.name} size={20} color={tipoIcon.color} />
           </View>
 
           <View style={styles.medicineDetails}>
-            <Text style={styles.remedioNome}>
+            <Text style={styles.remedioNome} numberOfLines={1}>
               {remedio.nome || 'Nome não informado'}
             </Text>
             <View style={styles.tipoContainer}>
@@ -383,14 +258,9 @@ const RemediosScreen = ({navigation}) => {
             </View>
           </View>
 
-          <View style={styles.statusIndicator}>
-            <View
-              style={[styles.statusDot, {backgroundColor: tipoIcon.color}]}
-            />
-          </View>
+          <View style={[styles.statusDot, {backgroundColor: tipoIcon.color}]} />
         </View>
 
-        {/* Content */}
         <View style={styles.cardContent}>
           {remedio.utilidade && (
             <View style={styles.infoItem}>
@@ -441,26 +311,23 @@ const RemediosScreen = ({navigation}) => {
           )}
         </View>
 
-        {/* Actions */}
         <View style={styles.cardActions}>
           <TouchableOpacity
-            style={[styles.actionButton, styles.takenAction]}
-            onPress={() => confirmarTomarRemedio(remedio)}
-            activeOpacity={0.8}>
+            style={styles.actionButton}
+            onPress={() => confirmarTomarRemedio(remedio)}>
             <View
               style={[
                 styles.actionIconContainer,
-                {backgroundColor: '#4D97DB15'},
+                {backgroundColor: '#3B82F615'},
               ]}>
-              <Icon name="checkmark-circle" size={16} color="#4D97DB" />
+              <Icon name="checkmark-circle" size={16} color="#3B82F6" />
             </View>
-            <Text style={[styles.actionText, {color: '#4D97DB'}]}>Tomar</Text>
+            <Text style={[styles.actionText, {color: '#3B82F6'}]}>Tomar</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.actionButton}
-            onPress={() => navigation.navigate('AdicionarRemedio', {remedio})}
-            activeOpacity={0.8}>
+            onPress={() => navigation.navigate('AdicionarRemedio', {remedio})}>
             <View
               style={[
                 styles.actionIconContainer,
@@ -472,9 +339,8 @@ const RemediosScreen = ({navigation}) => {
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.actionButton, styles.deleteAction]}
-            onPress={() => confirmarExclusao(remedio)}
-            activeOpacity={0.8}>
+            style={styles.actionButton}
+            onPress={() => confirmarExclusao(remedio)}>
             <View
               style={[
                 styles.actionIconContainer,
@@ -489,69 +355,22 @@ const RemediosScreen = ({navigation}) => {
     );
   };
 
-  /**
-   * Renderiza o estado de carregamento da tela
-   * @returns {JSX.Element} Componente de loading
-   */
-  const renderLoadingState = () => (
-    <Animated.View
-      style={[
-        styles.loadingContainer,
-        {
-          opacity: fadeAnim,
-          transform: [{translateY: slideUpAnim}],
-        },
-      ]}>
-      <View style={styles.loadingIconContainer}>
-        <ActivityIndicator size="large" color="#4D97DB" />
-      </View>
-      <Text style={styles.loadingText}>Carregando medicamentos...</Text>
-      <Text style={styles.loadingSubtext}>Aguarde um momento</Text>
-    </Animated.View>
-  );
-
-  /**
-   * Renderiza o estado vazio quando não há remédios cadastrados
-   * @returns {JSX.Element} Componente de estado vazio
-   */
-  const renderEmptyState = () => (
-    <Animated.View
-      style={[
-        styles.emptyContainer,
-        {
-          opacity: fadeAnim,
-          transform: [{translateY: slideUpAnim}],
-        },
-      ]}>
-      <View style={styles.emptyIconContainer}>
-        <MaterialIcons
-          name="medication"
-          size={isSmallScreen ? 40 : 48}
-          color="#64748b"
-        />
-      </View>
-      <Text style={styles.emptyTitle}>Nenhum remédio cadastrado</Text>
-      <Text style={styles.emptyDescription}>
-        Comece adicionando seu primeiro medicamento para manter o controle da
-        sua saúde
-      </Text>
-      <TouchableOpacity
-        style={styles.emptyActionButton}
-        onPress={() => navigation.navigate('AdicionarRemedio')}
-        activeOpacity={0.9}>
-        <Icon name="add" size={20} color="#FFFFFF" />
-        <Text style={styles.emptyActionButtonText}>
-          Adicionar Primeiro Remédio
-        </Text>
-      </TouchableOpacity>
-    </Animated.View>
-  );
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#10B981" />
+          <Text style={styles.loadingText}>Carregando...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#121A29" />
+      <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
 
-      {/* Círculos de fundo animados */}
       <Animated.View
         style={[
           styles.backgroundCircle,
@@ -560,14 +379,6 @@ const RemediosScreen = ({navigation}) => {
               inputRange: [0, 1],
               outputRange: [0.03, 0.08],
             }),
-            transform: [
-              {
-                scale: backgroundAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [1, 1.1],
-                }),
-              },
-            ],
           },
         ]}
       />
@@ -579,78 +390,69 @@ const RemediosScreen = ({navigation}) => {
               inputRange: [0, 1],
               outputRange: [0.05, 0.03],
             }),
-            transform: [
-              {
-                scale: backgroundAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [1.1, 1],
-                }),
-              },
-            ],
           },
         ]}
       />
 
-      {/* Header da tela */}
       <Animated.View
         style={[
           styles.header,
           {
             opacity: fadeAnim,
-            transform: [{translateY: headerSlideAnim}],
+            transform: [{translateY: slideUpAnim}],
           },
         ]}>
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => navigation.goBack()}
-          activeOpacity={0.8}>
+          onPress={() => navigation.goBack()}>
           <Icon name="chevron-back" size={24} color="#FFFFFF" />
         </TouchableOpacity>
 
-        <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>Meus Remédios</Text>
-          <Text style={styles.headerSubtitle}>
-            {loading
-              ? 'Carregando...'
-              : `${remedios.length} medicamento${
-                  remedios.length !== 1 ? 's' : ''
-                } cadastrado${remedios.length !== 1 ? 's' : ''}`}
+        <View style={styles.titleContainer}>
+          <Text style={styles.title}>Meus Remédios</Text>
+          <Text style={styles.subtitle}>
+            {remedios.length} medicamento{remedios.length !== 1 ? 's' : ''}
           </Text>
         </View>
 
         <TouchableOpacity
           style={styles.addButton}
-          onPress={() => navigation.navigate('AdicionarRemedio')}
-          activeOpacity={0.8}>
+          onPress={() => navigation.navigate('AdicionarRemedio')}>
           <Icon name="add" size={24} color="#FFFFFF" />
         </TouchableOpacity>
       </Animated.View>
 
-      {/* Conteúdo principal da tela */}
       <ScrollView
         style={styles.content}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[
-          styles.scrollContent,
-          !loading && (!remedios || remedios.length === 0) && {flex: 1},
-        ]}>
-        {loading ? (
-          renderLoadingState()
-        ) : !remedios || remedios.length === 0 ? (
-          renderEmptyState()
-        ) : (
+        contentContainerStyle={styles.scrollContent}>
+        {remedios.length === 0 ? (
           <Animated.View
             style={[
-              styles.remediosList,
+              styles.emptyContainer,
               {
                 opacity: fadeAnim,
                 transform: [{translateY: slideUpAnim}],
               },
             ]}>
-            {remedios.map((remedio, index) => (
-              <RemedioCard key={remedio.id} remedio={remedio} index={index} />
-            ))}
+            <View style={styles.emptyIconContainer}>
+              <MaterialIcons name="medication" size={48} color="#64748b" />
+            </View>
+            <Text style={styles.emptyTitle}>Nenhum remédio cadastrado</Text>
+            <Text style={styles.emptyDescription}>
+              Comece adicionando seu primeiro medicamento
+            </Text>
+            <TouchableOpacity
+              style={styles.emptyActionButton}
+              onPress={() => navigation.navigate('AdicionarRemedio')}>
+              <Icon name="add" size={20} color="#FFFFFF" />
+              <Text style={styles.emptyActionButtonText}>Adicionar Remédio</Text>
+            </TouchableOpacity>
           </Animated.View>
+        ) : (
+          remedios.map((remedio, index) => (
+            <RemedioCard key={remedio.id} remedio={remedio} index={index} />
+          ))
         )}
       </ScrollView>
 
@@ -663,13 +465,13 @@ const RemediosScreen = ({navigation}) => {
         <TouchableWithoutFeedback onPress={() => setModalVisible(false)}>
           <View style={styles.modalOverlay}>
             <TouchableWithoutFeedback>
-              <Animated.View style={styles.modalContent}>
+              <View style={styles.modalContent}>
                 <View
                   style={[
                     styles.modalIconContainer,
                     {backgroundColor: '#E53E3E15'},
                   ]}>
-                  <Icon name="warning" size={28} color="#E53E3E" />
+                  <Icon name="warning" size={32} color="#E53E3E" />
                 </View>
 
                 <Text style={styles.modalTitle}>Excluir Remédio</Text>
@@ -683,20 +485,21 @@ const RemediosScreen = ({navigation}) => {
                 <View style={styles.modalButtons}>
                   <TouchableOpacity
                     style={styles.modalCancelButton}
-                    onPress={() => setModalVisible(false)}
-                    activeOpacity={0.8}>
+                    onPress={() => setModalVisible(false)}>
                     <Text style={styles.modalCancelText}>Cancelar</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
-                    style={styles.modalConfirmButton}
-                    onPress={excluirRemedio}
-                    activeOpacity={0.8}>
+                    style={[
+                      styles.modalConfirmButton,
+                      {backgroundColor: '#E53E3E'},
+                    ]}
+                    onPress={excluirRemedio}>
                     <Icon name="trash" size={16} color="#FFFFFF" />
                     <Text style={styles.modalConfirmText}>Excluir</Text>
                   </TouchableOpacity>
                 </View>
-              </Animated.View>
+              </View>
             </TouchableWithoutFeedback>
           </View>
         </TouchableWithoutFeedback>
@@ -711,13 +514,13 @@ const RemediosScreen = ({navigation}) => {
         <TouchableWithoutFeedback onPress={() => setModalTomarVisible(false)}>
           <View style={styles.modalOverlay}>
             <TouchableWithoutFeedback>
-              <Animated.View style={styles.modalContent}>
+              <View style={styles.modalContent}>
                 <View
                   style={[
                     styles.modalIconContainer,
-                    {backgroundColor: '#4D97DB15'},
+                    {backgroundColor: '#3B82F615'},
                   ]}>
-                  <Icon name="medical" size={28} color="#4D97DB" />
+                  <Icon name="medical" size={32} color="#3B82F6" />
                 </View>
 
                 <Text style={styles.modalTitle}>Tomar Remédio</Text>
@@ -742,7 +545,6 @@ const RemediosScreen = ({navigation}) => {
                 <View style={styles.timeContainer}>
                   <Icon name="time-outline" size={14} color="#64748b" />
                   <Text style={styles.modalSubtext}>
-                    Horário:{' '}
                     {new Date().toLocaleTimeString('pt-BR', {
                       hour: '2-digit',
                       minute: '2-digit',
@@ -756,20 +558,21 @@ const RemediosScreen = ({navigation}) => {
                     onPress={() => {
                       setModalTomarVisible(false);
                       setDosagemInput('');
-                    }}
-                    activeOpacity={0.8}>
+                    }}>
                     <Text style={styles.modalCancelText}>Cancelar</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
-                    style={styles.modalTomarButton}
-                    onPress={marcarComoTomado}
-                    activeOpacity={0.8}>
+                    style={[
+                      styles.modalConfirmButton,
+                      {backgroundColor: '#3B82F6'},
+                    ]}
+                    onPress={marcarComoTomado}>
                     <Icon name="checkmark-circle" size={16} color="#FFFFFF" />
-                    <Text style={styles.modalTomarText}>Confirmar</Text>
+                    <Text style={styles.modalConfirmText}>Confirmar</Text>
                   </TouchableOpacity>
                 </View>
-              </Animated.View>
+              </View>
             </TouchableWithoutFeedback>
           </View>
         </TouchableWithoutFeedback>
@@ -778,21 +581,17 @@ const RemediosScreen = ({navigation}) => {
   );
 };
 
-/**
- * Estilos do componente RemediosScreen
- * @constant {Object}
- */
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121A29',
+    backgroundColor: '#0F172A',
   },
   backgroundCircle: {
     position: 'absolute',
     width: width * 2,
     height: width * 2,
     borderRadius: width,
-    backgroundColor: '#4D97DB',
+    backgroundColor: '#10B981',
     top: -width * 0.8,
     left: -width * 0.5,
   },
@@ -801,141 +600,100 @@ const styles = StyleSheet.create({
     width: width * 1.5,
     height: width * 1.5,
     borderRadius: width * 0.75,
-    backgroundColor: '#E53E3E',
+    backgroundColor: '#10B981',
     bottom: -width * 0.6,
     right: -width * 0.4,
   },
   header: {
+    backgroundColor: 'rgba(20, 30, 48, 0.95)',
+    paddingHorizontal: isSmallScreen ? 16 : 24,
+    paddingTop: 55,
+    paddingBottom: 20,
+    borderBottomLeftRadius: 25,
+    borderBottomRightRadius: 25,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: 'rgba(30, 41, 59, 0.95)',
-    paddingHorizontal: isSmallScreen ? 16 : 24,
-    paddingTop: Platform.OS === 'ios' ? 60 : 70,
-    paddingBottom: isMediumScreen ? 20 : 30,
-    borderBottomLeftRadius: 25,
-    borderBottomRightRadius: 25,
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
+    shadowOffset: {width: 0, height: 4},
     shadowOpacity: 0.3,
     shadowRadius: 12,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
-    marginTop: isMediumScreen ? -30 : 0,
   },
   backButton: {
-    width: isMediumScreen ? 38 : 44,
-    height: isMediumScreen ? 38 : 44,
-    borderRadius: 22,
     backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.15)',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
   },
-  headerCenter: {
+  titleContainer: {
     flex: 1,
     alignItems: 'center',
     paddingHorizontal: 16,
   },
-  headerTitle: {
-    fontSize: isMediumScreen ? 22 : 24,
+  title: {
+    fontSize: 24,
     fontWeight: '700',
     color: '#FFFFFF',
-    marginBottom: 4,
+    marginBottom: 2,
     letterSpacing: -0.5,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
   },
-  headerSubtitle: {
-    fontSize: isMediumScreen ? 13 : 14,
+  subtitle: {
+    fontSize: 13,
     color: '#94a3b8',
-    textAlign: 'center',
     fontWeight: '500',
     letterSpacing: 0.3,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   addButton: {
-    width: isMediumScreen ? 38 : 44,
-    height: isMediumScreen ? 38 : 44,
+    width: 44,
+    height: 44,
     borderRadius: 22,
     backgroundColor: '#E53E3E',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#E53E3E',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
+    shadowOffset: {width: 0, height: 4},
     shadowOpacity: 0.3,
     shadowRadius: 8,
   },
   content: {
     flex: 1,
-    paddingHorizontal: isSmallScreen ? 16 : 24,
   },
   scrollContent: {
-    paddingVertical: 25,
+    paddingHorizontal: isSmallScreen ? 16 : 24,
+    paddingTop: 25,
+    paddingBottom: 30,
   },
-  remediosList: {
-    gap: 16,
-  },
-  /** Estilos para estado de carregamento */
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 60,
-  },
-  loadingIconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(30, 41, 59, 0.8)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(51, 65, 85, 0.6)',
   },
   loadingText: {
-    fontSize: isSmallScreen ? 16 : 18,
-    color: '#e2e8f0',
-    fontWeight: '600',
-    marginBottom: 8,
-    letterSpacing: 0.3,
-    fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
-  },
-  loadingSubtext: {
-    fontSize: 14,
+    marginTop: 16,
+    fontSize: 16,
     color: '#94a3b8',
     fontWeight: '500',
-    letterSpacing: 0.2,
+    letterSpacing: 0.3,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
-  /** Estilos para cards de remédios */
   remedioCard: {
     backgroundColor: 'rgba(30, 41, 59, 0.8)',
     borderRadius: 18,
     marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
     borderWidth: 1,
     borderColor: 'rgba(51, 65, 85, 0.6)',
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
     overflow: 'hidden',
   },
   cardHeader: {
@@ -946,17 +704,14 @@ const styles = StyleSheet.create({
     borderBottomColor: 'rgba(51, 65, 85, 0.3)',
   },
   medicineIcon: {
-    width: isSmallScreen ? 36 : 40,
-    height: isSmallScreen ? 36 : 40,
-    borderRadius: isSmallScreen ? 18 : 20,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowOffset: {width: 0, height: 2},
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },
@@ -964,7 +719,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   remedioNome: {
-    fontSize: isSmallScreen ? 16 : 18,
+    fontSize: 18,
     fontWeight: '600',
     color: '#f8fafc',
     marginBottom: 4,
@@ -976,7 +731,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   tipoText: {
-    fontSize: isSmallScreen ? 12 : 14,
+    fontSize: 14,
     fontWeight: '500',
     letterSpacing: 0.3,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
@@ -989,24 +744,16 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
-  statusIndicator: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 12,
-  },
   statusDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
+    marginLeft: 12,
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
+    shadowOffset: {width: 0, height: 1},
     shadowOpacity: 0.2,
     shadowRadius: 2,
   },
-  /** Estilos para conteúdo dos cards */
   cardContent: {
     padding: 20,
   },
@@ -1028,7 +775,7 @@ const styles = StyleSheet.create({
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   infoValue: {
-    fontSize: isSmallScreen ? 13 : 14,
+    fontSize: 14,
     color: '#e2e8f0',
     lineHeight: 20,
     letterSpacing: 0.2,
@@ -1057,7 +804,7 @@ const styles = StyleSheet.create({
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   specValue: {
-    fontSize: isSmallScreen ? 13 : 14,
+    fontSize: 14,
     color: '#f8fafc',
     fontWeight: '500',
     letterSpacing: 0.2,
@@ -1081,13 +828,12 @@ const styles = StyleSheet.create({
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   observacoesText: {
-    fontSize: isSmallScreen ? 13 : 14,
+    fontSize: 14,
     color: '#e2e8f0',
     lineHeight: 20,
     letterSpacing: 0.2,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
-  /** Estilos para ações dos cards */
   cardActions: {
     flexDirection: 'row',
     borderTopWidth: 1,
@@ -1102,14 +848,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     gap: 8,
   },
-  takenAction: {
-    borderRightWidth: 1,
-    borderRightColor: 'rgba(51, 65, 85, 0.3)',
-  },
-  deleteAction: {
-    borderLeftWidth: 1,
-    borderLeftColor: 'rgba(51, 65, 85, 0.3)',
-  },
   actionIconContainer: {
     width: 24,
     height: 24,
@@ -1118,13 +856,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   actionText: {
-    fontSize: isSmallScreen ? 12 : 13,
-    color: '#94a3b8',
+    fontSize: 13,
     fontWeight: '500',
     letterSpacing: 0.2,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
-  /** Estilos para estado vazio */
   emptyContainer: {
     flex: 1,
     alignItems: 'center',
@@ -1133,9 +869,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 40,
   },
   emptyIconContainer: {
-    width: isSmallScreen ? 64 : 80,
-    height: isSmallScreen ? 64 : 80,
-    borderRadius: isSmallScreen ? 32 : 40,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     backgroundColor: 'rgba(30, 41, 59, 0.8)',
     justifyContent: 'center',
     alignItems: 'center',
@@ -1144,7 +880,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(51, 65, 85, 0.6)',
   },
   emptyTitle: {
-    fontSize: isSmallScreen ? 18 : 20,
+    fontSize: 20,
     fontWeight: '600',
     color: '#e2e8f0',
     marginBottom: 8,
@@ -1153,7 +889,7 @@ const styles = StyleSheet.create({
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
   },
   emptyDescription: {
-    fontSize: isSmallScreen ? 14 : 16,
+    fontSize: 16,
     color: '#94a3b8',
     textAlign: 'center',
     lineHeight: 22,
@@ -1169,72 +905,62 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 24,
     shadowColor: '#E53E3E',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
+    shadowOffset: {width: 0, height: 4},
     shadowOpacity: 0.3,
     shadowRadius: 8,
     gap: 8,
   },
   emptyActionButtonText: {
     color: '#FFFFFF',
-    fontSize: isSmallScreen ? 14 : 16,
+    fontSize: 16,
     fontWeight: '600',
     letterSpacing: 0.3,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
-  /** Estilos para modais */
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 30,
   },
   modalContent: {
-    backgroundColor: 'rgba(30, 41, 59, 0.95)',
+    backgroundColor: 'rgba(30, 41, 59, 0.98)',
     borderRadius: 24,
     padding: 30,
     width: '100%',
     maxWidth: 350,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(51, 65, 85, 0.6)',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 8,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
+    shadowOffset: {width: 0, height: 12},
+    shadowOpacity: 0.4,
+    shadowRadius: 24,
   },
   modalIconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOffset: {width: 0, height: 4},
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
   },
   modalTitle: {
-    fontSize: isSmallScreen ? 18 : 20,
+    fontSize: 22,
     fontWeight: '700',
-    color: '#f8fafc',
-    marginBottom: 8,
+    color: '#FFFFFF',
     textAlign: 'center',
+    marginBottom: 12,
     letterSpacing: 0.3,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
   },
   modalText: {
-    fontSize: isSmallScreen ? 14 : 16,
+    fontSize: 15,
     color: '#94a3b8',
     textAlign: 'center',
     marginBottom: 8,
@@ -1264,69 +990,40 @@ const styles = StyleSheet.create({
   },
   modalCancelButton: {
     flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     paddingVertical: 14,
-    borderRadius: 16,
+    borderRadius: 14,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: 'rgba(255, 255, 255, 0.15)',
   },
   modalCancelText: {
+    fontSize: 15,
+    fontWeight: '600',
     color: '#94a3b8',
-    fontWeight: '500',
-    fontSize: isSmallScreen ? 14 : 15,
-    letterSpacing: 0.2,
+    letterSpacing: 0.3,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   modalConfirmButton: {
     flex: 1,
-    backgroundColor: '#E53E3E',
-    paddingVertical: 14,
-    borderRadius: 16,
-    alignItems: 'center',
     flexDirection: 'row',
+    paddingVertical: 14,
+    borderRadius: 14,
+    alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    shadowColor: '#E53E3E',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 4},
     shadowOpacity: 0.3,
-    shadowRadius: 4,
+    shadowRadius: 8,
   },
   modalConfirmText: {
-    color: '#FFFFFF',
+    fontSize: 15,
     fontWeight: '600',
-    fontSize: isSmallScreen ? 14 : 15,
-    letterSpacing: 0.2,
+    color: '#FFFFFF',
+    letterSpacing: 0.3,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
-  modalTomarButton: {
-    flex: 1,
-    backgroundColor: '#4D97DB',
-    paddingVertical: 14,
-    borderRadius: 16,
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 8,
-    shadowColor: '#4D97DB',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-  },
-  modalTomarText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
-    fontSize: isSmallScreen ? 14 : 15,
-    letterSpacing: 0.2,
-    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
-  },
-  /** Estilos para input de dosagem */
   dosagemContainer: {
     width: '100%',
     marginBottom: 16,
@@ -1352,7 +1049,7 @@ const styles = StyleSheet.create({
   dosagemInput: {
     flex: 1,
     paddingVertical: 14,
-    fontSize: isSmallScreen ? 14 : 15,
+    fontSize: 15,
     color: '#f8fafc',
     letterSpacing: 0.2,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',

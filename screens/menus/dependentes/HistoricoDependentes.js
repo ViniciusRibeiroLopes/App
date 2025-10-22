@@ -18,54 +18,25 @@ import auth from '@react-native-firebase/auth';
 import Icon from 'react-native-vector-icons/Ionicons';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 
-// Obtém a largura da tela do dispositivo
 const {width} = Dimensions.get('window');
 
-// Define breakpoints para diferentes tamanhos de tela
 const isSmallScreen = width < 360;
 const isMediumScreen = width >= 360 && width < 400;
-const isLargeScreen = width >= 400;
 
-/**
- * Componente da tela de histórico de medicamentos para dependentes.
- *
- * Esta tela exibe o histórico completo de medicamentos tomados por um dependente específico,
- * com funcionalidades de filtragem por período (hoje, ontem, 7 dias, 30 dias),
- * agrupamento por data e exibição detalhada de cada medicamento administrado.
- * Inclui animações suaves e design responsivo para diferentes tamanhos de tela.
- *
- * @component
- * @param {Object} props - Propriedades do componente
- * @param {Object} props.navigation - Objeto de navegação do React Navigation
- * @param {Object} props.route - Objeto de rota contendo parâmetros
- * @param {string} props.route.params.dependenteId - ID do dependente para buscar o histórico
- * @returns {JSX.Element} Componente renderizado da tela de histórico
- *
- * @version 1.0.0
- * @since 2025
- */
 const HistoricoMedicamentosScreen = ({navigation, route}) => {
-  // Estados do componente
   const [medicamentosTomados, setMedicamentosTomados] = useState([]);
   const [dependente, setDependente] = useState(null);
   const [loading, setLoading] = useState(true);
   const [filtroSelecionado, setFiltroSelecionado] = useState('todos');
+
   const user = auth().currentUser;
   const {dependenteId} = route.params || {};
 
-  // Referências para animações
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideUpAnim = useRef(new Animated.Value(30)).current;
   const backgroundAnim = useRef(new Animated.Value(0)).current;
 
-  /**
-   * Effect hook para configurar animações iniciais da tela.
-   *
-   * Configura animações de fade-in, slide-up e uma animação contínua
-   * de fundo que cria um efeito visual sutil.
-   */
   useEffect(() => {
-    // Animações iniciais
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -79,7 +50,6 @@ const HistoricoMedicamentosScreen = ({navigation, route}) => {
       }),
     ]).start();
 
-    // Animação de fundo contínua
     const backgroundAnimation = Animated.loop(
       Animated.sequence([
         Animated.timing(backgroundAnim, {
@@ -97,15 +67,8 @@ const HistoricoMedicamentosScreen = ({navigation, route}) => {
     backgroundAnimation.start();
 
     return () => backgroundAnimation.stop();
-  }, [backgroundAnim, fadeAnim, slideUpAnim]);
+  }, []);
 
-  /**
-   * Effect hook principal para carregar dados do dependente e seu histórico.
-   *
-   * Busca os dados do dependente e configura um listener em tempo real para
-   * monitorar mudanças no histórico de medicamentos. Aplica filtros conforme
-   * a seleção do usuário e ordena os dados por data e horário.
-   */
   useEffect(() => {
     if (!user || !dependenteId) {
       setLoading(false);
@@ -114,13 +77,6 @@ const HistoricoMedicamentosScreen = ({navigation, route}) => {
       return;
     }
 
-    /**
-     * Busca os dados básicos do dependente no Firestore.
-     *
-     * @async
-     * @function buscarDependente
-     * @returns {Promise<Object|null>} Dados do dependente ou null em caso de erro
-     */
     const buscarDependente = async () => {
       try {
         const dependenteDoc = await firestore()
@@ -151,18 +107,6 @@ const HistoricoMedicamentosScreen = ({navigation, route}) => {
       }
     };
 
-    /**
-     * Busca e monitora em tempo real o histórico de medicamentos do dependente.
-     *
-     * Configura um listener no Firestore que atualiza automaticamente quando
-     * há mudanças no histórico. Para cada medicamento, busca detalhes adicionais
-     * do remédio e aplica filtros de período conforme selecionado pelo usuário.
-     *
-     * @async
-     * @function buscarHistorico
-     * @param {Object} dependenteData - Dados do dependente
-     * @returns {Promise<Function>} Função unsubscribe do listener
-     */
     const buscarHistorico = async dependenteData => {
       if (!dependenteData) {
         setLoading(false);
@@ -217,29 +161,21 @@ const HistoricoMedicamentosScreen = ({navigation, route}) => {
                 }),
               );
 
-              // Aplicar filtro
               let medicamentosFiltrados = medicamentosComDetalhes;
 
               if (filtroSelecionado !== 'todos') {
                 const dataFiltro = obterDataFiltro();
-                console.log('Filtro de data:', dataFiltro);
-
                 medicamentosFiltrados = medicamentosFiltrados.filter(
                   medicamento => {
                     const diaMedicamento = medicamento.dia;
-                    const passaFiltro =
+                    return (
                       diaMedicamento >= dataFiltro.inicio &&
-                      diaMedicamento <= dataFiltro.fim;
-                    console.log(
-                      `${diaMedicamento} passa no filtro (${dataFiltro.inicio} - ${dataFiltro.fim}):`,
-                      passaFiltro,
+                      diaMedicamento <= dataFiltro.fim
                     );
-                    return passaFiltro;
                   },
                 );
               }
 
-              // Ordenar
               medicamentosFiltrados.sort((a, b) => {
                 if (a.dia !== b.dia) {
                   return b.dia.localeCompare(a.dia);
@@ -247,7 +183,6 @@ const HistoricoMedicamentosScreen = ({navigation, route}) => {
                 return b.horario.localeCompare(a.horario);
               });
 
-              console.log('Lista final:', medicamentosFiltrados);
               setMedicamentosTomados(medicamentosFiltrados);
               setLoading(false);
             } catch (error) {
@@ -266,13 +201,6 @@ const HistoricoMedicamentosScreen = ({navigation, route}) => {
       return unsubscribe;
     };
 
-    /**
-     * Função de inicialização que coordena o carregamento de dados.
-     *
-     * @async
-     * @function inicializar
-     * @returns {Promise<Function>} Função unsubscribe do listener
-     */
     const inicializar = async () => {
       const dependenteData = await buscarDependente();
       const unsubscribe = await buscarHistorico(dependenteData);
@@ -291,17 +219,6 @@ const HistoricoMedicamentosScreen = ({navigation, route}) => {
     };
   }, [user, dependenteId, filtroSelecionado]);
 
-  /**
-   * Calcula as datas de início e fim baseadas no filtro selecionado.
-   *
-   * Converte períodos relativos (hoje, ontem, semana, mês) em datas absolutas
-   * para aplicar filtros na consulta dos medicamentos.
-   *
-   * @function obterDataFiltro
-   * @returns {Object} Objeto contendo datas de início e fim no formato ISO
-   * @returns {string|null} returns.inicio - Data de início no formato YYYY-MM-DD
-   * @returns {string|null} returns.fim - Data de fim no formato YYYY-MM-DD
-   */
   const obterDataFiltro = () => {
     const hoje = new Date();
     const inicioHoje = new Date(
@@ -341,16 +258,6 @@ const HistoricoMedicamentosScreen = ({navigation, route}) => {
     }
   };
 
-  /**
-   * Formata uma string de data para exibição amigável ao usuário.
-   *
-   * Converte datas para formato brasileiro e adiciona indicadores especiais
-   * para "Hoje" e "Ontem" para melhor usabilidade.
-   *
-   * @function formatarData
-   * @param {string} dataString - Data no formato YYYY-MM-DD
-   * @returns {string} Data formatada para exibição (ex: "Hoje, 15/01/2024")
-   */
   const formatarData = dataString => {
     const data = new Date(dataString + 'T00:00:00');
     const hoje = new Date();
@@ -368,16 +275,6 @@ const HistoricoMedicamentosScreen = ({navigation, route}) => {
     }
   };
 
-  /**
-   * Agrupa os medicamentos por dia para organização na interface.
-   *
-   * Cria um objeto onde cada chave é uma data e o valor é um array
-   * contendo todos os medicamentos tomados naquele dia.
-   *
-   * @function agruparPorDia
-   * @returns {Object} Objeto com medicamentos agrupados por dia
-   * @returns {Array} returns[date] - Array de medicamentos para a data específica
-   */
   const agruparPorDia = () => {
     const grupos = {};
     medicamentosTomados.forEach(medicamento => {
@@ -390,38 +287,6 @@ const HistoricoMedicamentosScreen = ({navigation, route}) => {
     return grupos;
   };
 
-  /**
-   * Calcula estatísticas do histórico de medicamentos.
-   *
-   * Gera métricas úteis como total de dias com registros,
-   * total de medicamentos tomados e medicamentos do dia atual.
-   *
-   * @function getHistoricoStats
-   * @returns {Object} Estatísticas do histórico
-   * @returns {number} returns.totalDias - Total de dias com medicamentos registrados
-   * @returns {number} returns.totalMedicamentos - Total de medicamentos tomados
-   * @returns {number} returns.medicamentosHoje - Medicamentos tomados hoje
-   */
-  const getHistoricoStats = () => {
-    const grupos = agruparPorDia();
-    const totalDias = Object.keys(grupos).length;
-    const totalMedicamentos = medicamentosTomados.length;
-
-    const hoje = new Date().toISOString().split('T')[0];
-    const medicamentosHoje = grupos[hoje] ? grupos[hoje].length : 0;
-
-    return {totalDias, totalMedicamentos, medicamentosHoje};
-  };
-
-  /**
-   * Renderiza a barra de filtros horizontais.
-   *
-   * Cria botões interativos para filtrar o histórico por diferentes períodos.
-   * Os botões incluem ícones e mudam de aparência quando selecionados.
-   *
-   * @function renderFiltros
-   * @returns {JSX.Element} Componente da barra de filtros
-   */
   const renderFiltros = () => {
     const filtros = [
       {key: 'todos', label: 'Todos', icon: 'infinite'},
@@ -431,55 +296,37 @@ const HistoricoMedicamentosScreen = ({navigation, route}) => {
     ];
 
     return (
-      <View style={styles.filtrosContainer}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filtrosScrollContent}>
-          {filtros.map((filtro, index) => (
-            <TouchableOpacity
-              key={filtro.key}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.filtrosScrollContent}>
+        {filtros.map(filtro => (
+          <TouchableOpacity
+            key={filtro.key}
+            style={[
+              styles.filtroButton,
+              filtroSelecionado === filtro.key && styles.filtroButtonActive,
+            ]}
+            onPress={() => setFiltroSelecionado(filtro.key)}
+            activeOpacity={0.8}>
+            <Icon
+              name={filtro.icon}
+              size={16}
+              color={filtroSelecionado === filtro.key ? '#FFFFFF' : '#64748b'}
+            />
+            <Text
               style={[
-                styles.filtroButton,
-                filtroSelecionado === filtro.key && styles.filtroButtonActive,
-                index === 0 && styles.filtroButtonFirst,
-                index === filtros.length - 1 && styles.filtroButtonLast,
-              ]}
-              onPress={() => setFiltroSelecionado(filtro.key)}>
-              <Icon
-                name={filtro.icon}
-                size={16}
-                color={filtroSelecionado === filtro.key ? '#FFFFFF' : '#64748b'}
-                style={styles.filtroIcon}
-              />
-              <Text
-                style={[
-                  styles.filtroText,
-                  filtroSelecionado === filtro.key && styles.filtroTextActive,
-                ]}>
-                {filtro.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
+                styles.filtroText,
+                filtroSelecionado === filtro.key && styles.filtroTextActive,
+              ]}>
+              {filtro.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
     );
   };
 
-  /**
-   * Renderiza um item individual de medicamento.
-   *
-   * Exibe as informações de um medicamento específico incluindo nome,
-   * horário, dosagem e status de conclusão com ícones e badges coloridos.
-   *
-   * @function renderMedicamentoItem
-   * @param {Object} medicamento - Dados do medicamento
-   * @param {string} medicamento.id - ID único do medicamento
-   * @param {string} medicamento.remedioNome - Nome do remédio
-   * @param {string} medicamento.horario - Horário de administração
-   * @param {string} medicamento.dosagem - Dosagem administrada
-   * @returns {JSX.Element} Componente do item de medicamento
-   */
   const renderMedicamentoItem = medicamento => {
     return (
       <View key={medicamento.id} style={styles.medicamentoItem}>
@@ -489,7 +336,7 @@ const HistoricoMedicamentosScreen = ({navigation, route}) => {
 
         <View style={styles.medicamentoInfo}>
           <View style={styles.medicamentoHeader}>
-            <Text style={styles.medicamentoNome}>
+            <Text style={styles.medicamentoNome} numberOfLines={1}>
               {medicamento.remedioNome}
             </Text>
             <Text style={styles.medicamentoHorario}>{medicamento.horario}</Text>
@@ -499,32 +346,19 @@ const HistoricoMedicamentosScreen = ({navigation, route}) => {
           </Text>
         </View>
 
-        <View style={styles.statusIndicator}>
-          <View style={styles.statusBadge}>
-            <Icon name="checkmark" size={12} color="#FFFFFF" />
-          </View>
+        <View style={styles.statusBadge}>
+          <Icon name="checkmark" size={12} color="#FFFFFF" />
         </View>
       </View>
     );
   };
 
-  /**
-   * Renderiza um grupo de medicamentos para um dia específico.
-   *
-   * Cria um cabeçalho com a data formatada e contador de medicamentos,
-   * seguido pela lista de medicamentos administrados naquele dia.
-   *
-   * @function renderDiaGroup
-   * @param {string} dia - Data no formato YYYY-MM-DD
-   * @param {Array} medicamentos - Array de medicamentos do dia
-   * @returns {JSX.Element} Componente do grupo diário
-   */
   const renderDiaGroup = (dia, medicamentos) => {
     return (
       <View key={dia} style={styles.diaGroup}>
         <View style={styles.diaHeader}>
           <View style={styles.diaHeaderLeft}>
-            <Icon name="calendar-outline" size={16} color="#e2e8f0" />
+            <Icon name="calendar-outline" size={16} color="#F59E0B" />
             <Text style={styles.diaData}>{formatarData(dia)}</Text>
           </View>
           <View style={styles.diaCounterBadge}>
@@ -538,39 +372,17 @@ const HistoricoMedicamentosScreen = ({navigation, route}) => {
     );
   };
 
-  /**
-   * Renderiza o estado de carregamento.
-   *
-   * Exibe um indicador de atividade e mensagem informativa
-   * enquanto os dados estão sendo carregados.
-   *
-   * @function renderLoadingState
-   * @returns {JSX.Element} Componente do estado de carregamento
-   */
   const renderLoadingState = () => (
     <View style={styles.loadingContainer}>
-      <ActivityIndicator size="large" color="#4D97DB" />
+      <ActivityIndicator size="large" color="#10B981" />
       <Text style={styles.loadingText}>Carregando histórico...</Text>
     </View>
   );
 
-  /**
-   * Renderiza o estado vazio quando não há registros.
-   *
-   * Exibe uma mensagem personalizada baseada no filtro ativo,
-   * informando que não há medicamentos registrados no período.
-   *
-   * @function renderEmptyState
-   * @returns {JSX.Element} Componente do estado vazio
-   */
   const renderEmptyState = () => (
     <View style={styles.emptyStateContainer}>
       <View style={styles.emptyStateIconContainer}>
-        <Icon
-          name="document-text-outline"
-          size={isSmallScreen ? 40 : 48}
-          color="#64748b"
-        />
+        <Icon name="document-text-outline" size={48} color="#64748b" />
       </View>
       <Text style={styles.emptyStateTitle}>Nenhum registro encontrado</Text>
       <Text style={styles.emptyStateDescription}>
@@ -585,18 +397,27 @@ const HistoricoMedicamentosScreen = ({navigation, route}) => {
     </View>
   );
 
-  // Preparação de dados para renderização
   const gruposPorDia = agruparPorDia();
   const diasOrdenados = Object.keys(gruposPorDia).sort((a, b) =>
     b.localeCompare(a),
   );
-  const stats = getHistoricoStats();
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#10B981" />
+          <Text style={styles.loadingText}>Carregando...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#121A29" />
+      <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
 
-      {/* Elementos de background animados para criar profundidade visual */}
       <Animated.View
         style={[
           styles.backgroundCircle,
@@ -605,14 +426,6 @@ const HistoricoMedicamentosScreen = ({navigation, route}) => {
               inputRange: [0, 1],
               outputRange: [0.03, 0.08],
             }),
-            transform: [
-              {
-                scale: backgroundAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [1, 1.1],
-                }),
-              },
-            ],
           },
         ]}
       />
@@ -624,19 +437,10 @@ const HistoricoMedicamentosScreen = ({navigation, route}) => {
               inputRange: [0, 1],
               outputRange: [0.05, 0.03],
             }),
-            transform: [
-              {
-                scale: backgroundAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [1.1, 1],
-                }),
-              },
-            ],
           },
         ]}
       />
 
-      {/* Header da tela com título e botão de voltar */}
       <Animated.View
         style={[
           styles.header,
@@ -645,25 +449,22 @@ const HistoricoMedicamentosScreen = ({navigation, route}) => {
             transform: [{translateY: slideUpAnim}],
           },
         ]}>
-        <View style={styles.headerTop}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}>
-            <Icon name="chevron-back" size={24} color="#FFFFFF" />
-          </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}>
+          <Icon name="chevron-back" size={20} color="#FFFFFF" />
+        </TouchableOpacity>
 
-          <View style={styles.headerCenter}>
-            <Text style={styles.headerTitle}>Histórico</Text>
-            <Text style={styles.headerSubtitle}>
-              {dependente?.nome || dependente?.nomeCompleto || 'Dependente'}
-            </Text>
-          </View>
-
-          <View style={styles.headerRight} />
+        <View style={styles.titleContainer}>
+          <Text style={styles.title}>Histórico</Text>
+          <Text style={styles.subtitle}>
+            {dependente?.nome || dependente?.nomeCompleto || 'Dependente'}
+          </Text>
         </View>
+
+        <View style={styles.headerSpacer} />
       </Animated.View>
 
-      {/* Conteúdo principal da tela */}
       <Animated.View
         style={[
           styles.content,
@@ -672,19 +473,17 @@ const HistoricoMedicamentosScreen = ({navigation, route}) => {
             transform: [{translateY: slideUpAnim}],
           },
         ]}>
-        {/* Seção de Filtros */}
         <View style={styles.filtrosSection}>
-          <View style={styles.sectionTitleContainer}>
-            <Icon name="filter" size={18} color="#e2e8f0" />
+          <View style={styles.sectionHeader}>
+            <Icon name="filter" size={18} color="#F59E0B" />
             <Text style={styles.sectionTitle}>Filtrar por período</Text>
           </View>
           {renderFiltros()}
         </View>
 
-        {/* Lista de Histórico */}
         <View style={styles.historicoSection}>
-          <View style={styles.sectionTitleContainer}>
-            <Icon name="time" size={18} color="#e2e8f0" />
+          <View style={styles.sectionHeader}>
+            <Icon name="time" size={18} color="#F59E0B" />
             <Text style={styles.sectionTitle}>Registros</Text>
           </View>
 
@@ -692,9 +491,7 @@ const HistoricoMedicamentosScreen = ({navigation, route}) => {
             style={styles.scrollContainer}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.scrollContent}>
-            {loading
-              ? renderLoadingState()
-              : diasOrdenados.length === 0
+            {diasOrdenados.length === 0
               ? renderEmptyState()
               : diasOrdenados.map(dia =>
                   renderDiaGroup(dia, gruposPorDia[dia]),
@@ -706,26 +503,17 @@ const HistoricoMedicamentosScreen = ({navigation, route}) => {
   );
 };
 
-/**
- * Estilos do componente HistoricoMedicamentosScreen.
- *
- * Inclui estilos responsivos que se adaptam a diferentes tamanhos de tela,
- * animações suaves, tema escuro moderno com elementos glassmorphism,
- * e design especializado para exibição de histórico médico.
- *
- * @const {Object} styles - Objeto contendo todos os estilos do componente
- */
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121A29',
+    backgroundColor: '#0F172A',
   },
   backgroundCircle: {
     position: 'absolute',
     width: width * 2,
     height: width * 2,
     borderRadius: width,
-    backgroundColor: '#4D97DB',
+    backgroundColor: '#10B981',
     top: -width * 0.8,
     left: -width * 0.5,
   },
@@ -739,68 +527,53 @@ const styles = StyleSheet.create({
     right: -width * 0.4,
   },
   header: {
-    backgroundColor: 'rgba(30, 41, 59, 0.95)',
+    backgroundColor: 'rgba(20, 30, 48, 0.95)',
     paddingHorizontal: isSmallScreen ? 16 : 24,
-    paddingTop: Platform.OS === 'ios' ? 30 : 40,
+    paddingTop: 55,
+    paddingBottom: 20,
     borderBottomLeftRadius: 25,
     borderBottomRightRadius: 25,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
+    shadowOffset: {width: 0, height: 4},
     shadowOpacity: 0.3,
     shadowRadius: 12,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
-    marginTop: isMediumScreen ? -30 : 0,
-  },
-  headerTop: {
-    paddingTop: Platform.OS === 'ios' ? 15 : 25,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: isSmallScreen ? 16 : 20,
   },
   backButton: {
     backgroundColor: 'rgba(255, 255, 255, 0.12)',
-    width: isMediumScreen ? 38 : 44,
-    height: isMediumScreen ? 38 : 44,
+    width: 44,
+    height: 44,
     borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.15)',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
   },
-  headerCenter: {
+  titleContainer: {
     flex: 1,
     alignItems: 'center',
-    marginHorizontal: 16,
+    paddingHorizontal: 16,
   },
-  headerTitle: {
-    fontSize: isMediumScreen ? 22 : 24,
+  title: {
+    fontSize: 24,
     fontWeight: '700',
     color: '#FFFFFF',
-    marginBottom: 4,
+    marginBottom: 2,
     letterSpacing: -0.5,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
   },
-  headerSubtitle: {
-    fontSize: isMediumScreen ? 13 : 14,
+  subtitle: {
+    fontSize: 13,
     color: '#94a3b8',
     fontWeight: '500',
     letterSpacing: 0.3,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
-    textAlign: 'center',
   },
-  headerRight: {
+  headerSpacer: {
     width: 44,
   },
   content: {
@@ -814,60 +587,43 @@ const styles = StyleSheet.create({
   historicoSection: {
     flex: 1,
   },
-  sectionTitleContainer: {
+  sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
     marginBottom: 16,
   },
   sectionTitle: {
-    fontSize: isSmallScreen ? 16 : 18,
+    fontSize: 18,
     fontWeight: '700',
     color: '#e2e8f0',
     letterSpacing: 0.3,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
   },
-  filtrosContainer: {
-    marginBottom: 4,
-  },
   filtrosScrollContent: {
-    paddingRight: 16,
+    gap: 8,
   },
   filtroButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: isSmallScreen ? 12 : 16,
-    paddingVertical: isSmallScreen ? 8 : 10,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     borderRadius: 20,
     backgroundColor: 'rgba(30, 41, 59, 0.8)',
-    marginRight: 8,
     borderWidth: 1,
     borderColor: 'rgba(51, 65, 85, 0.6)',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    gap: 6,
   },
   filtroButtonActive: {
     backgroundColor: '#F59E0B',
     borderColor: '#F59E0B',
     shadowColor: '#F59E0B',
+    shadowOffset: {width: 0, height: 2},
     shadowOpacity: 0.3,
-  },
-  filtroButtonFirst: {
-    marginLeft: 0,
-  },
-  filtroButtonLast: {
-    marginRight: 0,
-  },
-  filtroIcon: {
-    marginRight: 6,
+    shadowRadius: 4,
   },
   filtroText: {
-    fontSize: isSmallScreen ? 12 : 14,
+    fontSize: 14,
     color: '#64748b',
     fontWeight: '600',
     letterSpacing: 0.2,
@@ -904,18 +660,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 40,
   },
   emptyStateIconContainer: {
-    width: isSmallScreen ? 64 : 80,
-    height: isSmallScreen ? 64 : 80,
-    borderRadius: isSmallScreen ? 32 : 40,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     backgroundColor: 'rgba(30, 41, 59, 0.8)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 20,
     borderWidth: 1,
     borderColor: 'rgba(51, 65, 85, 0.6)',
   },
   emptyStateTitle: {
-    fontSize: isSmallScreen ? 18 : 20,
+    fontSize: 20,
     fontWeight: '600',
     color: '#e2e8f0',
     marginBottom: 8,
@@ -924,7 +680,7 @@ const styles = StyleSheet.create({
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
   },
   emptyStateDescription: {
-    fontSize: isSmallScreen ? 14 : 16,
+    fontSize: 16,
     color: '#94a3b8',
     textAlign: 'center',
     lineHeight: 22,
@@ -945,13 +701,6 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     borderWidth: 1,
     borderColor: 'rgba(51, 65, 85, 0.6)',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
   },
   diaHeaderLeft: {
     flexDirection: 'row',
@@ -960,7 +709,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   diaData: {
-    fontSize: isSmallScreen ? 14 : 16,
+    fontSize: 16,
     fontWeight: '700',
     color: '#FFFFFF',
     letterSpacing: 0.3,
@@ -972,10 +721,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 12,
     shadowColor: '#F59E0B',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
+    shadowOffset: {width: 0, height: 1},
     shadowOpacity: 0.2,
     shadowRadius: 2,
   },
@@ -991,7 +737,7 @@ const styles = StyleSheet.create({
   },
   medicamentoItem: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     backgroundColor: 'rgba(30, 41, 59, 0.8)',
     padding: 16,
     borderRadius: 16,
@@ -999,18 +745,11 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(51, 65, 85, 0.6)',
     borderLeftWidth: 4,
     borderLeftColor: '#10B981',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
   },
   medicamentoIconContainer: {
-    width: isSmallScreen ? 32 : 36,
-    height: isSmallScreen ? 32 : 36,
-    borderRadius: isSmallScreen ? 16 : 18,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: 'rgba(16, 185, 129, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
@@ -1026,7 +765,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   medicamentoNome: {
-    fontSize: isSmallScreen ? 14 : 16,
+    fontSize: 16,
     fontWeight: '600',
     color: '#f8fafc',
     flex: 1,
@@ -1035,20 +774,17 @@ const styles = StyleSheet.create({
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   medicamentoHorario: {
-    fontSize: isSmallScreen ? 12 : 14,
-    color: '#4D97DB',
+    fontSize: 14,
+    color: '#3B82F6',
     fontWeight: '600',
     letterSpacing: 0.2,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   medicamentoDosagem: {
-    fontSize: isSmallScreen ? 12 : 14,
+    fontSize: 14,
     color: '#94a3b8',
     letterSpacing: 0.1,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
-  },
-  statusIndicator: {
-    marginLeft: 8,
   },
   statusBadge: {
     width: 24,
@@ -1057,13 +793,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#10B981',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#10B981',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
+    marginLeft: 8,
   },
 });
 
