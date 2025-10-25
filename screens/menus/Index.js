@@ -1,4 +1,4 @@
-import React, {useEffect, useState, useRef} from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import {
   Modal,
   Platform,
   SafeAreaView,
+  FlatList,
 } from 'react-native';
 import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
@@ -35,12 +36,13 @@ const Index = ({navigation}) => {
   const [tutorialStep, setTutorialStep] = useState(0);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [dependentes, setDependentes] = useState([]);
+  const [currentMedicationIndex, setCurrentMedicationIndex] = useState(0);
 
   const [stats, setStats] = useState({
     medicamentosAtivos: 0,
     alertasHoje: 0,
     dependentes: 0,
-    nextMedication: null,
+    nextMedications: [],
     totalAlarms: 0,
   });
 
@@ -52,18 +54,19 @@ const Index = ({navigation}) => {
   const backgroundAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const tutorialFade = useRef(new Animated.Value(0)).current;
+  const flatListRef = useRef(null);
 
   // Tutorial steps
   const tutorialSteps = [
     {
-      title: 'Bem-vindo ao PillCheck! 👋',
+      title: 'Bem-vindo ao PillCheck!',
       description:
         'Seu assistente pessoal para gerenciar medicamentos de forma simples e eficiente.',
       icon: 'heart',
       color: '#10B981',
     },
     {
-      title: 'Gerencie Dependentes 👨‍👩‍👧‍👦',
+      title: 'Gerencie Dependentes!',
       description:
         'Cuide de quem você ama! Adicione familiares e acompanhe os medicamentos deles.',
       icon: 'people',
@@ -71,15 +74,15 @@ const Index = ({navigation}) => {
       highlight: 'dependentes',
     },
     {
-      title: 'Configure Alarmes ⏰',
+      title: 'Configure Alarmes!',
       description:
         'Nunca mais esqueça um medicamento. Configure lembretes personalizados.',
       icon: 'alarm',
       color: '#10B981',
       highlight: 'alarmes',
     },
-    {
-      title: 'Adicione Medicamentos 💊',
+    { 
+      title: 'Adicione Medicamentos',
       description:
         'Cadastre seus remédios com dosagem, horários e informações importantes.',
       icon: 'medical',
@@ -259,7 +262,7 @@ const Index = ({navigation}) => {
           if (!snapshot || !snapshot.docs) {
             setStats(prev => ({
               ...prev,
-              nextMedication: null,
+              nextMedications: [],
               totalAlarms: 0,
             }));
             return;
@@ -297,7 +300,7 @@ const Index = ({navigation}) => {
             }),
           );
 
-          const medicationStats = getMedicationStats(alertasComNomes);
+          const medicationStats = await getMedicationStats(alertasComNomes);
 
           setStats(prev => ({
             ...prev,
@@ -309,17 +312,74 @@ const Index = ({navigation}) => {
         }
       });
 
+    // Listener para medicamentos tomados
+    const unsubscribeTomados = firestore()
+      .collection('medicamentos_tomados')
+      .where('usuarioId', '==', user.uid)
+      .onSnapshot(
+        async snapshot => {
+          // Quando houver mudança nos medicamentos tomados, recarrega os stats
+          const alertasSnapshot = await firestore()
+            .collection('alertas')
+            .where('usuarioId', '==', user.uid)
+            .get();
+
+          const alertasData = alertasSnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+          }));
+
+          const alertasAtivos = alertasData.filter(
+            alerta => alerta.ativo !== false,
+          );
+
+          const alertasComNomes = await Promise.all(
+            alertasAtivos.map(async alerta => {
+              let nomeRemedio = alerta.titulo || 'Medicamento';
+              if (alerta.remedioId) {
+                try {
+                  const remedioDoc = await firestore()
+                    .collection('remedios')
+                    .doc(alerta.remedioId)
+                    .get();
+                  if (remedioDoc.exists) {
+                    nomeRemedio = remedioDoc.data().nome || nomeRemedio;
+                  }
+                } catch (error) {
+                  console.error('Erro ao buscar remédio:', error);
+                }
+              }
+              return {
+                ...alerta,
+                nomeRemedio,
+              };
+            }),
+          );
+
+          const medicationStats = await getMedicationStats(alertasComNomes);
+
+          setStats(prev => ({
+            ...prev,
+            ...medicationStats,
+          }));
+        },
+        error => {
+          console.error('Erro ao monitorar medicamentos tomados:', error);
+        }
+      );
+
     return () => {
       unsubscribe();
       unsubscribeDependentes();
       unsubscribeAlertas();
+      unsubscribeTomados();
     };
   }, [user]);
 
-  const getMedicationStats = alertasData => {
+  const getMedicationStats = async alertasData => {
     if (!alertasData || alertasData.length === 0) {
       return {
-        nextMedication: null,
+        nextMedications: [{type: 'empty', id: 'empty'}],
       };
     }
 
@@ -337,40 +397,142 @@ const Index = ({navigation}) => {
     const diasSemanaShort = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
     const currentDayName = diasSemana[currentDay];
     const currentDayNameShort = diasSemanaShort[currentDay];
+    const diaHoje = now.toISOString().slice(0, 10);
+
+    // Buscar medicamentos já tomados hoje
+    let medicamentosTomadosHoje = [];
+    try {
+      const tomadosSnapshot = await firestore()
+        .collection('medicamentos_tomados')
+        .where('usuarioId', '==', user?.uid)
+        .where('dia', '==', diaHoje)
+        .get();
+      
+      medicamentosTomadosHoje = tomadosSnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          alertaId: data.alertaId,
+          horario: data.horario,
+          tomadoEm: data.tomadoEm,
+        };
+      });
+      
+      console.log('💊 Medicamentos tomados hoje:', medicamentosTomadosHoje.length);
+    } catch (error) {
+      console.error('Erro ao buscar medicamentos tomados:', error);
+    }
 
     let nextMedicationsToday = [];
+    let totalHorarioToday = 0;
+    let totalDiasToday = 0;
+    let totalIntervaloToday = 0;
+    let pendingHorario = 0;
+    let pendingDias = 0;
+    let pendingIntervalo = 0;
 
+    // Processar alarmes de horário fixo e dias
     for (let alerta of alertasData) {
       try {
-        let isToday = false;
+        if (alerta.tipoAlerta === 'horario' || alerta.tipoAlerta === 'dias') {
+          let isToday = false;
 
-        if (alerta.dias) {
-          let diasArray = [];
+          if (alerta.dias) {
+            let diasArray = [];
 
-          if (Array.isArray(alerta.dias)) {
-            diasArray = alerta.dias.map(d => d.toLowerCase().trim());
-          } else if (typeof alerta.dias === 'string') {
-            diasArray = alerta.dias
-              .toLowerCase()
-              .split(',')
-              .map(d => d.trim());
+            if (Array.isArray(alerta.dias)) {
+              diasArray = alerta.dias.map(d => d.toLowerCase().trim());
+            } else if (typeof alerta.dias === 'string') {
+              diasArray = alerta.dias
+                .toLowerCase()
+                .split(',')
+                .map(d => d.trim());
+            }
+
+            isToday =
+              diasArray.includes(currentDayName) ||
+              diasArray.includes(currentDayNameShort);
+          } else {
+            isToday = true;
           }
 
-          isToday =
-            diasArray.includes(currentDayName) ||
-            diasArray.includes(currentDayNameShort);
-        } else {
-          isToday = true;
+          if (isToday) {
+            if (alerta.tipoAlerta === 'horario') {
+              totalHorarioToday++;
+            } else {
+              totalDiasToday++;
+            }
+          }
+
+          if (alerta.horario && isToday) {
+            try {
+              // Verificar se este medicamento já foi tomado
+              const jaTomado = medicamentosTomadosHoje.some(
+                tomado => tomado.alertaId === alerta.id && tomado.horario === alerta.horario
+              );
+
+              if (jaTomado) {
+                console.log(`✅ Medicamento ${alerta.nomeRemedio} às ${alerta.horario} já foi tomado`);
+                continue; // Pular este medicamento
+              }
+
+              const [hours, minutes] = alerta.horario.split(':').map(Number);
+              const alertTime = new Date();
+              alertTime.setHours(hours, minutes, 0, 0);
+
+              if (alertTime > now) {
+                const timeDiff = alertTime - now;
+                const hoursRemaining = Math.floor(timeDiff / (1000 * 60 * 60));
+                const minutesRemaining = Math.floor(
+                  (timeDiff % (1000 * 60 * 60)) / (1000 * 60),
+                );
+
+                let timeRemaining;
+                if (hoursRemaining > 0) {
+                  timeRemaining = `em ${hoursRemaining}h ${minutesRemaining}min`;
+                } else {
+                  timeRemaining = `em ${minutesRemaining}min`;
+                }
+
+                nextMedicationsToday.push({
+                  ...alerta,
+                  timeRemaining,
+                  alertTime,
+                  type: alerta.tipoAlerta === 'dias' ? 'dias' : 'horario',
+                });
+
+                if (alerta.tipoAlerta === 'horario') {
+                  pendingHorario++;
+                } else {
+                  pendingDias++;
+                }
+              }
+            } catch (error) {
+              console.error('Erro ao processar horário:', error);
+            }
+          }
         }
 
-        if (alerta.horario && isToday) {
+        // Processar alarmes de intervalo
+        if (alerta.tipoAlerta === 'intervalo') {
+          totalIntervaloToday++;
+          
           try {
-            const [hours, minutes] = alerta.horario.split(':').map(Number);
-            const alertTime = new Date();
-            alertTime.setHours(hours, minutes, 0, 0);
+            const nextIntervalTime = calculateNextIntervalTime(alerta, now);
+            
+            if (nextIntervalTime && nextIntervalTime > now) {
+              const horarioFormatado = nextIntervalTime.toTimeString().slice(0, 5);
+              
+              // Verificar se este horário já foi tomado
+              const jaTomado = medicamentosTomadosHoje.some(
+                tomado => tomado.alertaId === alerta.id && tomado.horario === horarioFormatado
+              );
 
-            if (alertTime > now) {
-              const timeDiff = alertTime - now;
+              if (jaTomado) {
+                console.log(`✅ Medicamento intervalar ${alerta.nomeRemedio} às ${horarioFormatado} já foi tomado`);
+                continue;
+              }
+
+              const timeDiff = nextIntervalTime - now;
               const hoursRemaining = Math.floor(timeDiff / (1000 * 60 * 60));
               const minutesRemaining = Math.floor(
                 (timeDiff % (1000 * 60 * 60)) / (1000 * 60),
@@ -386,11 +548,15 @@ const Index = ({navigation}) => {
               nextMedicationsToday.push({
                 ...alerta,
                 timeRemaining,
-                alertTime,
+                alertTime: nextIntervalTime,
+                horario: horarioFormatado,
+                type: 'intervalo',
               });
+              
+              pendingIntervalo++;
             }
           } catch (error) {
-            console.error('Erro ao processar horário:', error);
+            console.error('Erro ao processar intervalo:', error);
           }
         }
       } catch (error) {
@@ -399,12 +565,81 @@ const Index = ({navigation}) => {
     }
 
     nextMedicationsToday.sort((a, b) => a.alertTime - b.alertTime);
-    const nextMedication =
-      nextMedicationsToday.length > 0 ? nextMedicationsToday[0] : null;
 
+    console.log('📊 Total horário hoje:', totalHorarioToday, 'Pendentes:', pendingHorario);
+    console.log('📊 Total dias hoje:', totalDiasToday, 'Pendentes:', pendingDias);
+    console.log('📊 Total intervalo hoje:', totalIntervaloToday, 'Pendentes:', pendingIntervalo);
+    console.log('📊 Próximos medicamentos encontrados:', nextMedicationsToday.length);
+
+    // Adicionar cards de conclusão por tipo
+    if (totalHorarioToday > 0 && pendingHorario === 0) {
+      nextMedicationsToday.push({type: 'no-more-horario', id: 'no-more-horario', alertTime: new Date(8640000000000000)});
+    }
+    
+    if (totalDiasToday > 0 && pendingDias === 0) {
+      nextMedicationsToday.push({type: 'no-more-dias', id: 'no-more-dias', alertTime: new Date(8640000000000000)});
+    }
+    
+    if (totalIntervaloToday > 0 && pendingIntervalo === 0) {
+      nextMedicationsToday.push({type: 'no-more-intervalo', id: 'no-more-intervalo', alertTime: new Date(8640000000000000)});
+    }
+
+    // Se não tem nenhum medicamento configurado
+    if (totalHorarioToday === 0 && totalDiasToday === 0 && totalIntervaloToday === 0) {
+      return {
+        nextMedications: [{type: 'empty', id: 'empty'}],
+      };
+    }
+
+    // Se tem medicamentos mas nenhum pendente
+    if (nextMedicationsToday.length === 0 || nextMedicationsToday.every(m => m.type.startsWith('no-more'))) {
+      if (medicamentosTomadosHoje.length > 0) {
+        return {
+          nextMedications: [{type: 'completed', id: 'completed'}],
+        };
+      }
+    }
+
+    // Re-ordenar para manter pendentes primeiro, depois os cards de conclusão
+    const pending = nextMedicationsToday.filter(m => !m.type.startsWith('no-more'));
+    const completed = nextMedicationsToday.filter(m => m.type.startsWith('no-more'));
+    
     return {
-      nextMedication,
+      nextMedications: [...pending, ...completed],
     };
+  };
+
+  const calculateNextIntervalTime = (alerta, now) => {
+    try {
+      if (!alerta.horarioInicio || !alerta.intervaloHoras) {
+        return null;
+      }
+
+      const [hora, minuto] = alerta.horarioInicio.split(':').map(Number);
+      const horarioBase = new Date(now);
+      horarioBase.setHours(hora, minuto, 0, 0);
+
+      const intervaloMs = alerta.intervaloHoras * 60 * 60 * 1000;
+
+      // Se ainda não chegou o horário base de hoje, retorna o horário base
+      if (now < horarioBase) {
+        return horarioBase;
+      }
+
+      // Calcular quanto tempo passou desde o horário base
+      const tempoDecorrido = now - horarioBase;
+      
+      // Calcular quantas doses já passaram
+      const dosesPassadas = Math.floor(tempoDecorrido / intervaloMs);
+      
+      // Calcular o próximo horário
+      const proximoHorario = new Date(horarioBase.getTime() + (dosesPassadas + 1) * intervaloMs);
+
+      return proximoHorario;
+    } catch (error) {
+      console.error('Erro ao calcular próximo intervalo:', error);
+      return null;
+    }
   };
 
   const toggleMenu = () => {
@@ -692,7 +927,162 @@ const Index = ({navigation}) => {
     );
   };
 
+  const renderMedicationCard = ({item, index}) => {
+    console.log('🎨 Renderizando card:', item.type, item.nomeRemedio || item.type);
+    
+    if (item.type === 'empty') {
+      return (
+        <View style={[styles.nextMedCard, styles.specialCard, {backgroundColor: 'rgba(16, 185, 129, 0.15)', borderColor: 'rgba(16, 185, 129, 0.3)'}]}>
+          <View style={styles.specialCardContent}>
+            <Icon name="checkmark-circle" size={56} color="#10B981" />
+            <Text style={styles.specialCardTitle}>Tudo em dia!</Text>
+            <Text style={styles.specialCardText}>
+              Nenhum medicamento agendado para agora
+            </Text>
+          </View>
+        </View>
+      );
+    }
+
+    if (item.type === 'completed') {
+      return (
+        <View style={[styles.nextMedCard, styles.specialCard, {backgroundColor: 'rgba(245, 158, 11, 0.15)', borderColor: 'rgba(245, 158, 11, 0.3)'}]}>
+          <View style={styles.specialCardContent}>
+            <Icon name="trophy" size={56} color="#F59E0B" />
+            <Text style={[styles.specialCardTitle, {color: '#F59E0B'}]}>Parabéns!</Text>
+            <Text style={styles.specialCardText}>
+              Todos os medicamentos de hoje foram tomados
+            </Text>
+            <View style={styles.completedBadge}>
+              <Icon name="checkmark-circle" size={18} color="#10B981" />
+              <Text style={styles.completedBadgeText}>100% Completo</Text>
+            </View>
+          </View>
+        </View>
+      );
+    }
+
+    if (item.type === 'no-more-horario') {
+      return (
+        <View style={[styles.nextMedCard, styles.specialCard, {backgroundColor: 'rgba(16, 185, 129, 0.15)', borderColor: 'rgba(16, 185, 129, 0.3)'}]}>
+          <View style={styles.specialCardContent}>
+            <Icon name="time-outline" size={56} color="#10B981" />
+            <Text style={styles.specialCardTitle}>Horários Concluídos</Text>
+            <Text style={styles.specialCardText}>
+              Todos os medicamentos de horário fixo foram tomados hoje
+            </Text>
+            <View style={styles.typeIndicator}>
+              <Icon name="alarm-outline" size={16} color="#10B981" />
+              <Text style={styles.typeIndicatorText}>Horário Fixo</Text>
+            </View>
+          </View>
+        </View>
+      );
+    }
+
+    if (item.type === 'no-more-dias') {
+      return (
+        <View style={[styles.nextMedCard, styles.specialCard, {backgroundColor: 'rgba(16, 185, 129, 0.15)', borderColor: 'rgba(16, 185, 129, 0.3)'}]}>
+          <View style={styles.specialCardContent}>
+            <Icon name="calendar-outline" size={56} color="#10B981" />
+            <Text style={styles.specialCardTitle}>Dias Concluídos</Text>
+            <Text style={styles.specialCardText}>
+              Todos os medicamentos agendados por dias foram tomados hoje
+            </Text>
+            <View style={styles.typeIndicator}>
+              <Icon name="calendar" size={16} color="#10B981" />
+              <Text style={styles.typeIndicatorText}>Por Dias</Text>
+            </View>
+          </View>
+        </View>
+      );
+    }
+
+    if (item.type === 'no-more-intervalo') {
+      return (
+        <View style={[styles.nextMedCard, styles.specialCard, {backgroundColor: 'rgba(99, 102, 241, 0.15)', borderColor: 'rgba(99, 102, 241, 0.3)'}]}>
+          <View style={styles.specialCardContent}>
+            <Icon name="timer-outline" size={56} color="#6366F1" />
+            <Text style={[styles.specialCardTitle, {color: '#A5B4FC'}]}>Intervalos Concluídos</Text>
+            <Text style={styles.specialCardText}>
+              Todos os medicamentos de intervalo foram tomados hoje
+            </Text>
+            <View style={[styles.typeIndicator, {backgroundColor: 'rgba(99, 102, 241, 0.2)', borderColor: 'rgba(99, 102, 241, 0.3)'}]}>
+              <Icon name="timer" size={16} color="#6366F1" />
+              <Text style={[styles.typeIndicatorText, {color: '#A5B4FC'}]}>Intervalo</Text>
+            </View>
+          </View>
+        </View>
+      );
+    }
+
+    const isIntervalo = item.type === 'intervalo';
+    const isDias = item.type === 'dias';
+    
+    const cardColor = isIntervalo ? '#6366F1' : '#10B981';
+    const bgColor = isIntervalo ? 'rgba(99, 102, 241, 0.15)' : 'rgba(16, 185, 129, 0.15)';
+    const borderColor = isIntervalo ? 'rgba(99, 102, 241, 0.3)' : 'rgba(16, 185, 129, 0.3)';
+
+    return (
+      <View style={[styles.nextMedCard, {backgroundColor: bgColor, borderColor: borderColor, shadowColor: cardColor}]}>
+        {isIntervalo && (
+          <View style={styles.intervalBadgeSmall}>
+            <Icon name="timer-outline" size={14} color="#6366F1" />
+            <Text style={styles.intervalBadgeText}>
+              A cada {item.intervaloHoras}h
+            </Text>
+          </View>
+        )}
+        
+        {isDias && item.dias && (
+          <View style={styles.diasBadgeSmall}>
+            <Icon name="calendar-outline" size={14} color="#10B981" />
+            <Text style={styles.diasBadgeText}>
+              {Array.isArray(item.dias) ? item.dias.join(', ') : item.dias}
+            </Text>
+          </View>
+        )}
+        
+        <View style={styles.nextMedTop}>
+          <View style={[styles.nextMedIconContainer, {backgroundColor: `${cardColor}40`, borderColor: `${cardColor}66`}]}>
+            <Icon name="alarm" size={20} color={cardColor} />
+          </View>
+          <View style={styles.nextMedInfo}>
+            <Text style={styles.nextMedTime}>
+              {item.horario}
+            </Text>
+            <Text style={[styles.nextMedRemaining, {color: cardColor}]}>
+              {item.timeRemaining}
+            </Text>
+          </View>
+        </View>
+        <Text style={styles.nextMedName} numberOfLines={2}>
+          {item.nomeRemedio}
+        </Text>
+        <Text style={styles.nextMedDosage} numberOfLines={1}>
+          {item.dosagem}
+        </Text>
+      </View>
+    );
+  };
+
+  const onViewableItemsChanged = useRef(({viewableItems}) => {
+    if (viewableItems.length > 0) {
+      setCurrentMedicationIndex(viewableItems[0].index || 0);
+    }
+  }).current;
+
+  const viewabilityConfig = useRef({
+    itemVisiblePercentThreshold: 50,
+  }).current;
+
   const renderNextMedication = () => {
+    const medications = stats.nextMedications || [];
+    const hasMultipleMeds = medications.length > 1;
+
+    console.log('🎯 Renderizando medicamentos:', medications.length);
+    console.log('🎯 Dados:', medications);
+
     return (
       <Animated.View
         style={[
@@ -704,40 +1094,41 @@ const Index = ({navigation}) => {
         ]}>
         <View style={styles.sectionHeader}>
           <Icon name="time" size={20} color="#10B981" />
-          <Text style={styles.sectionTitle}>Próximo Medicamento</Text>
+          <Text style={styles.sectionTitle}>Próximos Medicamentos</Text>
         </View>
 
-        {stats.nextMedication ? (
-          <View style={styles.nextMedCard}>
-            <View style={styles.nextMedTop}>
-              <View style={styles.nextMedIconContainer}>
-                <Icon name="alarm" size={24} color="#10B981" />
-              </View>
-              <View style={styles.nextMedInfo}>
-                <Text style={styles.nextMedTime}>
-                  {stats.nextMedication.horario}
-                </Text>
-                <Text style={styles.nextMedRemaining}>
-                  {stats.nextMedication.timeRemaining}
-                </Text>
-              </View>
+        <View style={styles.carouselContainer}>
+          <FlatList
+            ref={flatListRef}
+            data={medications}
+            renderItem={renderMedicationCard}
+            keyExtractor={(item, index) => item.id || `med-${index}`}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            snapToInterval={width - 48}
+            snapToAlignment="center"
+            decelerationRate="fast"
+            contentContainerStyle={styles.medicationsCarousel}
+            pagingEnabled={false}
+            onViewableItemsChanged={onViewableItemsChanged}
+            viewabilityConfig={viewabilityConfig}
+            extraData={medications}
+          />
+          
+          {hasMultipleMeds && (
+            <View style={styles.paginationDots}>
+              {medications.map((_, index) => (
+                <View
+                  key={index}
+                  style={[
+                    styles.paginationDot,
+                    index === currentMedicationIndex && styles.paginationDotActive,
+                  ]}
+                />
+              ))}
             </View>
-            <Text style={styles.nextMedName}>
-              {stats.nextMedication.nomeRemedio}
-            </Text>
-            <Text style={styles.nextMedDosage}>
-              {stats.nextMedication.dosagem}
-            </Text>
-          </View>
-        ) : (
-          <View style={styles.nextMedCardEmpty}>
-            <Icon name="checkmark-circle" size={48} color="#10B981" />
-            <Text style={styles.nextMedEmptyTitle}>Tudo em dia!</Text>
-            <Text style={styles.nextMedEmptyText}>
-              Nenhum medicamento agendado para agora
-            </Text>
-          </View>
-        )}
+          )}
+        </View>
       </Animated.View>
     );
   };
@@ -1148,89 +1539,197 @@ const styles = StyleSheet.create({
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
   },
   nextMedSection: {
-    marginBottom: 25,
+    marginBottom: 20,
+  },
+  carouselContainer: {
+    position: 'relative',
+  },
+  medicationsCarousel: {
+    gap: 16,
+    paddingHorizontal: 0,
   },
   nextMedCard: {
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
-    borderRadius: 18,
-    padding: 20,
+    width: width - 64,
+    borderRadius: 14,
+    padding: 14,
     borderWidth: 2,
-    borderColor: 'rgba(16, 185, 129, 0.3)',
-    shadowColor: '#10B981',
-    shadowOffset: {width: 0, height: 4},
+    shadowOffset: {width: 0, height: 3},
     shadowOpacity: 0.2,
-    shadowRadius: 12,
+    shadowRadius: 8,
+    marginHorizontal: 8,
+    minHeight: 140,
+    justifyContent: 'center',
+  },
+  specialCard: {
+    minHeight: 150,
+    justifyContent: 'center',
+  },
+  specialCardContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+  },
+  specialCardTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#10B981',
+    marginTop: 10,
+    marginBottom: 4,
+    textAlign: 'center',
+    letterSpacing: 0.3,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
+  },
+  specialCardText: {
+    fontSize: 13,
+    color: '#94a3b8',
+    textAlign: 'center',
+    lineHeight: 18,
+    letterSpacing: 0.2,
+    paddingHorizontal: 10,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
+  },
+  typeIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 14,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+  },
+  typeIndicatorText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6EE7B7',
+    letterSpacing: 0.5,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
+  },
+  completedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    marginTop: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+  },
+  completedBadgeText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#10B981',
+    letterSpacing: 0.5,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
+  },
+  paginationDots: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 14,
+    gap: 6,
+  },
+  paginationDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  paginationDotActive: {
+    width: 20,
+    backgroundColor: '#10B981',
+    shadowColor: '#10B981',
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.5,
+    shadowRadius: 4,
+  },
+  intervalBadgeSmall: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(99, 102, 241, 0.2)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(99, 102, 241, 0.3)',
+  },
+  intervalBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#A5B4FC',
+    letterSpacing: 0.3,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
+  },
+  diasBadgeSmall: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+  },
+  diasBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6EE7B7',
+    letterSpacing: 0.3,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   nextMedTop: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 10,
   },
   nextMedIconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: 'rgba(16, 185, 129, 0.25)',
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 16,
+    marginRight: 10,
     borderWidth: 2,
-    borderColor: 'rgba(16, 185, 129, 0.4)',
   },
   nextMedInfo: {
     flex: 1,
   },
   nextMedTime: {
-    fontSize: 32,
+    fontSize: 24,
     fontWeight: '300',
     color: '#FFFFFF',
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
-    letterSpacing: -1.5,
-    marginBottom: 4,
+    letterSpacing: -1,
+    marginBottom: 2,
   },
   nextMedRemaining: {
-    fontSize: 14,
-    color: '#10B981',
+    fontSize: 12,
     fontWeight: '600',
     letterSpacing: 0.3,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   nextMedName: {
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: '600',
     color: '#f8fafc',
-    marginBottom: 6,
+    marginBottom: 3,
     letterSpacing: 0.2,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   nextMedDosage: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#94a3b8',
     letterSpacing: 0.1,
-    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
-  },
-  nextMedCardEmpty: {
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
-    borderRadius: 18,
-    padding: 30,
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'rgba(16, 185, 129, 0.3)',
-  },
-  nextMedEmptyTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#10B981',
-    marginTop: 12,
-    marginBottom: 6,
-    letterSpacing: 0.3,
-    fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
-  },
-  nextMedEmptyText: {
-    fontSize: 14,
-    color: '#94a3b8',
-    textAlign: 'center',
-    letterSpacing: 0.2,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   actionsSection: {

@@ -12,26 +12,13 @@ import {
   AppState,
 } from 'react-native';
 
-import notifee, {
-  TriggerType,
-  AndroidImportance,
-  AndroidCategory,
-  AndroidVisibility,
-  RepeatFrequency,
-} from '@notifee/react-native';
-
 import Sound from 'react-native-sound';
 import BackgroundTimer from 'react-native-background-timer';
 import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
 import Icon from 'react-native-vector-icons/Ionicons';
-import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 
 const {width, height} = Dimensions.get('window');
-
-const isSmallScreen = width < 360;
-const isMediumScreen = width >= 360 && width < 400;
-const isLargeScreen = width >= 400;
 
 const diasSemana = [
   {abrev: 'Dom', completo: 'Domingo'},
@@ -44,80 +31,308 @@ const diasSemana = [
 ];
 
 /**
- * Componente AlarmOverlay - Tela cheia que aparece quando alarme dispara
+ * Tela minimalista para alarme de horário fixo
  */
-const AlarmOverlay = ({visible, onDismiss, alarmData}) => {
+const AlarmHorarioFixo = ({visible, onDismiss, alarmData}) => {
+  const scaleAnim = useRef(new Animated.Value(0.9)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
-  const bounceAnim = useRef(new Animated.Value(0)).current;
-  const rotateAnim = useRef(new Animated.Value(0)).current;
-  const [currentTime, setCurrentTime] = useState(new Date());
+  const backgroundAnim = useRef(new Animated.Value(0)).current;
+  const glowAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     if (visible) {
-      // Animação de pulsação
-      const pulseAnimation = Animated.loop(
+      // Animação de entrada
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        tension: 50,
+        friction: 7,
+        useNativeDriver: true,
+      }).start();
+
+      // Pulsação do ícone
+      const pulse = Animated.loop(
         Animated.sequence([
           Animated.timing(pulseAnim, {
-            toValue: 1.3,
-            duration: 1000,
+            toValue: 1.08,
+            duration: 1200,
             useNativeDriver: true,
           }),
           Animated.timing(pulseAnim, {
             toValue: 1,
-            duration: 1000,
+            duration: 1200,
             useNativeDriver: true,
           }),
         ]),
       );
 
-      // Animação de bounce
-      const bounceAnimation = Animated.spring(bounceAnim, {
+      // Animação do fundo
+      const background = Animated.loop(
+        Animated.sequence([
+          Animated.timing(backgroundAnim, {
+            toValue: 1,
+            duration: 8000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(backgroundAnim, {
+            toValue: 0,
+            duration: 8000,
+            useNativeDriver: true,
+          }),
+        ]),
+      );
+
+      // Brilho pulsante
+      const glow = Animated.loop(
+        Animated.sequence([
+          Animated.timing(glowAnim, {
+            toValue: 1.15,
+            duration: 2000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(glowAnim, {
+            toValue: 1,
+            duration: 2000,
+            useNativeDriver: true,
+          }),
+        ]),
+      );
+
+      pulse.start();
+      background.start();
+      glow.start();
+
+      return () => {
+        pulse.stop();
+        background.stop();
+        glow.stop();
+      };
+    }
+  }, [visible]);
+
+  if (!visible || !alarmData) return null;
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="fade"
+      transparent={false}
+      statusBarTranslucent
+      onRequestClose={onDismiss}>
+      <StatusBar hidden />
+      <View style={styles.container}>
+        {/* Círculos animados de fundo */}
+        <Animated.View
+          style={[
+            styles.backgroundCircle1,
+            {
+              opacity: backgroundAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0.03, 0.08],
+              }),
+              transform: [
+                {
+                  scale: backgroundAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [1, 1.1],
+                  }),
+                },
+              ],
+            },
+          ]}
+        />
+        <Animated.View
+          style={[
+            styles.backgroundCircle2,
+            {
+              opacity: backgroundAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0.05, 0.03],
+              }),
+              transform: [
+                {
+                  scale: backgroundAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [1.1, 1],
+                  }),
+                },
+              ],
+            },
+          ]}
+        />
+
+        {/* Círculos decorativos estáticos */}
+        <View style={[styles.decorativeCircle, styles.decorCircle1]} />
+        <View style={[styles.decorativeCircle, styles.decorCircle2]} />
+        <View style={[styles.decorativeCircle, styles.decorCircle3]} />
+
+        <Animated.View
+          style={[styles.content, {transform: [{scale: scaleAnim}]}]}>
+          {/* Ícone com brilho */}
+          <Animated.View style={{transform: [{scale: glowAnim}]}}>
+            <Animated.View
+              style={[styles.iconCircle, {transform: [{scale: pulseAnim}]}]}>
+              <Icon name="medical-outline" size={70} color="#10B981" />
+            </Animated.View>
+          </Animated.View>
+
+          {/* Nome do remédio */}
+          <Text style={styles.medicationName}>{alarmData.remedioNome}</Text>
+
+          {/* Dosagem */}
+          <View style={styles.doseContainer}>
+            <Icon name="fitness-outline" size={20} color="#10B981" />
+            <Text style={styles.dosage}>{alarmData.dosagem}</Text>
+          </View>
+
+          {/* Horário */}
+          <View style={styles.timeContainer}>
+            <Icon name="time-outline" size={24} color="#10B981" />
+            <Text style={styles.time}>{alarmData.horario}</Text>
+          </View>
+
+          {/* Botão */}
+          <Animated.View style={{transform: [{scale: pulseAnim}], width: '100%'}}>
+            <TouchableOpacity
+              style={styles.button}
+              onPress={onDismiss}
+              activeOpacity={0.9}>
+              <View style={styles.buttonContent}>
+                <Icon name="checkmark-circle" size={28} color="#FFFFFF" />
+                <Text style={styles.buttonText}>TOMEI</Text>
+              </View>
+            </TouchableOpacity>
+          </Animated.View>
+
+          {/* Indicadores */}
+          <View style={styles.indicators}>
+            <Animated.View
+              style={[
+                styles.indicator,
+                {
+                  opacity: pulseAnim,
+                  backgroundColor: '#10B981',
+                },
+              ]}
+            />
+            <Animated.View
+              style={[
+                styles.indicator,
+                {
+                  opacity: pulseAnim,
+                  backgroundColor: '#10B981',
+                },
+              ]}
+            />
+            <Animated.View
+              style={[
+                styles.indicator,
+                {
+                  opacity: pulseAnim,
+                  backgroundColor: '#10B981',
+                },
+              ]}
+            />
+          </View>
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+};
+
+/**
+ * Tela minimalista para alarme de intervalo (X em X horas)
+ */
+const AlarmIntervalo = ({visible, onDismiss, alarmData}) => {
+  const scaleAnim = useRef(new Animated.Value(0.9)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const backgroundAnim = useRef(new Animated.Value(0)).current;
+  const glowAnim = useRef(new Animated.Value(1)).current;
+  const rotateAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (visible) {
+      // Animação de entrada
+      Animated.spring(scaleAnim, {
         toValue: 1,
         tension: 50,
-        friction: 8,
+        friction: 7,
         useNativeDriver: true,
-      });
+      }).start();
 
-      // Animação de rotação
-      const rotateAnimation = Animated.loop(
+      // Pulsação do ícone
+      const pulse = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1.08,
+            duration: 1200,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 1200,
+            useNativeDriver: true,
+          }),
+        ]),
+      );
+
+      // Animação do fundo
+      const background = Animated.loop(
+        Animated.sequence([
+          Animated.timing(backgroundAnim, {
+            toValue: 1,
+            duration: 8000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(backgroundAnim, {
+            toValue: 0,
+            duration: 8000,
+            useNativeDriver: true,
+          }),
+        ]),
+      );
+
+      // Brilho pulsante
+      const glow = Animated.loop(
+        Animated.sequence([
+          Animated.timing(glowAnim, {
+            toValue: 1.15,
+            duration: 2000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(glowAnim, {
+            toValue: 1,
+            duration: 2000,
+            useNativeDriver: true,
+          }),
+        ]),
+      );
+
+      // Rotação suave do badge
+      const rotate = Animated.loop(
         Animated.timing(rotateAnim, {
           toValue: 1,
-          duration: 2000,
+          duration: 10000,
           useNativeDriver: true,
         }),
       );
 
-      pulseAnimation.start();
-      bounceAnimation.start();
-      rotateAnimation.start();
-
-      // Atualizar hora a cada segundo
-      const timeInterval = setInterval(() => {
-        setCurrentTime(new Date());
-      }, 1000);
+      pulse.start();
+      background.start();
+      glow.start();
+      rotate.start();
 
       return () => {
-        pulseAnimation.stop();
-        rotateAnimation.stop();
-        clearInterval(timeInterval);
+        pulse.stop();
+        background.stop();
+        glow.stop();
+        rotate.stop();
       };
-    } else {
-      bounceAnim.setValue(0);
-      rotateAnim.setValue(0);
     }
-  }, [visible, pulseAnim, bounceAnim, rotateAnim]);
+  }, [visible]);
 
   if (!visible || !alarmData) return null;
 
-  const formatarHorario = date => {
-    return date.toLocaleTimeString('pt-BR', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    });
-  };
-
-  const rotate = rotateAnim.interpolate({
+  const rotateInterpolate = rotateAnim.interpolate({
     inputRange: [0, 1],
     outputRange: ['0deg', '360deg'],
   });
@@ -130,87 +345,140 @@ const AlarmOverlay = ({visible, onDismiss, alarmData}) => {
       statusBarTranslucent
       onRequestClose={onDismiss}>
       <StatusBar hidden />
-      <View style={styles.alarmContainer}>
-        {/* Efeito de pulsação de fundo */}
+      <View style={styles.container}>
+        {/* Círculos animados de fundo - cor roxa */}
         <Animated.View
-          style={[styles.pulseEffect, {transform: [{scale: pulseAnim}]}]}
+          style={[
+            styles.backgroundCircle1,
+            {
+              backgroundColor: '#6366F1',
+              opacity: backgroundAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0.03, 0.08],
+              }),
+              transform: [
+                {
+                  scale: backgroundAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [1, 1.1],
+                  }),
+                },
+              ],
+            },
+          ]}
+        />
+        <Animated.View
+          style={[
+            styles.backgroundCircle2,
+            {
+              backgroundColor: '#6366F1',
+              opacity: backgroundAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0.05, 0.03],
+              }),
+              transform: [
+                {
+                  scale: backgroundAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [1.1, 1],
+                  }),
+                },
+              ],
+            },
+          ]}
         />
 
-        {/* Círculos decorativos */}
-        <View style={styles.decorativeCircle1} />
-        <View style={styles.decorativeCircle2} />
-        <View style={styles.decorativeCircle3} />
+        {/* Círculos decorativos estáticos - roxos */}
+        <View style={[styles.decorativeCircle, styles.decorCircle1Purple]} />
+        <View style={[styles.decorativeCircle, styles.decorCircle2Purple]} />
+        <View style={[styles.decorativeCircle, styles.decorCircle3Purple]} />
 
-        {/* Conteúdo principal */}
         <Animated.View
-          style={[styles.contentContainer, {transform: [{scale: bounceAnim}]}]}>
-          {/* Ícone principal rotativo */}
-          <View style={styles.alarmIconContainer}>
-            <Animated.View
-              style={[styles.iconWrapper, {transform: [{rotate}]}]}>
-              <Icon
-                name="alarm"
-                size={isSmallScreen ? 70 : 90}
-                color="#FFFFFF"
-              />
-            </Animated.View>
-            <Text style={styles.alarmTitle}>ALARME ATIVO</Text>
-            <Text style={styles.alarmSubtitle}>Hora do seu medicamento</Text>
-          </View>
+          style={[styles.content, {transform: [{scale: scaleAnim}]}]}>
+          {/* Badge de intervalo com rotação */}
+          <Animated.View
+            style={[
+              styles.intervalBadge,
+              {transform: [{rotate: rotateInterpolate}]},
+            ]}>
+            <Icon name="timer-outline" size={20} color="#6366F1" />
+          </Animated.View>
 
-          {/* Horário atual grande */}
-          <View style={styles.timeContainer}>
-            <Text style={styles.currentTime}>
-              {formatarHorario(currentTime)}
+          <View style={styles.intervalTextContainer}>
+            <Text style={styles.intervalText}>
+              A cada {alarmData.intervaloHoras}h
             </Text>
-            <Text style={styles.timeLabel}>Horário atual</Text>
           </View>
 
-          {/* Card do medicamento */}
-          <View style={styles.medicationCard}>
-            <View style={styles.medicationHeader}>
-              <MaterialIcons name="medication" size={24} color="#4D97DB" />
-              <Text style={styles.medicationTitle}>Medicamento</Text>
-            </View>
+          {/* Ícone com brilho */}
+          <Animated.View style={{transform: [{scale: glowAnim}]}}>
+            <Animated.View
+              style={[
+                styles.iconCircle,
+                styles.iconCirclePurple,
+                {transform: [{scale: pulseAnim}]},
+              ]}>
+              <Icon name="medical-outline" size={70} color="#6366F1" />
+            </Animated.View>
+          </Animated.View>
 
-            <View style={styles.medicationDetails}>
-              <View style={styles.medicationRow}>
-                <Icon name="medical" size={16} color="#10B981" />
-                <Text style={styles.medicationName}>
-                  {alarmData.remedioNome}
-                </Text>
-              </View>
+          {/* Nome do remédio */}
+          <Text style={styles.medicationName}>{alarmData.remedioNome}</Text>
 
-              <View style={styles.medicationRow}>
-                <Icon name="fitness" size={16} color="#F59E0B" />
-                <Text style={styles.medicationDose}>{alarmData.dosagem}</Text>
-              </View>
-
-              <View style={styles.medicationRow}>
-                <Icon name="time" size={16} color="#6366F1" />
-                <Text style={styles.medicationTime}>
-                  Horário: {alarmData.horario}
-                </Text>
-              </View>
-            </View>
+          {/* Dosagem */}
+          <View style={styles.doseContainer}>
+            <Icon name="fitness-outline" size={20} color="#6366F1" />
+            <Text style={styles.dosage}>{alarmData.dosagem}</Text>
           </View>
 
-          {/* Botão principal */}
-          <TouchableOpacity
-            style={styles.dismissButton}
-            onPress={onDismiss}
-            activeOpacity={0.8}>
-            <View style={styles.buttonContent}>
-              <Icon name="checkmark-circle" size={24} color="#FFFFFF" />
-              <Text style={styles.dismissButtonText}>MEDICAMENTO TOMADO</Text>
-            </View>
-          </TouchableOpacity>
+          {/* Horário de início */}
+          <View style={[styles.timeContainer, styles.timeContainerPurple]}>
+            <Icon name="time-outline" size={24} color="#6366F1" />
+            <Text style={styles.time}>Início: {alarmData.horarioInicio}</Text>
+          </View>
 
-          {/* Indicadores pulsantes */}
+          {/* Botão */}
+          <Animated.View style={{transform: [{scale: pulseAnim}], width: '100%'}}>
+            <TouchableOpacity
+              style={[styles.button, styles.buttonPurple]}
+              onPress={onDismiss}
+              activeOpacity={0.9}>
+              <View style={styles.buttonContent}>
+                <Icon name="checkmark-circle" size={28} color="#FFFFFF" />
+                <Text style={styles.buttonText}>TOMEI</Text>
+              </View>
+            </TouchableOpacity>
+          </Animated.View>
+
+          {/* Indicadores */}
           <View style={styles.indicators}>
-            <Animated.View style={[styles.indicator, {opacity: pulseAnim}]} />
-            <Animated.View style={[styles.indicator, {opacity: pulseAnim}]} />
-            <Animated.View style={[styles.indicator, {opacity: pulseAnim}]} />
+            <Animated.View
+              style={[
+                styles.indicator,
+                {
+                  opacity: pulseAnim,
+                  backgroundColor: '#6366F1',
+                },
+              ]}
+            />
+            <Animated.View
+              style={[
+                styles.indicator,
+                {
+                  opacity: pulseAnim,
+                  backgroundColor: '#6366F1',
+                },
+              ]}
+            />
+            <Animated.View
+              style={[
+                styles.indicator,
+                {
+                  opacity: pulseAnim,
+                  backgroundColor: '#6366F1',
+                },
+              ]}
+            />
           </View>
         </Animated.View>
       </View>
@@ -224,6 +492,7 @@ const AlarmOverlay = ({visible, onDismiss, alarmData}) => {
 const AlarmSystem = () => {
   const [showAlarm, setShowAlarm] = useState(false);
   const [currentAlarm, setCurrentAlarm] = useState(null);
+  const [alarmType, setAlarmType] = useState(null); // 'horario' ou 'intervalo'
   const [appState, setAppState] = useState(AppState.currentState);
 
   const alarmSound = useRef(null);
@@ -232,13 +501,9 @@ const AlarmSystem = () => {
 
   const uid = auth().currentUser?.uid;
 
-  /**
-   * Inicialização do sistema de alarmes
-   */
   useEffect(() => {
     if (uid) {
       initializeAlarmSystem();
-      createNotificationChannels();
     }
 
     const subscription = AppState.addEventListener('change', nextAppState => {
@@ -254,34 +519,6 @@ const AlarmSystem = () => {
     };
   }, [uid]);
 
-  /**
-   * Cria os canais de notificação
-   */
-  const createNotificationChannels = async () => {
-    try {
-      await notifee.createChannel({
-        id: 'alarm-channel',
-        name: 'Alarmes de Medicamentos',
-        importance: AndroidImportance.HIGH,
-        sound: 'default',
-        vibration: true,
-      });
-
-      await notifee.createChannel({
-        id: 'general-channel',
-        name: 'Notificações Gerais',
-        importance: AndroidImportance.DEFAULT,
-      });
-
-      console.log('✅ Canais de notificação criados');
-    } catch (error) {
-      console.error('Erro ao criar canais:', error);
-    }
-  };
-
-  /**
-   * Inicializa o sistema de alarmes
-   */
   const initializeAlarmSystem = () => {
     Sound.setCategory('Playback');
 
@@ -297,22 +534,13 @@ const AlarmSystem = () => {
     startAlarmChecker();
   };
 
-  /**
-   * Inicia o verificador de alarmes
-   */
   const startAlarmChecker = () => {
-    // Verifica imediatamente
     checkForAlarms();
-
-    // Verifica a cada 30 segundos
     checkAlarmInterval.current = BackgroundTimer.setInterval(() => {
       checkForAlarms();
-    }, 30000);
+    }, 10000);
   };
 
-  /**
-   * Verifica se há alarmes para disparar
-   */
   const checkForAlarms = async () => {
     if (!uid) return;
 
@@ -322,7 +550,6 @@ const AlarmSystem = () => {
       const currentMinute = `${now.getHours()}:${now.getMinutes()}`;
       const currentDay = diasSemana[now.getDay()].abrev;
 
-      // Evita verificações duplicadas no mesmo minuto
       if (lastCheckedMinute.current === currentMinute) {
         return;
       }
@@ -330,86 +557,217 @@ const AlarmSystem = () => {
 
       console.log(`🔍 Verificando alarmes: ${currentTime} - ${currentDay}`);
 
-      const snapshot = await firestore()
-        .collection('alertas')
-        .where('usuarioId', '==', uid)
-        .get();
+      // Verificar alarmes de horário fixo
+      await checkHorarioFixoAlarms(now, currentTime, currentDay);
 
-      if (snapshot.empty) {
-        console.log('Nenhum alarme cadastrado');
-        return;
-      }
-
-      for (const doc of snapshot.docs) {
-        const alarm = doc.data();
-
-        // Verificar se o horário corresponde e se o dia está incluído
-        if (
-          alarm.horario === currentTime &&
-          alarm.dias &&
-          alarm.dias.includes(currentDay)
-        ) {
-          const diaStr = now.toISOString().slice(0, 10);
-
-          // Verificar se já foi tomado hoje
-          const tomadoSnapshot = await firestore()
-            .collection('medicamentos_tomados')
-            .where('remedioId', '==', alarm.remedioId)
-            .where('horario', '==', alarm.horario)
-            .where('dia', '==', diaStr)
-            .get();
-
-          if (!tomadoSnapshot.empty) {
-            console.log('Medicamento já foi tomado hoje');
-            continue;
-          }
-
-          // Buscar dados do remédio
-          const remedioDoc = await firestore()
-            .collection('remedios')
-            .doc(alarm.remedioId)
-            .get();
-
-          if (remedioDoc.exists) {
-            const remedioData = remedioDoc.data();
-
-            const alarmData = {
-              ...alarm,
-              remedioNome: remedioData.nome,
-              id: doc.id,
-            };
-
-            console.log('🚨 Disparando alarme:', alarmData);
-            triggerAlarm(alarmData);
-            break;
-          }
-        }
-      }
+      // Verificar alarmes de intervalo
+      await checkIntervaloAlarms(now);
     } catch (error) {
       console.error('❌ Erro ao verificar alarmes:', error);
     }
   };
 
   /**
-   * Dispara o alarme
+   * Verifica alarmes de horário fixo
    */
-  const triggerAlarm = alarmData => {
+  const checkHorarioFixoAlarms = async (now, currentTime, currentDay) => {
+    const snapshot = await firestore()
+      .collection('alertas')
+      .where('usuarioId', '==', uid)
+      .where('tipoAlerta', '==', 'dias')
+      .get();
+
+    if (snapshot.empty) return;
+
+    for (const doc of snapshot.docs) {
+      const alarm = doc.data();
+
+      if (
+        alarm.horario <= currentTime &&
+        alarm.dias &&
+        alarm.dias.includes(currentDay)
+      ) {
+        const diaStr = now.toISOString().slice(0, 10);
+
+        const tomadoSnapshot = await firestore()
+          .collection('medicamentos_tomados')
+          .where('usuarioId', '==', uid)
+          .where('horario', '==', alarm.horario)
+          .where('dia', '==', diaStr)
+          .get();
+
+        if (!tomadoSnapshot.empty) continue;
+
+        const remedioDoc = await firestore()
+          .collection('remedios')
+          .doc(alarm.remedioId)
+          .get();
+
+        if (remedioDoc.exists) {
+          const remedioData = remedioDoc.data();
+          const alarmData = {
+            ...alarm,
+            remedioNome: remedioData.nome,
+            id: doc.id,
+          };
+
+          console.log('🚨 Disparando alarme de horário fixo:', alarmData);
+          triggerAlarm(alarmData, 'horario');
+          break;
+        }
+      }
+    }
+  };
+
+  /**
+   * Verifica alarmes de intervalo (X em X horas)
+   */
+  const checkIntervaloAlarms = async now => {
+    const snapshot = await firestore()
+      .collection('alertas')
+      .where('usuarioId', '==', uid)
+      .where('tipoAlerta', '==', 'intervalo')
+      .where('ativo', '==', true)
+      .get();
+
+    console.log(`📋 Alarmes de intervalo encontrados: ${snapshot.size}`);
+
+    if (snapshot.empty) return;
+
+    for (const doc of snapshot.docs) {
+      const alarm = doc.data();
+      console.log(`\n🔍 Verificando alarme: ${alarm.remedioNome || 'Sem nome'}`);
+      console.log(`   Horário início: ${alarm.horarioInicio}`);
+      console.log(`   Intervalo: ${alarm.intervaloHoras}h`);
+
+      // Verificar se deve disparar baseado no horário de início
+      const shouldTrigger = await checkIntervaloTiming(alarm, now);
+
+      if (shouldTrigger) {
+        const remedioDoc = await firestore()
+          .collection('remedios')
+          .doc(alarm.remedioId)
+          .get();
+
+        if (remedioDoc.exists) {
+          const remedioData = remedioDoc.data();
+          const alarmData = {
+            ...alarm,
+            remedioNome: remedioData.nome,
+            id: doc.id,
+          };
+
+          console.log('🚨 Disparando alarme de intervalo:', alarmData);
+          triggerAlarm(alarmData, 'intervalo');
+          break;
+        }
+      }
+    }
+  };
+
+  /**
+   * Verifica se é hora de disparar alarme de intervalo
+   */
+  const checkIntervaloTiming = async (alarm, now) => {
+    try {
+      const currentTime = now.getTime();
+      const intervaloMs = alarm.intervaloHoras * 60 * 60 * 1000;
+      
+      // Calcular horário base (horarioInicio de hoje)
+      const [hora, minuto] = alarm.horarioInicio.split(':').map(Number);
+      const horarioBase = new Date(now);
+      horarioBase.setHours(hora, minuto, 0, 0);
+      
+      // Se o horário base já passou hoje, considera o de ontem
+      const horarioBaseOntem = new Date(horarioBase);
+      horarioBaseOntem.setDate(horarioBaseOntem.getDate() - 1);
+      
+      // Verificar qual horário base usar (se já passou ou não)
+      let horarioReferencia = horarioBase.getTime();
+      if (currentTime < horarioBase.getTime()) {
+        // Ainda não chegou o horário de hoje, usa o de ontem como base
+        horarioReferencia = horarioBaseOntem.getTime();
+      }
+      
+      // Calcular quanto tempo passou desde o horário de referência
+      const tempoDecorrido = currentTime - horarioReferencia;
+      
+      // Calcular quantas doses já deveriam ter sido tomadas
+      const dosesEsperadas = Math.floor(tempoDecorrido / intervaloMs);
+      
+      // Calcular o horário exato do próximo alarme
+      const proximoAlarmeTime = horarioReferencia + (dosesEsperadas * intervaloMs);
+      
+      // Verificar se estamos na janela de 5 minutos do próximo alarme
+      const diffMinutos = (currentTime - proximoAlarmeTime) / 1000 / 60;
+      const dentroJanela = diffMinutos >= 0 && diffMinutos <= 5;
+      
+      if (!dentroJanela) {
+        return false;
+      }
+      
+      // Verificar se já foi tomado neste horário específico
+      const hoje = new Date(now);
+      hoje.setHours(0, 0, 0, 0);
+      const diaHojeStr = hoje.toISOString().slice(0, 10);
+      
+      const horarioEsperado = new Date(proximoAlarmeTime).toTimeString().slice(0, 5);
+      
+      const tomadosSnapshot = await firestore()
+        .collection('medicamentos_tomados')
+        .where('usuarioId', '==', uid)
+        .where('remedioId', '==', alarm.remedioId)
+        .where('dia', '==', diaHojeStr)
+        .get();
+      
+      // Verificar se já foi marcado como tomado neste horário
+      const jaFoiTomado = tomadosSnapshot.docs.some(doc => {
+        const data = doc.data();
+        // Considera tomado se for do mesmo horário (margem de 30 min)
+        if (!data.horario) return false;
+        
+        const [hTomado, mTomado] = data.horario.split(':').map(Number);
+        const [hEsperado, mEsperado] = horarioEsperado.split(':').map(Number);
+        
+        const minutosTomado = hTomado * 60 + mTomado;
+        const minutosEsperado = hEsperado * 60 + mEsperado;
+        
+        const diferenca = Math.abs(minutosTomado - minutosEsperado);
+        return diferenca <= 30; // Margem de 30 minutos
+      });
+      
+      if (jaFoiTomado) {
+        console.log(`⏭️ Alarme de ${horarioEsperado} já foi tomado`);
+        return false;
+      }
+      
+      console.log(`⏰ Disparando alarme de intervalo:`);
+      console.log(`   Horário início: ${alarm.horarioInicio}`);
+      console.log(`   Intervalo: ${alarm.intervaloHoras}h`);
+      console.log(`   Horário esperado: ${horarioEsperado}`);
+      console.log(`   Doses esperadas: ${dosesEsperadas + 1}`);
+      
+      return true;
+    } catch (error) {
+      console.error('Erro ao verificar timing de intervalo:', error);
+      return false;
+    }
+  };
+
+  const triggerAlarm = (alarmData, type) => {
     if (showAlarm) {
       console.log('Alarme já está ativo');
       return;
     }
 
     setCurrentAlarm(alarmData);
+    setAlarmType(type);
     setShowAlarm(true);
 
-    // SEM notificação - apenas som, vibração e tela cheia
     playAlarmSound();
     Vibration.vibrate([1000, 500, 1000, 500], true);
   };
 
-  /**
-   * Toca o som do alarme
-   */
   const playAlarmSound = () => {
     if (alarmSound.current) {
       alarmSound.current.setNumberOfLoops(-1);
@@ -422,9 +780,6 @@ const AlarmSystem = () => {
     }
   };
 
-  /**
-   * Para som e vibração
-   */
   const stopAlarmSound = () => {
     if (alarmSound.current) {
       alarmSound.current.stop();
@@ -432,23 +787,17 @@ const AlarmSystem = () => {
     Vibration.cancel();
   };
 
-  /**
-   * Desativa o alarme
-   */
   const dismissAlarm = () => {
     stopAlarmSound();
     logMedicationTaken();
     setShowAlarm(false);
 
-    // Reseta após um pequeno delay
     setTimeout(() => {
       setCurrentAlarm(null);
+      setAlarmType(null);
     }, 500);
   };
 
-  /**
-   * Registra medicamento tomado
-   */
   const logMedicationTaken = async () => {
     if (!currentAlarm || !uid) return;
 
@@ -457,42 +806,32 @@ const AlarmSystem = () => {
       const diaStr = now.toISOString().slice(0, 10);
       const timestamp = firestore.FieldValue.serverTimestamp();
 
-      await firestore().collection('medicamentos_tomados').add({
+      const dados = {
         usuarioId: uid,
         remedioId: currentAlarm.remedioId,
         remedioNome: currentAlarm.remedioNome,
-        horario: currentAlarm.horario,
         dosagem: currentAlarm.dosagem,
         dia: diaStr,
         timestamp: timestamp,
-      });
+      };
+
+      // Adicionar horário específico dependendo do tipo
+      if (alarmType === 'horario') {
+        dados.horario = currentAlarm.horario;
+      } else if (alarmType === 'intervalo') {
+        dados.horario = now.toTimeString().slice(0, 5);
+        dados.tipoAlerta = 'intervalo';
+        dados.intervaloHoras = currentAlarm.intervaloHoras;
+      }
+
+      await firestore().collection('medicamentos_tomados').add(dados);
 
       console.log('✅ Medicamento registrado como tomado');
-      scheduleNextAlarm(currentAlarm);
     } catch (error) {
       console.error('❌ Erro ao registrar medicamento:', error);
     }
   };
 
-  /**
-   * Agenda próxima verificação (sem notificação agendada)
-   */
-  const scheduleNextAlarm = async alarmData => {
-    try {
-      // Apenas loga - o sistema continuará verificando automaticamente
-      console.log('✅ Sistema continuará verificando alarmes automaticamente');
-      console.log(
-        '📋 Próximo alarme será disparado no horário:',
-        alarmData.horario,
-      );
-    } catch (error) {
-      console.error('Erro ao processar próximo alarme:', error);
-    }
-  };
-
-  /**
-   * Limpa recursos
-   */
   const cleanup = () => {
     if (checkAlarmInterval.current) {
       BackgroundTimer.clearInterval(checkAlarmInterval.current);
@@ -508,194 +847,237 @@ const AlarmSystem = () => {
   if (!uid) return null;
 
   return (
-    <AlarmOverlay
-      visible={showAlarm}
-      onDismiss={dismissAlarm}
-      alarmData={currentAlarm}
-    />
+    <>
+      <AlarmHorarioFixo
+        visible={showAlarm && alarmType === 'horario'}
+        onDismiss={dismissAlarm}
+        alarmData={currentAlarm}
+      />
+      <AlarmIntervalo
+        visible={showAlarm && alarmType === 'intervalo'}
+        onDismiss={dismissAlarm}
+        alarmData={currentAlarm}
+      />
+    </>
   );
 };
 
 const styles = StyleSheet.create({
-  alarmContainer: {
+  container: {
     flex: 1,
-    backgroundColor: '#121A29',
+    backgroundColor: '#0F172A',
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 30,
     position: 'relative',
   },
-  pulseEffect: {
+  backgroundCircle1: {
+    position: 'absolute',
+    width: width * 2,
+    height: width * 2,
+    borderRadius: width,
+    backgroundColor: '#10B981',
+    top: -width * 0.8,
+    left: -width * 0.5,
+  },
+  backgroundCircle2: {
     position: 'absolute',
     width: width * 1.5,
     height: width * 1.5,
     borderRadius: width * 0.75,
-    backgroundColor: 'rgba(77, 151, 219, 0.1)',
+    backgroundColor: '#10B981',
+    bottom: -width * 0.6,
+    right: -width * 0.4,
   },
-  decorativeCircle1: {
+  decorativeCircle: {
     position: 'absolute',
-    top: height * 0.1,
+    borderRadius: 100,
+    zIndex: 1,
+  },
+  decorCircle1: {
+    top: height * 0.15,
     right: width * 0.1,
-    width: isSmallScreen ? 60 : 80,
-    height: isSmallScreen ? 60 : 80,
-    borderRadius: isSmallScreen ? 30 : 40,
-    backgroundColor: 'rgba(77, 151, 219, 0.15)',
-  },
-  decorativeCircle2: {
-    position: 'absolute',
-    bottom: height * 0.15,
-    left: width * 0.1,
-    width: isSmallScreen ? 40 : 60,
-    height: isSmallScreen ? 40 : 60,
-    borderRadius: isSmallScreen ? 20 : 30,
+    width: 80,
+    height: 80,
     backgroundColor: 'rgba(16, 185, 129, 0.15)',
   },
-  decorativeCircle3: {
-    position: 'absolute',
-    top: height * 0.3,
+  decorCircle2: {
+    bottom: height * 0.2,
     left: width * 0.05,
-    width: isSmallScreen ? 30 : 50,
-    height: isSmallScreen ? 30 : 50,
-    borderRadius: isSmallScreen ? 15 : 25,
-    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    width: 60,
+    height: 60,
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
   },
-  contentContainer: {
-    alignItems: 'center',
-    paddingHorizontal: isSmallScreen ? 20 : 30,
-    zIndex: 10,
+  decorCircle3: {
+    top: height * 0.35,
+    left: width * 0.1,
+    width: 50,
+    height: 50,
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+  },
+  decorCircle1Purple: {
+    backgroundColor: 'rgba(99, 102, 241, 0.15)',
+  },
+  decorCircle2Purple: {
+    backgroundColor: 'rgba(99, 102, 241, 0.1)',
+  },
+  decorCircle3Purple: {
+    backgroundColor: 'rgba(99, 102, 241, 0.12)',
+  },
+  content: {
     width: '100%',
-  },
-  alarmIconContainer: {
+    maxWidth: 400,
     alignItems: 'center',
-    marginBottom: isSmallScreen ? 30 : 40,
+    gap: 20,
+    zIndex: 10,
   },
-  iconWrapper: {
-    width: isSmallScreen ? 120 : 140,
-    height: isSmallScreen ? 120 : 140,
-    borderRadius: isSmallScreen ? 60 : 70,
-    backgroundColor: 'rgba(77, 151, 219, 0.2)',
+  iconCircle: {
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
-    borderWidth: 2,
-    borderColor: 'rgba(77, 151, 219, 0.4)',
+    borderWidth: 4,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+    shadowColor: '#10B981',
+    shadowOffset: {width: 0, height: 8},
+    shadowOpacity: 0.4,
+    shadowRadius: 20,
   },
-  alarmTitle: {
-    fontSize: isSmallScreen ? 20 : 24,
+  iconCirclePurple: {
+    backgroundColor: 'rgba(99, 102, 241, 0.15)',
+    borderColor: 'rgba(99, 102, 241, 0.3)',
+    shadowColor: '#6366F1',
+  },
+  medicationName: {
+    fontSize: 36,
+    fontWeight: '800',
     color: '#FFFFFF',
-    fontWeight: '700',
-    letterSpacing: 2,
-    marginBottom: 4,
+    textAlign: 'center',
+    letterSpacing: -0.5,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: {width: 0, height: 2},
+    textShadowRadius: 4,
+    marginTop: 8,
   },
-  alarmSubtitle: {
-    fontSize: isSmallScreen ? 14 : 16,
-    color: '#8A8A8A',
-    fontWeight: '500',
-  },
-  timeContainer: {
+  doseContainer: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: isSmallScreen ? 25 : 30,
-    backgroundColor: 'rgba(77, 151, 219, 0.1)',
-    paddingVertical: isSmallScreen ? 20 : 25,
-    paddingHorizontal: isSmallScreen ? 30 : 40,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(77, 151, 219, 0.3)',
-  },
-  currentTime: {
-    fontSize: isSmallScreen ? 36 : 48,
-    color: '#FFFFFF',
-    fontFamily: 'monospace',
-    fontWeight: '300',
-    letterSpacing: -1,
-  },
-  timeLabel: {
-    fontSize: isSmallScreen ? 12 : 14,
-    color: '#4D97DB',
-    fontWeight: '500',
-    marginTop: 4,
-  },
-  medicationCard: {
+    gap: 10,
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 20,
-    padding: isSmallScreen ? 20 : 25,
-    marginBottom: isSmallScreen ? 30 : 40,
-    width: '100%',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.12)',
   },
-  medicationHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-    gap: 8,
-  },
-  medicationTitle: {
-    fontSize: isSmallScreen ? 16 : 18,
-    color: '#FFFFFF',
+  dosage: {
+    fontSize: 20,
     fontWeight: '600',
+    color: '#D1D5DB',
+    textAlign: 'center',
   },
-  medicationDetails: {
-    gap: 12,
-  },
-  medicationRow: {
+  timeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    paddingVertical: 16,
+    paddingHorizontal: 28,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: 'rgba(16, 185, 129, 0.25)',
+    shadowColor: '#10B981',
+    shadowOffset: {width: 0, height: 4},
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
   },
-  medicationName: {
-    fontSize: isSmallScreen ? 16 : 18,
+  timeContainerPurple: {
+    backgroundColor: 'rgba(99, 102, 241, 0.12)',
+    borderColor: 'rgba(99, 102, 241, 0.25)',
+    shadowColor: '#6366F1',
+  },
+  time: {
+    fontSize: 22,
+    fontWeight: '700',
     color: '#FFFFFF',
-    fontWeight: '600',
-    flex: 1,
+    fontFamily: 'monospace',
+    letterSpacing: 1,
   },
-  medicationDose: {
-    fontSize: isSmallScreen ? 14 : 16,
-    color: '#D1D5DB',
-    fontWeight: '500',
-    flex: 1,
-  },
-  medicationTime: {
-    fontSize: isSmallScreen ? 14 : 16,
-    color: '#D1D5DB',
-    fontWeight: '500',
-    flex: 1,
-  },
-  dismissButton: {
+  button: {
     backgroundColor: '#10B981',
-    paddingVertical: isSmallScreen ? 16 : 20,
-    paddingHorizontal: isSmallScreen ? 30 : 40,
+    paddingVertical: 20,
+    paddingHorizontal: 50,
     borderRadius: 25,
     width: '100%',
-    elevation: 10,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 4},
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    borderWidth: 2,
-    borderColor: 'rgba(16, 185, 129, 0.3)',
+    marginTop: 8,
+    shadowColor: '#10B981',
+    shadowOffset: {width: 0, height: 10},
+    shadowOpacity: 0.5,
+    shadowRadius: 15,
+    borderWidth: 3,
+    borderColor: 'rgba(16, 185, 129, 0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  buttonPurple: {
+    backgroundColor: '#6366F1',
+    shadowColor: '#6366F1',
+    borderColor: 'rgba(99, 102, 241, 0.4)',
   },
   buttonContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 12,
+    width: '100%',
   },
-  dismissButtonText: {
+  buttonText: {
+    fontSize: 22,
+    fontWeight: '900',
     color: '#FFFFFF',
-    fontSize: isSmallScreen ? 16 : 18,
+    letterSpacing: 2,
+    textAlign: 'center',
+  },
+  intervalBadge: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: 'rgba(99, 102, 241, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(99, 102, 241, 0.3)',
+    shadowColor: '#6366F1',
+    shadowOffset: {width: 0, height: 4},
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  intervalTextContainer: {
+    backgroundColor: 'rgba(99, 102, 241, 0.12)',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(99, 102, 241, 0.25)',
+    marginBottom: 8,
+  },
+  intervalText: {
+    fontSize: 16,
     fontWeight: '700',
+    color: '#A5B4FC',
     letterSpacing: 0.5,
   },
   indicators: {
     flexDirection: 'row',
-    marginTop: isSmallScreen ? 25 : 30,
+    marginTop: 16,
     gap: 12,
   },
   indicator: {
-    width: isSmallScreen ? 8 : 10,
-    height: isSmallScreen ? 8 : 10,
-    borderRadius: isSmallScreen ? 4 : 5,
-    backgroundColor: '#4D97DB',
+    width: 10,
+    height: 10,
+    borderRadius: 5,
   },
 });
 
