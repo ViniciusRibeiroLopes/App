@@ -3,7 +3,6 @@ import {NavigationContainer} from '@react-navigation/native';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import auth, {FirebaseAuthTypes} from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import FastImage from 'react-native-fast-image';
 import notifee, {
   AndroidImportance,
@@ -32,7 +31,6 @@ import IndexTelaDependente from './screens/telas_dependentes/IndexTelaDependente
 
 import PerfilScreen from './screens/navigation/PerfilScreen.js';
 import ConfigScreen from './screens/navigation/ConfigScreen.js';
-
 import {View, AppState} from 'react-native';
 
 const Stack = createNativeStackNavigator();
@@ -42,19 +40,22 @@ const Stack = createNativeStackNavigator();
  * Deve ser chamado uma única vez na inicialização do app
  */
 const initializeNotificationChannels = async () => {
+  console.log('🚀 Initializing notification channels...');
   try {
     // Canal para alarmes de medicamentos
-    await notifee.createChannel({
+    console.log('⚙️ Creating alarm channel...');
+    const alarmChannel = await notifee.createChannel({
       id: 'alarm-channel',
       name: 'Alarmes de Medicação',
       description: 'Notificações de lembretes de medicamentos',
-      importance: AndroidImportance.MAX,
+      importance: AndroidImportance.HIGH,
       visibility: AndroidVisibility.PUBLIC,
       sound: 'default',
       lights: true,
       lightColor: '#4D97DB',
       vibration: true,
     });
+    console.log('✅ Alarm channel created:', alarmChannel);
 
     // Canal para notificações gerais
     await notifee.createChannel({
@@ -71,7 +72,7 @@ const initializeNotificationChannels = async () => {
       id: 'urgent-channel',
       name: 'Notificações Urgentes',
       description: 'Alertas urgentes do sistema',
-      importance: AndroidImportance.MAX,
+      importance: AndroidImportance.HIGH,
       visibility: AndroidVisibility.PUBLIC,
       sound: 'default',
       lights: true,
@@ -91,12 +92,12 @@ const initializeNotificationChannels = async () => {
 const setupNotificationListeners = () => {
   try {
     // Listener para quando o app está em foreground
-    notifee.onForegroundEvent(({type, notification}) => {
+    notifee.onForegroundEvent(({type}) => {
       console.log('Evento de notificação em foreground:', type);
     });
 
     // Listener para quando o app está em background/closed
-    notifee.onBackgroundEvent(async ({type, notification}) => {
+    notifee.onBackgroundEvent(async ({type}) => {
       console.log('Evento de notificação em background:', type);
     });
   } catch (error) {

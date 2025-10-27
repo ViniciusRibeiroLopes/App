@@ -1,3 +1,4 @@
+/* eslint-disable no-undef */
 // AlarmSystem.js
 import React, {useEffect, useState, useRef, useCallback} from 'react';
 import {
@@ -22,7 +23,14 @@ import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
 import Icon from 'react-native-vector-icons/Ionicons';
 
-const {width, height} = Dimensions.get('window');
+import notifee, {
+  AndroidImportance,
+  AndroidCategory,
+  EventType,
+  AndroidStyle,
+} from '@notifee/react-native';
+
+const windowDimensions = Dimensions.get('window');
 
 const diasSemana = [
   {abrev: 'Dom', completo: 'Domingo'},
@@ -492,6 +500,240 @@ const AlarmIntervalo = ({visible, onDismiss, alarmData}) => {
   );
 };
 
+// Função para criar canal de notificação
+async function createNotificationChannel() {
+  try {
+    const channelId = await notifee.createChannel({
+      id: 'alarm-channel',
+      name: 'Alarmes de Medicação',
+      sound: 'default',
+      importance: AndroidImportance.HIGH,
+      vibration: true,
+      lights: true,
+      bypassDnd: true,
+    });
+    return channelId;
+  } catch (error) {
+    console.error('❌ Erro ao criar canal:', error);
+    return 'alarm-channel';
+  }
+}
+
+// Função para mostrar notificação imediata
+async function showMedicationNotification(id, title, body, alarmData) {
+  console.log('📱 Attempting to show medication notification:', {
+    id,
+    title,
+    body,
+  });
+
+  try {
+    const channelId = await createNotificationChannel();
+
+    await notifee.displayNotification({
+      id,
+      title,
+      body,
+      android: {
+        channelId,
+        smallIcon: '@drawable/icon',
+        category: AndroidCategory.ALARM,
+        ongoing: true,
+        autoCancel: false,
+        fullScreenAction: {id: 'default'},
+        sound: 'default',
+        importance: AndroidImportance.HIGH,
+        pressAction: {
+          id: 'default',
+        },
+        actions: [
+          {
+            title: '✅ Tomei o medicamento',
+            pressAction: {
+              id: 'confirm',
+            },
+          },
+        ],
+        style: {
+          type: AndroidStyle.BIGTEXT,
+          text: body,
+        },
+      },
+      data: {
+        id: String(id || ''),
+        remedioId: String(alarmData?.remedioId || ''),
+        remedioNome: String(alarmData?.remedioNome || ''),
+        dosagem: String(alarmData?.dosagem || ''),
+        tipoAlerta: String(alarmData?.tipoAlerta || ''),
+        horario: String(alarmData?.horario || ''),
+        intervaloHoras: String(alarmData?.intervaloHoras || ''),
+      },
+    });
+    console.log('✅ Notification displayed successfully');
+  } catch (error) {
+    console.error('❌ Error displaying notification:', error);
+  }
+}
+
+// Função para agendar notificação com trigger
+async function scheduleNotification(id, title, body, triggerDate, alarmData) {
+  console.log('📅 Agendando notificação:', {
+    id,
+    title,
+    body,
+    triggerDate,
+  });
+
+  try {
+    const channelId = await createNotificationChannel();
+
+    await notifee.createTriggerNotification(
+      {
+        id,
+        title,
+        body,
+        android: {
+          channelId,
+          smallIcon: '@drawable/icon',
+          category: AndroidCategory.ALARM,
+          autoCancel: false,
+          sound: 'default',
+          importance: AndroidImportance.HIGH,
+          pressAction: {
+            id: 'default',
+          },
+          actions: [
+            {
+              title: '✅ Tomei o medicamento',
+              pressAction: {
+                id: 'confirm',
+              },
+            },
+          ],
+          style: {
+            type: AndroidStyle.BIGTEXT,
+            text: body,
+          },
+        },
+        data: {
+          id: String(id || ''),
+          remedioId: String(alarmData?.remedioId || ''),
+          remedioNome: String(alarmData?.remedioNome || ''),
+          dosagem: String(alarmData?.dosagem || ''),
+          tipoAlerta: String(alarmData?.tipoAlerta || ''),
+          horario: String(alarmData?.horario || ''),
+          intervaloHoras: String(alarmData?.intervaloHoras || ''),
+        },
+      },
+      {
+        type: notifee.TriggerType.TIMESTAMP,
+        timestamp: triggerDate.getTime(),
+        alarmManager: {
+          allowWhileIdle: true,
+        },
+      },
+    );
+    console.log('✅ Notificação agendada com sucesso para:', triggerDate);
+  } catch (error) {
+    console.error('❌ Erro ao agendar notificação:', error);
+  }
+}
+
+// Função para cancelar todas as notificações agendadas
+async function cancelAllScheduledNotifications() {
+  try {
+    const notifications = await notifee.getTriggerNotifications();
+    console.log(`🗑️ Cancelando ${notifications.length} notificações agendadas`);
+
+    for (const notification of notifications) {
+      await notifee.cancelNotification(notification.notification.id);
+    }
+    console.log('✅ Todas as notificações agendadas foram canceladas');
+  } catch (error) {
+    console.error('❌ Erro ao cancelar notificações:', error);
+  }
+}
+
+// Função para registrar handlers de notificação
+function registerMedicationHandler(callback) {
+  console.log('🎯 Registering medication notification handlers...');
+
+  // Registrar handler de foreground
+  const foregroundSubscription = notifee.onForegroundEvent(
+    async ({type, detail}) => {
+      console.log('📱 Foreground event received:', {type, detail});
+      try {
+        if (type === EventType.ACTION_PRESS || type === EventType.PRESS) {
+          console.log('👆 Action press detected');
+          const {pressAction, notification} = detail;
+          if (pressAction && pressAction.id === 'confirm') {
+            console.log('✅ Confirm action pressed');
+            const notifData = notification?.data;
+            if (notifData) {
+              console.log('💊 Notification data:', notifData);
+              await callback(notifData);
+              // Cancelar a notificação após confirmação
+              if (notification?.id) {
+                await notifee.cancelNotification(notification.id);
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error('❌ Error in foreground handler:', err);
+      }
+    },
+  );
+
+  // Registrar handler de background
+  let backgroundSubscription;
+  try {
+    console.log('🌙 Setting up background event handler...');
+    backgroundSubscription = notifee.onBackgroundEvent(
+      async ({type, detail}) => {
+        console.log('🌙 Background event received:', {type, detail});
+        try {
+          if (type === EventType.ACTION_PRESS || type === EventType.PRESS) {
+            console.log('👆 Background action press detected');
+            const {pressAction, notification} = detail;
+            if (pressAction && pressAction.id === 'confirm') {
+              console.log('✅ Background confirm action pressed');
+              const notifData = notification?.data;
+              if (notifData) {
+                console.log('💊 Background notification data:', notifData);
+                await callback(notifData);
+                console.log('✅ Background callback executed successfully');
+                // Cancelar a notificação após confirmação
+                if (notification?.id) {
+                  await notifee.cancelNotification(notification.id);
+                }
+              }
+            }
+          }
+        } catch (err) {
+          console.error('❌ Error in background handler:', err);
+        }
+      },
+    );
+  } catch (err) {
+    console.error('❌ Failed to register background event handler:', err);
+  }
+
+  // Retorna função de cleanup que chama os unsubscribes
+  return () => {
+    try {
+      if (foregroundSubscription) {
+        foregroundSubscription();
+      }
+      if (backgroundSubscription) {
+        backgroundSubscription();
+      }
+    } catch (err) {
+      console.warn('Erro ao desregistrar handlers:', err);
+    }
+  };
+}
+
 /**
  * Componente AlarmSystem - Gerencia alarmes e notificações
  */
@@ -513,6 +755,215 @@ const AlarmSystem = () => {
     const mm = String(date.getMinutes()).padStart(2, '0');
     return `${hh}:${mm}`;
   };
+
+  // Agendar notificações do dia
+  const scheduleAllNotifications = useCallback(async () => {
+    if (!uid) return;
+
+    console.log('📅 Iniciando agendamento de notificações do dia...');
+
+    try {
+      // Cancelar todas as notificações agendadas anteriormente
+      await cancelAllScheduledNotifications();
+
+      const now = new Date();
+      const hoje = new Date(now);
+      hoje.setHours(0, 0, 0, 0);
+
+      // Agendar alarmes de horário fixo
+      await scheduleHorarioFixoNotifications(now, hoje);
+
+      // Agendar alarmes de intervalo
+      await scheduleIntervaloNotifications(now, hoje);
+
+      console.log('✅ Todas as notificações foram agendadas com sucesso');
+    } catch (error) {
+      console.error('❌ Erro ao agendar notificações:', error);
+    }
+  }, [scheduleHorarioFixoNotifications, scheduleIntervaloNotifications, uid]);
+
+  // Agendar notificações de horário fixo
+  const scheduleHorarioFixoNotifications = useCallback(
+    async (now, hoje) => {
+      try {
+        const currentDay = diasSemana[now.getDay()].abrev;
+        const diaHojeStr = hoje.toISOString().slice(0, 10);
+
+        const snapshot = await firestore()
+          .collection('alertas')
+          .where('usuarioId', '==', uid)
+          .where('tipoAlerta', '==', 'dias')
+          .get();
+
+        console.log(`📋 Encontrados ${snapshot.size} alarmes de horário fixo`);
+
+        for (const doc of snapshot.docs) {
+          const alarm = doc.data();
+
+          // Verificar se o alarme é para hoje
+          if (alarm.dias && alarm.dias.includes(currentDay)) {
+            const [hora, minuto] = String(alarm.horario).split(':').map(Number);
+            const triggerDate = new Date(hoje);
+            triggerDate.setHours(hora, minuto || 0, 0, 0);
+
+            // Só agendar se for no futuro
+            if (triggerDate > now) {
+              // Verificar se já foi tomado
+              const tomadoSnapshot = await firestore()
+                .collection('medicamentos_tomados')
+                .where('usuarioId', '==', uid)
+                .where('horario', '==', alarm.horario)
+                .where('dia', '==', diaHojeStr)
+                .get();
+
+              if (tomadoSnapshot.empty) {
+                const remedioDoc = await firestore()
+                  .collection('remedios')
+                  .doc(alarm.remedioId)
+                  .get();
+
+                if (remedioDoc.exists) {
+                  const remedioData = remedioDoc.data();
+                  const notifId = `horario-${doc.id}-${alarm.horario}`;
+
+                  await scheduleNotification(
+                    notifId,
+                    '💊 Hora de tomar seu medicamento',
+                    `${remedioData?.nome || ''} - ${alarm.dosagem || ''}`,
+                    triggerDate,
+                    {
+                      ...alarm,
+                      remedioNome: remedioData?.nome || '',
+                      id: doc.id,
+                      tipoAlerta: 'dias',
+                    },
+                  );
+
+                  console.log(
+                    `✅ Notificação agendada: ${remedioData?.nome} às ${alarm.horario}`,
+                  );
+                }
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error(
+          '❌ Erro ao agendar notificações de horário fixo:',
+          error,
+        );
+      }
+    },
+    [uid],
+  );
+
+  // Agendar notificações de intervalo
+  const scheduleIntervaloNotifications = useCallback(
+    async (now, hoje) => {
+      try {
+        const snapshot = await firestore()
+          .collection('alertas')
+          .where('usuarioId', '==', uid)
+          .where('tipoAlerta', '==', 'intervalo')
+          .where('ativo', '==', true)
+          .get();
+
+        console.log(`📋 Encontrados ${snapshot.size} alarmes de intervalo`);
+
+        for (const doc of snapshot.docs) {
+          const alarm = doc.data();
+
+          if (!alarm.horarioInicio || !alarm.intervaloHoras) continue;
+
+          const [hora, minuto] = String(alarm.horarioInicio)
+            .split(':')
+            .map(Number);
+          const intervaloMs = alarm.intervaloHoras * 60 * 60 * 1000;
+
+          // Calcular primeira dose do dia
+          let proximaDose = new Date(hoje);
+          proximaDose.setHours(hora, minuto || 0, 0, 0);
+
+          // Agendar doses até o fim do dia
+          const fimDia = new Date(hoje);
+          fimDia.setHours(23, 59, 59, 999);
+
+          let contador = 0;
+          while (proximaDose <= fimDia && contador < 24) {
+            // Limitar a 24 doses por dia
+            if (proximaDose > now) {
+              const horarioFormatado = proximaDose.toTimeString().slice(0, 5);
+              const diaHojeStr = hoje.toISOString().slice(0, 10);
+
+              // Verificar se já foi tomado
+              const tomadoSnapshot = await firestore()
+                .collection('medicamentos_tomados')
+                .where('usuarioId', '==', uid)
+                .where('remedioId', '==', alarm.remedioId)
+                .where('dia', '==', diaHojeStr)
+                .get();
+
+              const jaFoiTomado = tomadoSnapshot.docs.some(tomadoDoc => {
+                const tomadoData = tomadoDoc.data();
+                if (!tomadoData.horario) return false;
+
+                const [hTomado, mTomado] = String(tomadoData.horario)
+                  .split(':')
+                  .map(Number);
+                const [hEsperado, mEsperado] = String(horarioFormatado)
+                  .split(':')
+                  .map(Number);
+
+                const minutosTomado = (hTomado || 0) * 60 + (mTomado || 0);
+                const minutosEsperado =
+                  (hEsperado || 0) * 60 + (mEsperado || 0);
+
+                return Math.abs(minutosTomado - minutosEsperado) <= 30;
+              });
+
+              if (!jaFoiTomado) {
+                const remedioDoc = await firestore()
+                  .collection('remedios')
+                  .doc(alarm.remedioId)
+                  .get();
+
+                if (remedioDoc.exists) {
+                  const remedioData = remedioDoc.data();
+                  const notifId = `intervalo-${doc.id}-${horarioFormatado}`;
+
+                  await scheduleNotification(
+                    notifId,
+                    '💊 Hora de tomar seu medicamento',
+                    `${remedioData?.nome || ''} - ${
+                      alarm.dosagem || ''
+                    } (A cada ${alarm.intervaloHoras}h)`,
+                    proximaDose,
+                    {
+                      ...alarm,
+                      remedioNome: remedioData?.nome || '',
+                      horario: horarioFormatado,
+                      id: doc.id,
+                      tipoAlerta: 'intervalo',
+                    },
+                  );
+
+                  console.log(
+                    `✅ Notificação de intervalo agendada: ${remedioData?.nome} às ${horarioFormatado}`,
+                  );
+                }
+              }
+            }
+
+            proximaDose = new Date(proximaDose.getTime() + intervaloMs);
+            contador++;
+          }
+        }
+      } catch (error) {
+        console.error('❌ Erro ao agendar notificações de intervalo:', error);
+      }
+    },
+    [uid],
+  );
 
   // Inicializa som e inicia verificação
   const initializeAlarmSystem = useCallback(() => {
@@ -838,93 +1289,117 @@ const AlarmSystem = () => {
   }, []);
 
   // Registrar medicação como tomada
-  const logMedicationTaken = useCallback(async () => {
-    if (!currentAlarm || !uid) return;
+  const logMedicationTaken = useCallback(
+    async notifData => {
+      if (!uid) return;
 
-    try {
-      const now = new Date();
-      const diaStr = now.toISOString().slice(0, 10);
-      const timestamp = firestore.FieldValue.serverTimestamp();
+      try {
+        console.log('💊 Registrando medicamento tomado:', notifData);
 
-      const dados = {
-        usuarioId: uid,
-        remedioId: currentAlarm.remedioId,
-        remedioNome: currentAlarm.remedioNome,
-        dosagem: currentAlarm.dosagem,
-        dia: diaStr,
-        timestamp,
-      };
+        const now = new Date();
+        const diaStr = now.toISOString().slice(0, 10);
+        const timestamp = firestore.FieldValue.serverTimestamp();
 
-      if (alarmType === 'horario') {
-        dados.horario = currentAlarm.horario;
-        dados.tipoAlerta = 'dias';
-      } else if (alarmType === 'intervalo') {
-        dados.horario = now.toTimeString().slice(0, 5);
-        dados.tipoAlerta = 'intervalo';
-        dados.intervaloHoras = currentAlarm.intervaloHoras;
+        const dados = {
+          usuarioId: uid,
+          remedioId: notifData.remedioId,
+          remedioNome: notifData.remedioNome || '',
+          dosagem: notifData.dosagem || '',
+          dia: diaStr,
+          timestamp,
+        };
+
+        if (notifData.tipoAlerta === 'dias') {
+          dados.horario = notifData.horario;
+          dados.tipoAlerta = 'dias';
+        } else if (notifData.tipoAlerta === 'intervalo') {
+          dados.horario = notifData.horario || now.toTimeString().slice(0, 5);
+          dados.tipoAlerta = 'intervalo';
+          dados.intervaloHoras = notifData.intervaloHoras;
+        }
+
+        await firestore().collection('medicamentos_tomados').add(dados);
+
+        console.log('✅ Medicamento registrado como tomado');
+
+        // Reagendar notificações após registrar
+        setTimeout(() => {
+          scheduleAllNotifications();
+        }, 1000);
+      } catch (error) {
+        console.error('❌ Erro ao registrar medicamento:', error);
       }
-
-      await firestore().collection('medicamentos_tomados').add(dados);
-
-      console.log('✅ Medicamento registrado como tomado');
-    } catch (error) {
-      console.error('❌ Erro ao registrar medicamento:', error);
-    }
-  }, [currentAlarm, alarmType, uid]);
+    },
+    [uid, scheduleAllNotifications],
+  );
 
   // Dismiss do alarme (usuário confirma que tomou)
-  const dismissAlarm = useCallback(() => {
-    stopAlarmSound();
-    // registrar medicação (não await aqui para não bloquear UI)
-    logMedicationTaken();
-    setShowAlarm(false);
+  const dismissAlarm = useCallback(
+    async notifData => {
+      console.log('✅ Usuário confirmou medicamento:', notifData);
 
-    setTimeout(() => {
-      setCurrentAlarm(null);
-      setAlarmType(null);
-    }, 500);
+      // Parar som e vibração
+      stopAlarmSound();
+      Vibration.cancel();
 
-    // Parar notificação persistente (se estiver ativa)
-    try {
-      if (NativeModules?.PersistentNotification?.stop) {
-        NativeModules.PersistentNotification.stop();
+      // Registrar que tomou a medicação
+      if (notifData) {
+        await logMedicationTaken(notifData);
       }
-    } catch (e) {
-      // ignore
-    }
-  }, [logMedicationTaken, stopAlarmSound]);
 
-  // Dispara o alarme: mostra UI, toca som, vibra e inicia notificação persistente se disponível
+      // Atualizar estado do alarme
+      setShowAlarm(false);
+      setTimeout(() => {
+        setCurrentAlarm(null);
+        setAlarmType(null);
+      }, 500);
+
+      // Cancelar notificação do Notifee
+      try {
+        if (notifData?.id) {
+          console.log('🔕 Cancelando notificação:', notifData.id);
+          await notifee.cancelNotification(notifData.id);
+        }
+      } catch (e) {
+        console.error('❌ Erro ao cancelar notificação:', e);
+      }
+    },
+    [logMedicationTaken, stopAlarmSound],
+  );
+
+  // Dispara o alarme: mostra UI, toca som, vibra e inicia notificação
   const triggerAlarm = useCallback(
-    (alarmData, type) => {
+    async (alarmData, type) => {
       if (showAlarm) {
-        console.log('Alarme já está ativo');
+        console.log('⚠️ Alarme já está ativo');
         return;
       }
 
+      console.log('🔔 Disparando alarme para:', alarmData);
       setCurrentAlarm(alarmData);
       setAlarmType(type);
       setShowAlarm(true);
 
+      // Tocar som do alarme
       playAlarmSound();
+
       try {
-        // vibra em loop até cancelamento
-        // OBS: No Android, o comportamento pode variar conforme permissões e API levels
+        // Vibrar em padrão de alarme
         Vibration.vibrate([1000, 500, 1000, 500], true);
       } catch (e) {
-        // ignore
+        console.warn('❌ Erro ao ativar vibração:', e);
       }
 
-      // Iniciar notificação persistente no Android (serviço foreground) - checagem segura
+      // Mostrar notificação usando Notifee
       try {
-        if (NativeModules?.PersistentNotification?.start) {
-          NativeModules.PersistentNotification.start(
-            '💊 Hora de tomar seu medicamento',
-            `${alarmData.remedioNome || ''} - ${alarmData.dosagem || ''}`,
-          );
-        }
+        await showMedicationNotification(
+          alarmData.id || 'default-alarm',
+          '💊 Hora de tomar seu medicamento',
+          `${alarmData.remedioNome || ''} - ${alarmData.dosagem || ''}`,
+          alarmData,
+        );
       } catch (e) {
-        // ignore
+        console.error('❌ Erro ao mostrar notificação:', e);
       }
     },
     [playAlarmSound, showAlarm],
@@ -955,16 +1430,42 @@ const AlarmSystem = () => {
     } catch (e) {}
   }, [stopAlarmChecker, stopAlarmSound]);
 
+  // Inicializar Notifee
+  useEffect(() => {
+    // Este é o callback que será executado quando a notificação for confirmada
+    const handleConfirm = async notifData => {
+      console.log(
+        `👆 Usuário confirmou medicação pela notificação:`,
+        notifData,
+      );
+      await dismissAlarm(notifData);
+    };
+
+    // Chama a sua função que registra os handlers
+    // e já retorna a função de cleanup correta.
+    const cleanupHandlers = registerMedicationHandler(handleConfirm);
+
+    // Retorna a função de cleanup que o registerMedicationHandler proveu
+    return () => {
+      console.log('🧹 Limpando handlers de notificação...');
+      cleanupHandlers();
+    };
+  }, [dismissAlarm]);
+
   // Hook principal para inicializar quando tivermos uid e escutar mudança de app state
   useEffect(() => {
     if (uid) {
       initializeAlarmSystem();
+      // Agendar notificações quando o app iniciar
+      scheduleAllNotifications();
     }
 
     const subscription = AppState.addEventListener('change', nextAppState => {
       setAppState(nextAppState);
       if (nextAppState === 'active' && uid) {
         checkForAlarms();
+        // Reagendar notificações quando o app voltar ao foreground
+        scheduleAllNotifications();
       }
     });
 
@@ -976,7 +1477,7 @@ const AlarmSystem = () => {
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [uid, initializeAlarmSystem, checkForAlarms, cleanup]);
+  }, [uid]);
 
   // Escuta ação de confirmação vinda da notificação persistente (módulo nativo)
   useEffect(() => {
@@ -1005,12 +1506,12 @@ const AlarmSystem = () => {
     <>
       <AlarmHorarioFixo
         visible={showAlarm && alarmType === 'horario'}
-        onDismiss={dismissAlarm}
+        onDismiss={() => dismissAlarm(currentAlarm)}
         alarmData={currentAlarm}
       />
       <AlarmIntervalo
         visible={showAlarm && alarmType === 'intervalo'}
-        onDismiss={dismissAlarm}
+        onDismiss={() => dismissAlarm(currentAlarm)}
         alarmData={currentAlarm}
       />
     </>
@@ -1028,21 +1529,21 @@ const styles = StyleSheet.create({
   },
   backgroundCircle1: {
     position: 'absolute',
-    width: width * 2,
-    height: width * 2,
-    borderRadius: width,
+    width: windowDimensions.width * 2,
+    height: windowDimensions.width * 2,
+    borderRadius: windowDimensions.width,
     backgroundColor: '#10B981',
-    top: -width * 0.8,
-    left: -width * 0.5,
+    top: -windowDimensions.width * 0.8,
+    left: -windowDimensions.width * 0.5,
   },
   backgroundCircle2: {
     position: 'absolute',
-    width: width * 1.5,
-    height: width * 1.5,
-    borderRadius: width * 0.75,
+    width: windowDimensions.width * 1.5,
+    height: windowDimensions.width * 1.5,
+    borderRadius: windowDimensions.width * 0.75,
     backgroundColor: '#10B981',
-    bottom: -width * 0.6,
-    right: -width * 0.4,
+    bottom: -windowDimensions.width * 0.6,
+    right: -windowDimensions.width * 0.4,
   },
   decorativeCircle: {
     position: 'absolute',
@@ -1050,22 +1551,22 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   decorCircle1: {
-    top: height * 0.15,
-    right: width * 0.1,
+    top: windowDimensions.height * 0.15,
+    right: windowDimensions.width * 0.1,
     width: 80,
     height: 80,
     backgroundColor: 'rgba(16, 185, 129, 0.15)',
   },
   decorCircle2: {
-    bottom: height * 0.2,
-    left: width * 0.05,
+    bottom: windowDimensions.height * 0.2,
+    left: windowDimensions.width * 0.05,
     width: 60,
     height: 60,
     backgroundColor: 'rgba(16, 185, 129, 0.1)',
   },
   decorCircle3: {
-    top: height * 0.35,
-    left: width * 0.1,
+    top: windowDimensions.height * 0.35,
+    left: windowDimensions.width * 0.1,
     width: 50,
     height: 50,
     backgroundColor: 'rgba(16, 185, 129, 0.12)',
@@ -1083,7 +1584,6 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 400,
     alignItems: 'center',
-    // substitui 'gap' por margin em filhos
     zIndex: 10,
   },
   iconCircle: {
@@ -1236,7 +1736,6 @@ const styles = StyleSheet.create({
   indicators: {
     flexDirection: 'row',
     marginTop: 16,
-    // gap substituído por margin individual nos indicadores
   },
   indicator: {
     width: 10,
