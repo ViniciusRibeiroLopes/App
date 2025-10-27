@@ -1,4 +1,5 @@
-import React, {useEffect, useState, useRef} from 'react';
+// AlarmSystem.js
+import React, {useEffect, useState, useRef, useCallback} from 'react';
 import {
   Modal,
   View,
@@ -10,6 +11,9 @@ import {
   StatusBar,
   Vibration,
   AppState,
+  NativeEventEmitter,
+  NativeModules,
+  Platform,
 } from 'react-native';
 
 import Sound from 'react-native-sound';
@@ -107,7 +111,7 @@ const AlarmHorarioFixo = ({visible, onDismiss, alarmData}) => {
         glow.stop();
       };
     }
-  }, [visible]);
+  }, [visible, scaleAnim, pulseAnim, backgroundAnim, glowAnim]);
 
   if (!visible || !alarmData) return null;
 
@@ -191,7 +195,8 @@ const AlarmHorarioFixo = ({visible, onDismiss, alarmData}) => {
           </View>
 
           {/* Botão */}
-          <Animated.View style={{transform: [{scale: pulseAnim}], width: '100%'}}>
+          <Animated.View
+            style={{transform: [{scale: pulseAnim}], width: '100%'}}>
             <TouchableOpacity
               style={styles.button}
               onPress={onDismiss}
@@ -328,7 +333,7 @@ const AlarmIntervalo = ({visible, onDismiss, alarmData}) => {
         rotate.stop();
       };
     }
-  }, [visible]);
+  }, [visible, scaleAnim, pulseAnim, backgroundAnim, glowAnim, rotateAnim]);
 
   if (!visible || !alarmData) return null;
 
@@ -438,7 +443,8 @@ const AlarmIntervalo = ({visible, onDismiss, alarmData}) => {
           </View>
 
           {/* Botão */}
-          <Animated.View style={{transform: [{scale: pulseAnim}], width: '100%'}}>
+          <Animated.View
+            style={{transform: [{scale: pulseAnim}], width: '100%'}}>
             <TouchableOpacity
               style={[styles.button, styles.buttonPurple]}
               onPress={onDismiss}
@@ -501,53 +507,70 @@ const AlarmSystem = () => {
 
   const uid = auth().currentUser?.uid;
 
-  useEffect(() => {
-    if (uid) {
-      initializeAlarmSystem();
-    }
-
-    const subscription = AppState.addEventListener('change', nextAppState => {
-      setAppState(nextAppState);
-      if (nextAppState === 'active' && uid) {
-        checkForAlarms();
-      }
-    });
-
-    return () => {
-      cleanup();
-      subscription?.remove();
-    };
-  }, [uid]);
-
-  const initializeAlarmSystem = () => {
-    Sound.setCategory('Playback');
-
-    alarmSound.current = new Sound('alarm.mp3', Sound.MAIN_BUNDLE, error => {
-      if (error) {
-        console.log('Erro ao carregar som:', error);
-        alarmSound.current = null;
-      } else {
-        console.log('Som carregado com sucesso');
-      }
-    });
-
-    startAlarmChecker();
+  // Formata minuto com zero à esquerda para evitar strings como "9:5"
+  const formatHourMinute = date => {
+    const hh = String(date.getHours()).padStart(2, '0');
+    const mm = String(date.getMinutes()).padStart(2, '0');
+    return `${hh}:${mm}`;
   };
 
-  const startAlarmChecker = () => {
+  // Inicializa som e inicia verificação
+  const initializeAlarmSystem = useCallback(() => {
+    try {
+      // Em iOS pode-se definir categoria
+      if (Sound && Sound.setCategory) {
+        try {
+          // categoria para permitir reprodução em background dependendo da configuração nativa
+          if (Platform.OS === 'ios') {
+            Sound.setCategory('Playback');
+          }
+        } catch (e) {
+          // ignora se não suportado
+        }
+      }
+
+      alarmSound.current = new Sound('alarm.mp3', Sound.MAIN_BUNDLE, error => {
+        if (error) {
+          console.log('Erro ao carregar som:', error);
+          alarmSound.current = null;
+        } else {
+          console.log('Som carregado com sucesso');
+        }
+      });
+
+      startAlarmChecker();
+    } catch (e) {
+      console.error('Erro initializeAlarmSystem:', e);
+    }
+  }, [startAlarmChecker]);
+
+  const startAlarmChecker = useCallback(() => {
+    // evita múltiplos intervalos
+    if (checkAlarmInterval.current) {
+      return;
+    }
+
     checkForAlarms();
+    // roda a cada 10s (você pode ajustar)
     checkAlarmInterval.current = BackgroundTimer.setInterval(() => {
       checkForAlarms();
     }, 10000);
-  };
+  }, [checkForAlarms]);
 
-  const checkForAlarms = async () => {
+  const stopAlarmChecker = useCallback(() => {
+    if (checkAlarmInterval.current) {
+      BackgroundTimer.clearInterval(checkAlarmInterval.current);
+      checkAlarmInterval.current = null;
+    }
+  }, []);
+
+  const checkForAlarms = useCallback(async () => {
     if (!uid) return;
 
     try {
       const now = new Date();
       const currentTime = now.toTimeString().slice(0, 5);
-      const currentMinute = `${now.getHours()}:${now.getMinutes()}`;
+      const currentMinute = formatHourMinute(now);
       const currentDay = diasSemana[now.getDay()].abrev;
 
       if (lastCheckedMinute.current === currentMinute) {
@@ -565,240 +588,257 @@ const AlarmSystem = () => {
     } catch (error) {
       console.error('❌ Erro ao verificar alarmes:', error);
     }
-  };
+  }, [checkHorarioFixoAlarms, checkIntervaloAlarms, uid]);
 
   /**
    * Verifica alarmes de horário fixo
    */
-  const checkHorarioFixoAlarms = async (now, currentTime, currentDay) => {
-    const snapshot = await firestore()
-      .collection('alertas')
-      .where('usuarioId', '==', uid)
-      .where('tipoAlerta', '==', 'dias')
-      .get();
-
-    if (snapshot.empty) return;
-
-    for (const doc of snapshot.docs) {
-      const alarm = doc.data();
-
-      if (
-        alarm.horario <= currentTime &&
-        alarm.dias &&
-        alarm.dias.includes(currentDay)
-      ) {
-        const diaStr = now.toISOString().slice(0, 10);
-
-        const tomadoSnapshot = await firestore()
-          .collection('medicamentos_tomados')
+  const checkHorarioFixoAlarms = useCallback(
+    async (now, currentTime, currentDay) => {
+      try {
+        const snapshot = await firestore()
+          .collection('alertas')
           .where('usuarioId', '==', uid)
-          .where('horario', '==', alarm.horario)
-          .where('dia', '==', diaStr)
+          .where('tipoAlerta', '==', 'dias')
           .get();
 
-        if (!tomadoSnapshot.empty) continue;
+        if (snapshot.empty) return;
 
-        const remedioDoc = await firestore()
-          .collection('remedios')
-          .doc(alarm.remedioId)
-          .get();
+        for (const doc of snapshot.docs) {
+          const alarm = doc.data();
 
-        if (remedioDoc.exists) {
-          const remedioData = remedioDoc.data();
-          const alarmData = {
-            ...alarm,
-            remedioNome: remedioData.nome,
-            id: doc.id,
-          };
+          // supondo que alarm.horario esteja em formato "HH:mm"
+          if (
+            alarm.horario &&
+            alarm.horario <= currentTime &&
+            alarm.dias &&
+            alarm.dias.includes(currentDay)
+          ) {
+            const diaStr = now.toISOString().slice(0, 10);
 
-          console.log('🚨 Disparando alarme de horário fixo:', alarmData);
-          triggerAlarm(alarmData, 'horario');
-          break;
+            const tomadoSnapshot = await firestore()
+              .collection('medicamentos_tomados')
+              .where('usuarioId', '==', uid)
+              .where('horario', '==', alarm.horario)
+              .where('dia', '==', diaStr)
+              .get();
+
+            if (!tomadoSnapshot.empty) continue;
+
+            const remedioDoc = await firestore()
+              .collection('remedios')
+              .doc(alarm.remedioId)
+              .get();
+
+            if (remedioDoc.exists) {
+              const remedioData = remedioDoc.data();
+              const alarmData = {
+                ...alarm,
+                remedioNome: remedioData?.nome || '',
+                id: doc.id,
+              };
+
+              console.log('🚨 Disparando alarme de horário fixo:', alarmData);
+              triggerAlarm(alarmData, 'horario');
+              break;
+            }
+          }
         }
+      } catch (e) {
+        console.error('Erro em checkHorarioFixoAlarms:', e);
       }
-    }
-  };
+    },
+    [triggerAlarm, uid],
+  );
 
   /**
    * Verifica alarmes de intervalo (X em X horas)
    */
-  const checkIntervaloAlarms = async now => {
-    const snapshot = await firestore()
-      .collection('alertas')
-      .where('usuarioId', '==', uid)
-      .where('tipoAlerta', '==', 'intervalo')
-      .where('ativo', '==', true)
-      .get();
-
-    console.log(`📋 Alarmes de intervalo encontrados: ${snapshot.size}`);
-
-    if (snapshot.empty) return;
-
-    for (const doc of snapshot.docs) {
-      const alarm = doc.data();
-      console.log(`\n🔍 Verificando alarme: ${alarm.remedioNome || 'Sem nome'}`);
-      console.log(`   Horário início: ${alarm.horarioInicio}`);
-      console.log(`   Intervalo: ${alarm.intervaloHoras}h`);
-
-      // Verificar se deve disparar baseado no horário de início
-      const shouldTrigger = await checkIntervaloTiming(alarm, now);
-
-      if (shouldTrigger) {
-        const remedioDoc = await firestore()
-          .collection('remedios')
-          .doc(alarm.remedioId)
+  const checkIntervaloAlarms = useCallback(
+    async now => {
+      try {
+        const snapshot = await firestore()
+          .collection('alertas')
+          .where('usuarioId', '==', uid)
+          .where('tipoAlerta', '==', 'intervalo')
+          .where('ativo', '==', true)
           .get();
 
-        if (remedioDoc.exists) {
-          const remedioData = remedioDoc.data();
-          const alarmData = {
-            ...alarm,
-            remedioNome: remedioData.nome,
-            id: doc.id,
-          };
+        console.log(`📋 Alarmes de intervalo encontrados: ${snapshot.size}`);
 
-          console.log('🚨 Disparando alarme de intervalo:', alarmData);
-          triggerAlarm(alarmData, 'intervalo');
-          break;
+        if (snapshot.empty) return;
+
+        for (const doc of snapshot.docs) {
+          const alarm = doc.data();
+          console.log(
+            `\n🔍 Verificando alarme: ${alarm.remedioNome || 'Sem nome'}`,
+          );
+          console.log(`   Horário início: ${alarm.horarioInicio}`);
+          console.log(`   Intervalo: ${alarm.intervaloHoras}h`);
+
+          // Verificar se deve disparar baseado no horário de início
+          const shouldTrigger = await checkIntervaloTiming(alarm, now);
+
+          if (shouldTrigger) {
+            const remedioDoc = await firestore()
+              .collection('remedios')
+              .doc(alarm.remedioId)
+              .get();
+
+            if (remedioDoc.exists) {
+              const remedioData = remedioDoc.data();
+              const alarmData = {
+                ...alarm,
+                remedioNome: remedioData?.nome || '',
+                id: doc.id,
+              };
+
+              console.log('🚨 Disparando alarme de intervalo:', alarmData);
+              triggerAlarm(alarmData, 'intervalo');
+              break;
+            }
+          }
         }
+      } catch (e) {
+        console.error('Erro em checkIntervaloAlarms:', e);
       }
-    }
-  };
+    },
+    [checkIntervaloTiming, triggerAlarm, uid],
+  );
 
   /**
    * Verifica se é hora de disparar alarme de intervalo
    */
-  const checkIntervaloTiming = async (alarm, now) => {
-    try {
-      const currentTime = now.getTime();
-      const intervaloMs = alarm.intervaloHoras * 60 * 60 * 1000;
-      
-      // Calcular horário base (horarioInicio de hoje)
-      const [hora, minuto] = alarm.horarioInicio.split(':').map(Number);
-      const horarioBase = new Date(now);
-      horarioBase.setHours(hora, minuto, 0, 0);
-      
-      // Se o horário base já passou hoje, considera o de ontem
-      const horarioBaseOntem = new Date(horarioBase);
-      horarioBaseOntem.setDate(horarioBaseOntem.getDate() - 1);
-      
-      // Verificar qual horário base usar (se já passou ou não)
-      let horarioReferencia = horarioBase.getTime();
-      if (currentTime < horarioBase.getTime()) {
-        // Ainda não chegou o horário de hoje, usa o de ontem como base
-        horarioReferencia = horarioBaseOntem.getTime();
-      }
-      
-      // Calcular quanto tempo passou desde o horário de referência
-      const tempoDecorrido = currentTime - horarioReferencia;
-      
-      // Calcular quantas doses já deveriam ter sido tomadas
-      const dosesEsperadas = Math.floor(tempoDecorrido / intervaloMs);
-      
-      // Calcular o horário exato do próximo alarme
-      const proximoAlarmeTime = horarioReferencia + (dosesEsperadas * intervaloMs);
-      
-      // Verificar se estamos na janela de 5 minutos do próximo alarme
-      const diffMinutos = (currentTime - proximoAlarmeTime) / 1000 / 60;
-      const dentroJanela = diffMinutos >= 0 && diffMinutos <= 5;
-      
-      if (!dentroJanela) {
-        return false;
-      }
-      
-      // Verificar se já foi tomado neste horário específico
-      const hoje = new Date(now);
-      hoje.setHours(0, 0, 0, 0);
-      const diaHojeStr = hoje.toISOString().slice(0, 10);
-      
-      const horarioEsperado = new Date(proximoAlarmeTime).toTimeString().slice(0, 5);
-      
-      const tomadosSnapshot = await firestore()
-        .collection('medicamentos_tomados')
-        .where('usuarioId', '==', uid)
-        .where('remedioId', '==', alarm.remedioId)
-        .where('dia', '==', diaHojeStr)
-        .get();
-      
-      // Verificar se já foi marcado como tomado neste horário
-      const jaFoiTomado = tomadosSnapshot.docs.some(doc => {
-        const data = doc.data();
-        // Considera tomado se for do mesmo horário (margem de 30 min)
-        if (!data.horario) return false;
-        
-        const [hTomado, mTomado] = data.horario.split(':').map(Number);
-        const [hEsperado, mEsperado] = horarioEsperado.split(':').map(Number);
-        
-        const minutosTomado = hTomado * 60 + mTomado;
-        const minutosEsperado = hEsperado * 60 + mEsperado;
-        
-        const diferenca = Math.abs(minutosTomado - minutosEsperado);
-        return diferenca <= 30; // Margem de 30 minutos
-      });
-      
-      if (jaFoiTomado) {
-        console.log(`⏭️ Alarme de ${horarioEsperado} já foi tomado`);
-        return false;
-      }
-      
-      console.log(`⏰ Disparando alarme de intervalo:`);
-      console.log(`   Horário início: ${alarm.horarioInicio}`);
-      console.log(`   Intervalo: ${alarm.intervaloHoras}h`);
-      console.log(`   Horário esperado: ${horarioEsperado}`);
-      console.log(`   Doses esperadas: ${dosesEsperadas + 1}`);
-      
-      return true;
-    } catch (error) {
-      console.error('Erro ao verificar timing de intervalo:', error);
-      return false;
-    }
-  };
+  const checkIntervaloTiming = useCallback(
+    async (alarm, now) => {
+      try {
+        if (!alarm || !alarm.horarioInicio || !alarm.intervaloHoras)
+          return false;
 
-  const triggerAlarm = (alarmData, type) => {
-    if (showAlarm) {
-      console.log('Alarme já está ativo');
-      return;
-    }
+        const currentTime = now.getTime();
+        const intervaloMs = alarm.intervaloHoras * 60 * 60 * 1000;
 
-    setCurrentAlarm(alarmData);
-    setAlarmType(type);
-    setShowAlarm(true);
+        // Calcular horário base (horarioInicio de hoje)
+        const [hora, minuto] = String(alarm.horarioInicio)
+          .split(':')
+          .map(Number);
+        const horarioBase = new Date(now);
+        horarioBase.setHours(hora, minuto || 0, 0, 0);
 
-    playAlarmSound();
-    Vibration.vibrate([1000, 500, 1000, 500], true);
-  };
+        // Se o horário base já passou hoje, considera o de ontem
+        const horarioBaseOntem = new Date(horarioBase);
+        horarioBaseOntem.setDate(horarioBaseOntem.getDate() - 1);
 
-  const playAlarmSound = () => {
-    if (alarmSound.current) {
-      alarmSound.current.setNumberOfLoops(-1);
-      alarmSound.current.setVolume(1.0);
-      alarmSound.current.play(success => {
-        if (!success) {
-          console.log('Erro ao tocar som');
+        // Verificar qual horário base usar (se já passou ou não)
+        let horarioReferencia = horarioBase.getTime();
+        if (currentTime < horarioBase.getTime()) {
+          // Ainda não chegou o horário de hoje, usa o de ontem como base
+          horarioReferencia = horarioBaseOntem.getTime();
         }
-      });
-    }
-  };
 
-  const stopAlarmSound = () => {
+        // Calcular quanto tempo passou desde o horário de referência
+        const tempoDecorrido = currentTime - horarioReferencia;
+
+        // Calcular quantas doses já deveriam ter sido tomadas
+        const dosesEsperadas = Math.floor(tempoDecorrido / intervaloMs);
+
+        // Calcular o horário exato do próximo alarme
+        const proximoAlarmeTime =
+          horarioReferencia + dosesEsperadas * intervaloMs;
+
+        // Verificar se estamos na janela de 5 minutos do próximo alarme
+        const diffMinutos = (currentTime - proximoAlarmeTime) / 1000 / 60;
+        const dentroJanela = diffMinutos >= 0 && diffMinutos <= 5;
+
+        if (!dentroJanela) {
+          return false;
+        }
+
+        // Verificar se já foi tomado neste horário específico
+        const hoje = new Date(now);
+        hoje.setHours(0, 0, 0, 0);
+        const diaHojeStr = hoje.toISOString().slice(0, 10);
+
+        const horarioEsperado = new Date(proximoAlarmeTime)
+          .toTimeString()
+          .slice(0, 5);
+
+        const tomadosSnapshot = await firestore()
+          .collection('medicamentos_tomados')
+          .where('usuarioId', '==', uid)
+          .where('remedioId', '==', alarm.remedioId)
+          .where('dia', '==', diaHojeStr)
+          .get();
+
+        // Verificar se já foi marcado como tomado neste horário
+        const jaFoiTomado = tomadosSnapshot.docs.some(doc => {
+          const data = doc.data();
+          if (!data.horario) return false;
+
+          const [hTomado, mTomado] = String(data.horario)
+            .split(':')
+            .map(Number);
+          const [hEsperado, mEsperado] = String(horarioEsperado)
+            .split(':')
+            .map(Number);
+
+          const minutosTomado = (hTomado || 0) * 60 + (mTomado || 0);
+          const minutosEsperado = (hEsperado || 0) * 60 + (mEsperado || 0);
+
+          const diferenca = Math.abs(minutosTomado - minutosEsperado);
+          return diferenca <= 30; // Margem de 30 minutos
+        });
+
+        if (jaFoiTomado) {
+          console.log(`⏭️ Alarme de ${horarioEsperado} já foi tomado`);
+          return false;
+        }
+
+        console.log(`⏰ Disparando alarme de intervalo:`);
+        console.log(`   Horário início: ${alarm.horarioInicio}`);
+        console.log(`   Intervalo: ${alarm.intervaloHoras}h`);
+        console.log(`   Horário esperado: ${horarioEsperado}`);
+        console.log(`   Doses esperadas: ${dosesEsperadas + 1}`);
+
+        return true;
+      } catch (error) {
+        console.error('Erro ao verificar timing de intervalo:', error);
+        return false;
+      }
+    },
+    [uid],
+  );
+
+  // Tocar som do alarme
+  const playAlarmSound = useCallback(() => {
     if (alarmSound.current) {
-      alarmSound.current.stop();
+      try {
+        alarmSound.current.setNumberOfLoops(-1);
+        if (alarmSound.current.setVolume) alarmSound.current.setVolume(1.0);
+        alarmSound.current.play(success => {
+          if (!success) {
+            console.log('Erro ao tocar som');
+          }
+        });
+      } catch (e) {
+        console.error('Erro playAlarmSound:', e);
+      }
+    }
+  }, []);
+
+  const stopAlarmSound = useCallback(() => {
+    try {
+      if (alarmSound.current) {
+        if (alarmSound.current.stop) alarmSound.current.stop();
+      }
+    } catch (e) {
+      console.error('Erro stopAlarmSound:', e);
     }
     Vibration.cancel();
-  };
+  }, []);
 
-  const dismissAlarm = () => {
-    stopAlarmSound();
-    logMedicationTaken();
-    setShowAlarm(false);
-
-    setTimeout(() => {
-      setCurrentAlarm(null);
-      setAlarmType(null);
-    }, 500);
-  };
-
-  const logMedicationTaken = async () => {
+  // Registrar medicação como tomada
+  const logMedicationTaken = useCallback(async () => {
     if (!currentAlarm || !uid) return;
 
     try {
@@ -812,12 +852,12 @@ const AlarmSystem = () => {
         remedioNome: currentAlarm.remedioNome,
         dosagem: currentAlarm.dosagem,
         dia: diaStr,
-        timestamp: timestamp,
+        timestamp,
       };
 
-      // Adicionar horário específico dependendo do tipo
       if (alarmType === 'horario') {
         dados.horario = currentAlarm.horario;
+        dados.tipoAlerta = 'dias';
       } else if (alarmType === 'intervalo') {
         dados.horario = now.toTimeString().slice(0, 5);
         dados.tipoAlerta = 'intervalo';
@@ -830,19 +870,134 @@ const AlarmSystem = () => {
     } catch (error) {
       console.error('❌ Erro ao registrar medicamento:', error);
     }
-  };
+  }, [currentAlarm, alarmType, uid]);
 
-  const cleanup = () => {
-    if (checkAlarmInterval.current) {
-      BackgroundTimer.clearInterval(checkAlarmInterval.current);
-      checkAlarmInterval.current = null;
-    }
+  // Dismiss do alarme (usuário confirma que tomou)
+  const dismissAlarm = useCallback(() => {
     stopAlarmSound();
-    if (alarmSound.current) {
-      alarmSound.current.release();
+    // registrar medicação (não await aqui para não bloquear UI)
+    logMedicationTaken();
+    setShowAlarm(false);
+
+    setTimeout(() => {
+      setCurrentAlarm(null);
+      setAlarmType(null);
+    }, 500);
+
+    // Parar notificação persistente (se estiver ativa)
+    try {
+      if (NativeModules?.PersistentNotification?.stop) {
+        NativeModules.PersistentNotification.stop();
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, [logMedicationTaken, stopAlarmSound]);
+
+  // Dispara o alarme: mostra UI, toca som, vibra e inicia notificação persistente se disponível
+  const triggerAlarm = useCallback(
+    (alarmData, type) => {
+      if (showAlarm) {
+        console.log('Alarme já está ativo');
+        return;
+      }
+
+      setCurrentAlarm(alarmData);
+      setAlarmType(type);
+      setShowAlarm(true);
+
+      playAlarmSound();
+      try {
+        // vibra em loop até cancelamento
+        // OBS: No Android, o comportamento pode variar conforme permissões e API levels
+        Vibration.vibrate([1000, 500, 1000, 500], true);
+      } catch (e) {
+        // ignore
+      }
+
+      // Iniciar notificação persistente no Android (serviço foreground) - checagem segura
+      try {
+        if (NativeModules?.PersistentNotification?.start) {
+          NativeModules.PersistentNotification.start(
+            '💊 Hora de tomar seu medicamento',
+            `${alarmData.remedioNome || ''} - ${alarmData.dosagem || ''}`,
+          );
+        }
+      } catch (e) {
+        // ignore
+      }
+    },
+    [playAlarmSound, showAlarm],
+  );
+
+  // Limpeza geral
+  const cleanup = useCallback(() => {
+    stopAlarmChecker();
+
+    try {
+      stopAlarmSound();
+    } catch (e) {
+      // ignore
+    }
+
+    if (alarmSound.current && alarmSound.current.release) {
+      try {
+        alarmSound.current.release();
+      } catch (e) {
+        // ignore
+      }
       alarmSound.current = null;
     }
-  };
+
+    // garantir cancelamento de vibração
+    try {
+      Vibration.cancel();
+    } catch (e) {}
+  }, [stopAlarmChecker, stopAlarmSound]);
+
+  // Hook principal para inicializar quando tivermos uid e escutar mudança de app state
+  useEffect(() => {
+    if (uid) {
+      initializeAlarmSystem();
+    }
+
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      setAppState(nextAppState);
+      if (nextAppState === 'active' && uid) {
+        checkForAlarms();
+      }
+    });
+
+    return () => {
+      cleanup();
+      // remover listener
+      if (subscription && subscription.remove) {
+        subscription.remove();
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uid, initializeAlarmSystem, checkForAlarms, cleanup]);
+
+  // Escuta ação de confirmação vinda da notificação persistente (módulo nativo)
+  useEffect(() => {
+    // Cria emitter apenas se o módulo existir
+    const nativeModule = NativeModules?.PersistentNotification;
+    if (!nativeModule) return;
+
+    const emitter = new NativeEventEmitter(nativeModule);
+    const sub = emitter.addListener('PersistentNotificationConfirmed', () => {
+      // Quando o usuário confirma pela notificação, dismiss do alarme
+      dismissAlarm();
+    });
+
+    return () => {
+      try {
+        sub.remove();
+      } catch (e) {
+        // ignore
+      }
+    };
+  }, [dismissAlarm]);
 
   if (!uid) return null;
 
@@ -928,7 +1083,7 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 400,
     alignItems: 'center',
-    gap: 20,
+    // substitui 'gap' por margin em filhos
     zIndex: 10,
   },
   iconCircle: {
@@ -944,6 +1099,7 @@ const styles = StyleSheet.create({
     shadowOffset: {width: 0, height: 8},
     shadowOpacity: 0.4,
     shadowRadius: 20,
+    elevation: 10,
   },
   iconCirclePurple: {
     backgroundColor: 'rgba(99, 102, 241, 0.15)',
@@ -960,11 +1116,12 @@ const styles = StyleSheet.create({
     textShadowOffset: {width: 0, height: 2},
     textShadowRadius: 4,
     marginTop: 8,
+    marginBottom: 8,
   },
   doseContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    marginBottom: 12,
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
     paddingVertical: 12,
     paddingHorizontal: 20,
@@ -977,11 +1134,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#D1D5DB',
     textAlign: 'center',
+    marginLeft: 10,
   },
   timeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    marginBottom: 12,
     backgroundColor: 'rgba(16, 185, 129, 0.12)',
     paddingVertical: 16,
     paddingHorizontal: 28,
@@ -992,6 +1150,7 @@ const styles = StyleSheet.create({
     shadowOffset: {width: 0, height: 4},
     shadowOpacity: 0.2,
     shadowRadius: 8,
+    elevation: 6,
   },
   timeContainerPurple: {
     backgroundColor: 'rgba(99, 102, 241, 0.12)',
@@ -1002,8 +1161,9 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '700',
     color: '#FFFFFF',
-    fontFamily: 'monospace',
+    fontFamily: Platform.OS === 'android' ? 'monospace' : 'Menlo',
     letterSpacing: 1,
+    marginLeft: 12,
   },
   button: {
     backgroundColor: '#10B981',
@@ -1020,6 +1180,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(16, 185, 129, 0.4)',
     alignItems: 'center',
     justifyContent: 'center',
+    elevation: 8,
   },
   buttonPurple: {
     backgroundColor: '#6366F1',
@@ -1030,8 +1191,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 12,
     width: '100%',
+    paddingHorizontal: 12,
   },
   buttonText: {
     fontSize: 22,
@@ -1039,6 +1200,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     letterSpacing: 2,
     textAlign: 'center',
+    marginLeft: 12,
   },
   intervalBadge: {
     width: 70,
@@ -1053,6 +1215,8 @@ const styles = StyleSheet.create({
     shadowOffset: {width: 0, height: 4},
     shadowOpacity: 0.3,
     shadowRadius: 8,
+    elevation: 6,
+    marginBottom: 8,
   },
   intervalTextContainer: {
     backgroundColor: 'rgba(99, 102, 241, 0.12)',
@@ -1072,12 +1236,13 @@ const styles = StyleSheet.create({
   indicators: {
     flexDirection: 'row',
     marginTop: 16,
-    gap: 12,
+    // gap substituído por margin individual nos indicadores
   },
   indicator: {
     width: 10,
     height: 10,
     borderRadius: 5,
+    marginHorizontal: 6,
   },
 });
 

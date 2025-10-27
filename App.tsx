@@ -33,7 +33,7 @@ import IndexTelaDependente from './screens/telas_dependentes/IndexTelaDependente
 import PerfilScreen from './screens/navigation/PerfilScreen.js';
 import ConfigScreen from './screens/navigation/ConfigScreen.js';
 
-import {View} from 'react-native';
+import {View, AppState} from 'react-native';
 
 const Stack = createNativeStackNavigator();
 
@@ -89,15 +89,19 @@ const initializeNotificationChannels = async () => {
  * Configura listeners para eventos de notificação
  */
 const setupNotificationListeners = () => {
-  // Listener para quando o app está em foreground
-  notifee.onForegroundEvent(({type, notification}) => {
-    console.log('Evento de notificação em foreground:', type);
-  });
+  try {
+    // Listener para quando o app está em foreground
+    notifee.onForegroundEvent(({type, notification}) => {
+      console.log('Evento de notificação em foreground:', type);
+    });
 
-  // Listener para quando o app está em background/closed
-  notifee.onBackgroundEvent(async ({type, notification}) => {
-    console.log('Evento de notificação em background:', type);
-  });
+    // Listener para quando o app está em background/closed
+    notifee.onBackgroundEvent(async ({type, notification}) => {
+      console.log('Evento de notificação em background:', type);
+    });
+  } catch (error) {
+    console.error('❌ Erro ao configurar listeners de notificação:', error);
+  }
 };
 
 export default function App() {
@@ -107,132 +111,145 @@ export default function App() {
   const [firebaseReady, setFirebaseReady] = useState(false);
   const [gifDone, setGifDone] = useState(false);
   const [initialAuthCheck, setInitialAuthCheck] = useState(true);
+  const [appState, setAppState] = useState(AppState.currentState);
 
-  // Inicializar sistema de notificações
+  // Inicializar sistema de notificações apenas uma vez
   useEffect(() => {
-    initializeNotificationChannels();
-    setupNotificationListeners();
+    let mounted = true;
+
+    const initNotifications = async () => {
+      try {
+        await initializeNotificationChannels();
+        setupNotificationListeners();
+      } catch (error) {
+        console.error('Erro ao inicializar notificações:', error);
+      }
+    };
+
+    if (mounted) {
+      initNotifications();
+    }
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
-  const [isWaitingForLoginAnimation, setIsWaitingForLoginAnimation] =
-    useState(false);
-
+  // Monitorar estado do app
   useEffect(() => {
-    const unsubscribe = auth().onAuthStateChanged(async _user => {
-      if (initialAuthCheck) {
-        setInitialAuthCheck(false);
-        setUser(_user);
-
-        if (_user) {
-          await processUserData(_user);
-        } else {
-          setProfileExists(null);
-          setIsDependentUser(null);
-        }
-
-        setFirebaseReady(true);
-        return;
-      }
-
-      if (!user && _user) {
-        console.log(
-          '🎯 Usuário fez login manual, aguardando animação Lottie...',
-        );
-        setIsWaitingForLoginAnimation(true);
-
-        await AsyncStorage.setItem('waitingForLoginAnimation', 'true');
-
-        checkForAnimationCompletion();
-      }
-
-      setUser(_user);
-
-      if (_user && !isWaitingForLoginAnimation) {
-        await processUserData(_user);
-      } else if (!_user) {
-        setProfileExists(null);
-        setIsDependentUser(null);
-        setIsWaitingForLoginAnimation(false);
-        await AsyncStorage.removeItem('waitingForLoginAnimation');
-        await AsyncStorage.removeItem('loginAnimationCompleted');
-      }
-
-      setFirebaseReady(true);
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      console.log('App state changed:', appState, '->', nextAppState);
+      setAppState(nextAppState);
     });
 
-    return unsubscribe;
-  }, [user, isWaitingForLoginAnimation, initialAuthCheck]);
+    return () => {
+      subscription?.remove();
+    };
+  }, [appState]);
 
-  const checkForAnimationCompletion = async () => {
-    const checkInterval = setInterval(async () => {
+  // Listener de autenticação
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+    let mounted = true;
+
+    const setupAuth = async () => {
       try {
-        const animationCompleted = await AsyncStorage.getItem(
-          'loginAnimationCompleted',
-        );
+        unsubscribe = auth().onAuthStateChanged(async _user => {
+          if (!mounted) return;
 
-        if (animationCompleted === 'true') {
           console.log(
-            '✅ Animação Lottie concluída, processando dados do usuário...',
+            'Auth state changed:',
+            _user ? 'Logged in' : 'Logged out',
           );
 
-          setIsWaitingForLoginAnimation(false);
+          if (initialAuthCheck) {
+            setInitialAuthCheck(false);
+            setUser(_user);
 
-          await AsyncStorage.removeItem('waitingForLoginAnimation');
-          await AsyncStorage.removeItem('loginAnimationCompleted');
+            if (_user) {
+              await processUserData(_user);
+            } else {
+              setProfileExists(null);
+              setIsDependentUser(null);
+            }
 
-          if (user) {
-            await processUserData(user);
+            setFirebaseReady(true);
+            return;
           }
 
-          clearInterval(checkInterval);
-        }
-      } catch (error) {
-        console.error('Erro ao verificar conclusão da animação:', error);
-      }
-    }, 500);
+          setUser(_user);
 
-    setTimeout(() => {
-      clearInterval(checkInterval);
-      if (isWaitingForLoginAnimation) {
-        console.log('⚠️ Timeout da animação - prosseguindo...');
-        setIsWaitingForLoginAnimation(false);
-        AsyncStorage.removeItem('waitingForLoginAnimation');
-        AsyncStorage.removeItem('loginAnimationCompleted');
+          if (_user) {
+            await processUserData(_user);
+          } else {
+            setProfileExists(null);
+            setIsDependentUser(null);
+          }
+
+          setFirebaseReady(true);
+        });
+      } catch (error) {
+        console.error('Erro ao configurar auth listener:', error);
+        if (mounted) {
+          setFirebaseReady(true);
+        }
       }
-    }, 10000);
-  };
+    };
+
+    setupAuth();
+
+    return () => {
+      mounted = false;
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, [initialAuthCheck]);
 
   const processUserData = async (_user: FirebaseAuthTypes.User) => {
     try {
+      console.log('Processing user data for:', _user.uid);
+
+      // Verificar perfil do usuário
       const userDoc = await firestore()
         .collection('users')
         .doc(_user.uid)
         .get();
-      setProfileExists(userDoc.exists);
 
+      const exists = userDoc.exists;
+      console.log('User profile exists:', exists);
+      setProfileExists(exists);
+
+      // Verificar se é dependente
       const dependentUserQuery = await firestore()
         .collection('users_dependentes')
         .where('dependenteUid', '==', _user.uid)
+        .limit(1)
         .get();
 
-      setIsDependentUser(!dependentUserQuery.empty);
+      const isDependent = !dependentUserQuery.empty;
+      console.log('Is dependent user:', isDependent);
+      setIsDependentUser(isDependent);
     } catch (error) {
-      console.error('Erro ao verificar usuário:', error);
+      console.error('Erro ao processar dados do usuário:', error);
       setProfileExists(false);
       setIsDependentUser(false);
     }
   };
 
+  // Timer para o GIF de splash
   useEffect(() => {
     const gifDuration = 3000;
 
     const timer = setTimeout(() => {
+      console.log('Splash screen completed');
       setGifDone(true);
     }, gifDuration);
 
     return () => clearTimeout(timer);
   }, []);
 
+  // Splash screen
   if (!firebaseReady || !gifDone) {
     return (
       <View style={{flex: 1, backgroundColor: '#fff'}}>
@@ -249,7 +266,7 @@ export default function App() {
     <>
       <NavigationContainer>
         <Stack.Navigator screenOptions={{headerShown: false}}>
-          {user && !isWaitingForLoginAnimation ? (
+          {user ? (
             isDependentUser ? (
               <Stack.Screen
                 name="IndexTelaDependente"

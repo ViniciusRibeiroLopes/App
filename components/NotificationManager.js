@@ -14,7 +14,12 @@ import notifee, {
   EventType,
 } from '@notifee/react-native';
 import PushNotification from 'react-native-push-notification';
-import {Platform, AppState} from 'react-native';
+import {
+  Platform,
+  AppState,
+  NativeModules,
+  NativeEventEmitter,
+} from 'react-native';
 import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
 
@@ -398,4 +403,27 @@ export default {
   cancelarNotificacao,
   mostrarNotificacaoImediata,
   useNotificationManager,
+  // Módulo nativo para notificações persistentes (foreground service)
+  startPersistentNotification: async (title, message) => {
+    try {
+      if (Platform.OS !== 'android') return;
+      const mod = NativeModules.PersistentNotification;
+      if (mod && mod.start) {
+        mod.start(title || 'PillCheck', message || 'Lembrete de medicamento');
+      }
+    } catch (e) {
+      console.warn('Erro ao iniciar notificação persistente', e);
+    }
+  },
+  stopPersistentNotification: async () => {
+    try {
+      if (Platform.OS !== 'android') return;
+      const mod = NativeModules.PersistentNotification;
+      if (mod && mod.stop) {
+        mod.stop();
+      }
+    } catch (e) {
+      console.warn('Erro ao parar notificação persistente', e);
+    }
+  },
 };
