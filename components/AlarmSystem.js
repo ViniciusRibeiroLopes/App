@@ -1558,13 +1558,22 @@ const AlarmSystem = () => {
     const handleAppStateChange = nextAppState => {
       console.log('📱 App state mudou:', appState, '→', nextAppState);
 
-      // Verifica se o app voltou para o foreground
+      // Quando o app volta para foreground
       if (appState.match(/inactive|background/) && nextAppState === 'active') {
         console.log('✅ App voltou para foreground');
         if (uid) {
-          checkForAlarms();
+          // Re-agendar notificações ao voltar (garante que estão atualizadas)
           scheduleAllNotifications();
+          // Iniciar verificação em tempo real
+          startAlarmChecker();
         }
+      }
+
+      // Quando o app vai para background
+      if (nextAppState.match(/inactive|background/)) {
+        console.log('⏸️ App foi para background');
+        // Parar verificação em tempo real (economia de bateria)
+        stopAlarmChecker();
       }
 
       setAppState(nextAppState);
@@ -1586,7 +1595,8 @@ const AlarmSystem = () => {
     appState,
     initializeAlarmSystem,
     scheduleAllNotifications,
-    checkForAlarms,
+    startAlarmChecker,
+    stopAlarmChecker,
     cleanup,
   ]);
 
