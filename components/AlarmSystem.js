@@ -781,7 +781,7 @@ const AlarmSystem = () => {
   const [showAlarm, setShowAlarm] = useState(false);
   const [currentAlarm, setCurrentAlarm] = useState(null);
   const [alarmType, setAlarmType] = useState(null);
-  const [setAppState] = useState(AppState.currentState);
+  const [appState, setAppState] = useState(AppState.currentState);
 
   const alarmSound = useRef(null);
   const checkAlarmInterval = useRef(null);
@@ -1555,13 +1555,25 @@ const AlarmSystem = () => {
       scheduleAllNotifications();
     }
 
-    const subscription = AppState.addEventListener('change', nextAppState => {
-      setAppState(nextAppState);
-      if (nextAppState === 'active' && uid) {
-        checkForAlarms();
-        scheduleAllNotifications();
+    const handleAppStateChange = nextAppState => {
+      console.log('📱 App state mudou:', appState, '→', nextAppState);
+
+      // Verifica se o app voltou para o foreground
+      if (appState.match(/inactive|background/) && nextAppState === 'active') {
+        console.log('✅ App voltou para foreground');
+        if (uid) {
+          checkForAlarms();
+          scheduleAllNotifications();
+        }
       }
-    });
+
+      setAppState(nextAppState);
+    };
+
+    const subscription = AppState.addEventListener(
+      'change',
+      handleAppStateChange,
+    );
 
     return () => {
       cleanup();
@@ -1571,11 +1583,11 @@ const AlarmSystem = () => {
     };
   }, [
     uid,
+    appState,
     initializeAlarmSystem,
     scheduleAllNotifications,
     checkForAlarms,
     cleanup,
-    setAppState,
   ]);
 
   if (!uid) {
