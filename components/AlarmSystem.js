@@ -123,7 +123,9 @@ const AlarmHorarioFixo = ({visible, onDismiss, alarmData}) => {
     }
   }, [visible, scaleAnim, pulseAnim, backgroundAnim, glowAnim]);
 
-  if (!visible || !alarmData) {return null;}
+  if (!visible || !alarmData) {
+    return null;
+  }
 
   return (
     <Modal
@@ -349,7 +351,9 @@ const AlarmIntervalo = ({visible, onDismiss, alarmData}) => {
     }
   }, [visible, scaleAnim, pulseAnim, backgroundAnim, glowAnim, rotateAnim]);
 
-  if (!visible || !alarmData) {return null;}
+  if (!visible || !alarmData) {
+    return null;
+  }
 
   const rotateInterpolate = rotateAnim.interpolate({
     inputRange: [0, 1],
@@ -488,6 +492,7 @@ const AlarmIntervalo = ({visible, onDismiss, alarmData}) => {
             <Animated.View
               style={[
                 styles.indicator,
+                // eslint-disable-next-line react-native/no-inline-styles
                 {
                   opacity: pulseAnim,
                   backgroundColor: '#6366F1',
@@ -497,6 +502,7 @@ const AlarmIntervalo = ({visible, onDismiss, alarmData}) => {
             <Animated.View
               style={[
                 styles.indicator,
+                // eslint-disable-next-line react-native/no-inline-styles
                 {
                   opacity: pulseAnim,
                   backgroundColor: '#6366F1',
@@ -775,7 +781,7 @@ const AlarmSystem = () => {
   const [showAlarm, setShowAlarm] = useState(false);
   const [currentAlarm, setCurrentAlarm] = useState(null);
   const [alarmType, setAlarmType] = useState(null);
-  const [appState, setAppState] = useState(AppState.currentState);
+  const [setAppState] = useState(AppState.currentState);
 
   const alarmSound = useRef(null);
   const checkAlarmInterval = useRef(null);
@@ -792,7 +798,9 @@ const AlarmSystem = () => {
 
   // Agendar notificações do dia
   const scheduleAllNotifications = useCallback(async () => {
-    if (!uid) return;
+    if (!uid) {
+      return;
+    }
 
     console.log('📅 Iniciando agendamento de notificações do dia...');
 
@@ -907,7 +915,9 @@ const AlarmSystem = () => {
         for (const doc of snapshot.docs) {
           const alarm = doc.data();
 
-          if (!alarm.horarioInicio || !alarm.intervaloHoras) continue;
+          if (!alarm.horarioInicio || !alarm.intervaloHoras) {
+            continue;
+          }
 
           const [hora, minuto] = String(alarm.horarioInicio)
             .split(':')
@@ -938,7 +948,9 @@ const AlarmSystem = () => {
 
               const jaFoiTomado = tomadoSnapshot.docs.some(tomadoDoc => {
                 const tomadoData = tomadoDoc.data();
-                if (!tomadoData.horario) return false;
+                if (!tomadoData.horario) {
+                  return false;
+                }
 
                 const [hTomado, mTomado] = String(tomadoData.horario)
                   .split(':')
@@ -1045,7 +1057,9 @@ const AlarmSystem = () => {
   }, []);
 
   const checkForAlarms = useCallback(async () => {
-    if (!uid) return;
+    if (!uid) {
+      return;
+    }
 
     try {
       const now = new Date();
@@ -1079,7 +1093,9 @@ const AlarmSystem = () => {
           .where('tipoAlerta', '==', 'dias')
           .get();
 
-        if (snapshot.empty) return;
+        if (snapshot.empty) {
+          return;
+        }
 
         for (const doc of snapshot.docs) {
           const alarm = doc.data();
@@ -1099,7 +1115,9 @@ const AlarmSystem = () => {
               .where('dia', '==', diaStr)
               .get();
 
-            if (!tomadoSnapshot.empty) continue;
+            if (!tomadoSnapshot.empty) {
+              continue;
+            }
 
             const remedioDoc = await firestore()
               .collection('remedios')
@@ -1139,7 +1157,9 @@ const AlarmSystem = () => {
 
         console.log(`📋 Alarmes de intervalo encontrados: ${snapshot.size}`);
 
-        if (snapshot.empty) return;
+        if (snapshot.empty) {
+          return;
+        }
 
         for (const doc of snapshot.docs) {
           const alarm = doc.data();
@@ -1229,7 +1249,9 @@ const AlarmSystem = () => {
 
         const jaFoiTomado = tomadosSnapshot.docs.some(doc => {
           const data = doc.data();
-          if (!data.horario) return false;
+          if (!data.horario) {
+            return false;
+          }
 
           const [hTomado, mTomado] = String(data.horario)
             .split(':')
@@ -1266,7 +1288,9 @@ const AlarmSystem = () => {
     if (alarmSound.current) {
       try {
         alarmSound.current.setNumberOfLoops(-1);
-        if (alarmSound.current.setVolume) alarmSound.current.setVolume(1.0);
+        if (alarmSound.current.setVolume) {
+          alarmSound.current.setVolume(1.0);
+        }
         alarmSound.current.play(success => {
           if (!success) {
             console.log('Erro ao tocar som');
@@ -1281,7 +1305,9 @@ const AlarmSystem = () => {
   const stopAlarmSound = useCallback(() => {
     try {
       if (alarmSound.current) {
-        if (alarmSound.current.stop) alarmSound.current.stop();
+        if (alarmSound.current.stop) {
+          alarmSound.current.stop();
+        }
       }
     } catch (e) {
       console.error('Erro stopAlarmSound:', e);
@@ -1291,7 +1317,9 @@ const AlarmSystem = () => {
 
   const logMedicationTaken = useCallback(
     async notifData => {
-      if (!uid) return;
+      if (!uid) {
+        return;
+      }
 
       try {
         console.log('💊 Registrando medicamento tomado:', notifData);
@@ -1473,7 +1501,7 @@ const AlarmSystem = () => {
   useEffect(() => {
     const handleConfirm = async notifData => {
       console.log(
-        `👆 Usuário confirmou medicação pela notificação:`,
+        '👆 Usuário confirmou medicação pela notificação:',
         notifData,
       );
       await dismissAlarm(notifData);
@@ -1547,9 +1575,12 @@ const AlarmSystem = () => {
     scheduleAllNotifications,
     checkForAlarms,
     cleanup,
+    setAppState,
   ]);
 
-  if (!uid) return null;
+  if (!uid) {
+    return null;
+  }
 
   return (
     <>
