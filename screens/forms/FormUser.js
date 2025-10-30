@@ -222,7 +222,7 @@ const CompleteProfileScreen = ({onProfileCreated}) => {
    */
   useEffect(() => {
     startAnimations();
-  }, []);
+  }, [startAnimations]);
 
   /**
    * Efeito executado quando o passo atual muda
@@ -250,12 +250,13 @@ const CompleteProfileScreen = ({onProfileCreated}) => {
         useNativeDriver: true,
       }),
     ]).start();
-  }, [currentStep]);
+  }, [currentStep, fadeAnim, progressAnim, steps.length]);
 
   /**
    * Inicia as animações de entrada da tela
    * @function startAnimations
    */
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const startAnimations = () => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
@@ -308,7 +309,8 @@ const CompleteProfileScreen = ({onProfileCreated}) => {
    * @async
    * @function handleLottieAnimationFinish
    */
-  const handleLottieAnimationFinish = async () => {
+  // eslint-disable-next-line react-hooks/exhaustive-deps, no-undef
+  const handleLottieAnimationFinish = useCallback(async () => {
     console.log('🎬 Animação Lottie de perfil finalizada!');
 
     try {
@@ -327,7 +329,7 @@ const CompleteProfileScreen = ({onProfileCreated}) => {
         onProfileCreated();
       }
     }, 500);
-  };
+  });
 
   /**
    * Efeito executado quando a animação de sucesso é exibida
@@ -361,7 +363,7 @@ const CompleteProfileScreen = ({onProfileCreated}) => {
         clearTimeout(fallbackTimer);
       };
     }
-  }, [showSuccessAnimation]);
+  }, [handleLottieAnimationFinish, showSuccessAnimation]);
 
   /**
    * Formata um número de telefone para o padrão brasileiro

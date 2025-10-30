@@ -198,7 +198,7 @@ export default function App() {
     const setupAuth = async () => {
       try {
         unsubscribe = auth().onAuthStateChanged(async _user => {
-          if (!mounted) return;
+          if (!mounted) {return;}
 
           console.log(
             'Auth state changed:',
@@ -299,9 +299,11 @@ export default function App() {
   // Splash screen
   if (!firebaseReady || !gifDone) {
     return (
+      // eslint-disable-next-line react-native/no-inline-styles
       <View style={{flex: 1, backgroundColor: '#fff'}}>
         <FastImage
           source={require('./images/splash_screen.gif')}
+          // eslint-disable-next-line react-native/no-inline-styles
           style={{width: '100%', height: '100%'}}
           resizeMode={FastImage.resizeMode.cover}
         />

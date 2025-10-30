@@ -192,6 +192,7 @@ const OnBoarding = ({navigation}) => {
                 <Animated.View
                   style={[
                     styles.dot,
+                    // eslint-disable-next-line react-native/no-inline-styles
                     {
                       width: dotWidth,
                       opacity,

@@ -10,6 +10,7 @@ const OnBoardingItem = ({item}) => {
 
   if (!item) {
     return (
+      // eslint-disable-next-line react-native/no-inline-styles
       <View style={[styles.container, {width, backgroundColor: 'red'}]}>
         <Text style={styles.errorText}>Item não encontrado</Text>
       </View>

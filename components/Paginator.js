@@ -5,6 +5,7 @@ const Paginator = ({ data, scrollX }) => {
     const { width } = useWindowDimensions();
 
     return (
+        // eslint-disable-next-line react-native/no-inline-styles
         <View style={{ flexDirection: 'row', height: 64 }}>
             {data.map((_, i) => {
                 const inputRange = [(i - 1) * width, i * width, (i + 1) * width];
@@ -19,16 +20,16 @@ const Paginator = ({ data, scrollX }) => {
                     inputRange,
                     outputRange: [0.3, 1, 0.3],
                     extrapolate: 'clamp',
-                })
+                });
 
                 return (
                     <Animated.View
                         key={i.toString()}
                         style={[
-                            styles.dot, { 
+                            styles.dot, {
                                 width: dotWidth,
                                 opacity,
-                            }
+                            },
                         ]}
                     />
                 );
