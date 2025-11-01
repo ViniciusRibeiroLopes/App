@@ -31,12 +31,14 @@ const isMediumScreen = width >= 360 && width < 400;
 const Index = ({navigation}) => {
   const [medicamentos, setMedicamentos] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMedications, setLoadingMedications] = useState(true);
   const [menuVisible, setMenuVisible] = useState(false);
   const [tutorialVisible, setTutorialVisible] = useState(false);
   const [tutorialStep, setTutorialStep] = useState(0);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [dependentes, setDependentes] = useState([]);
   const [currentMedicationIndex, setCurrentMedicationIndex] = useState(0);
+  const [userName, setUserName] = useState('Usuário');
 
   const [stats, setStats] = useState({
     medicamentosAtivos: 0,
@@ -90,6 +92,35 @@ const Index = ({navigation}) => {
       highlight: 'remedios',
     },
   ];
+
+  // Buscar nome do usuário do Firebase
+  useEffect(() => {
+    const fetchUserName = async () => {
+      if (!user) return;
+
+      try {
+        const userDoc = await firestore()
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+        if (userDoc.exists) {
+          const userData = userDoc.data();
+          const nome = userData.nome || userData.nomeCompleto || user.displayName || 'Usuário';
+          setUserName(nome);
+          console.log('✅ Nome do usuário carregado:', nome);
+        } else {
+          // Se não tem documento, usa o displayName do Firebase Auth
+          setUserName(user.displayName || 'Usuário');
+        }
+      } catch (error) {
+        console.error('❌ Erro ao buscar nome do usuário:', error);
+        setUserName(user.displayName || 'Usuário');
+      }
+    };
+
+    fetchUserName();
+  }, [user]);
 
   useEffect(() => {
     checkFirstAccess();
@@ -204,6 +235,7 @@ const Index = ({navigation}) => {
   useEffect(() => {
     if (!user) {
       setLoading(false);
+      setLoadingMedications(false);
       return;
     }
 
@@ -259,12 +291,15 @@ const Index = ({navigation}) => {
       .where('usuarioId', '==', user.uid)
       .onSnapshot(async snapshot => {
         try {
+          setLoadingMedications(true);
+          
           if (!snapshot || !snapshot.docs) {
             setStats(prev => ({
               ...prev,
               nextMedications: [],
               totalAlarms: 0,
             }));
+            setLoadingMedications(false);
             return;
           }
 
@@ -307,8 +342,11 @@ const Index = ({navigation}) => {
             ...medicationStats,
             totalAlarms: alertasAtivos.length,
           }));
+          
+          setLoadingMedications(false);
         } catch (error) {
           console.error('Erro ao processar alertas:', error);
+          setLoadingMedications(false);
         }
       });
 
@@ -318,6 +356,8 @@ const Index = ({navigation}) => {
       .where('usuarioId', '==', user.uid)
       .onSnapshot(
         async snapshot => {
+          setLoadingMedications(true);
+          
           // Quando houver mudança nos medicamentos tomados, recarrega os stats
           const alertasSnapshot = await firestore()
             .collection('alertas')
@@ -362,9 +402,12 @@ const Index = ({navigation}) => {
             ...prev,
             ...medicationStats,
           }));
+          
+          setLoadingMedications(false);
         },
         error => {
           console.error('Erro ao monitorar medicamentos tomados:', error);
+          setLoadingMedications(false);
         }
       );
 
@@ -768,12 +811,12 @@ const Index = ({navigation}) => {
                 <View style={styles.userInfoContainer}>
                   <View style={styles.avatarContainer}>
                     <Text style={styles.avatarInitial}>
-                      {user?.displayName?.charAt(0)?.toUpperCase() || user?.email?.charAt(0)?.toUpperCase() || 'U'}
+                      {userName?.charAt(0)?.toUpperCase() || 'U'}
                     </Text>
                   </View>
                   <View style={styles.userInfo}>
                     <Text style={styles.userName}>
-                      {user?.displayName || 'Usuário'}
+                      {userName}
                     </Text>
                     <Text style={styles.userEmail}>{user?.email}</Text>
                   </View>
@@ -1097,38 +1140,45 @@ const Index = ({navigation}) => {
           <Text style={styles.sectionTitle}>Próximos Medicamentos</Text>
         </View>
 
-        <View style={styles.carouselContainer}>
-          <FlatList
-            ref={flatListRef}
-            data={medications}
-            renderItem={renderMedicationCard}
-            keyExtractor={(item, index) => item.id || `med-${index}`}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            snapToInterval={width - 48}
-            snapToAlignment="center"
-            decelerationRate="fast"
-            contentContainerStyle={styles.medicationsCarousel}
-            pagingEnabled={false}
-            onViewableItemsChanged={onViewableItemsChanged}
-            viewabilityConfig={viewabilityConfig}
-            extraData={medications}
-          />
-          
-          {hasMultipleMeds && (
-            <View style={styles.paginationDots}>
-              {medications.map((_, index) => (
-                <View
-                  key={index}
-                  style={[
-                    styles.paginationDot,
-                    index === currentMedicationIndex && styles.paginationDotActive,
-                  ]}
-                />
-              ))}
-            </View>
-          )}
-        </View>
+        {loadingMedications ? (
+          <View style={styles.medicationLoadingContainer}>
+            <ActivityIndicator size="large" color="#10B981" />
+            <Text style={styles.medicationLoadingText}>Carregando medicamentos...</Text>
+          </View>
+        ) : (
+          <View style={styles.carouselContainer}>
+            <FlatList
+              ref={flatListRef}
+              data={medications}
+              renderItem={renderMedicationCard}
+              keyExtractor={(item, index) => item.id || `med-${index}`}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              snapToInterval={width - 48}
+              snapToAlignment="center"
+              decelerationRate="fast"
+              contentContainerStyle={styles.medicationsCarousel}
+              pagingEnabled={false}
+              onViewableItemsChanged={onViewableItemsChanged}
+              viewabilityConfig={viewabilityConfig}
+              extraData={medications}
+            />
+            
+            {hasMultipleMeds && (
+              <View style={styles.paginationDots}>
+                {medications.map((_, index) => (
+                  <View
+                    key={index}
+                    style={[
+                      styles.paginationDot,
+                      index === currentMedicationIndex && styles.paginationDotActive,
+                    ]}
+                  />
+                ))}
+              </View>
+            )}
+          </View>
+        )}
       </Animated.View>
     );
   };
@@ -1732,6 +1782,23 @@ const styles = StyleSheet.create({
     letterSpacing: 0.1,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
+  medicationLoadingContainer: {
+    backgroundColor: 'rgba(30, 41, 59, 0.8)',
+    borderRadius: 16,
+    padding: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+  },
+  medicationLoadingText: {
+    marginTop: 16,
+    fontSize: 14,
+    color: '#94a3b8',
+    fontWeight: '500',
+    letterSpacing: 0.3,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
+  },
   actionsSection: {
     marginBottom: 20,
   },
@@ -1817,7 +1884,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#3B82F6',
+    backgroundColor: '#10B981',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,

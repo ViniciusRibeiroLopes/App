@@ -106,7 +106,7 @@ const RemedioForm = ({route, navigation}) => {
       setDosagem(remedio.dosagem || '');
       setObservacoes(remedio.observacoes || '');
     }
-  }, [isEdit, route.params.remedio]);
+  }, []);
 
   const handleSalvar = async () => {
     const uid = auth().currentUser?.uid;

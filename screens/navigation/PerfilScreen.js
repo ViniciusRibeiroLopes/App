@@ -380,18 +380,6 @@ const PerfilScreen = ({navigation}) => {
           <Text style={styles.profileName}>{userData.nome || 'Usuário'}</Text>
         )}
         <Text style={styles.profileEmail}>{userData.email}</Text>
-        <View style={styles.membershipBadge}>
-          <Icon name="shield-checkmark" size={14} color="#10B981" />
-          <Text style={styles.membershipText}>
-            Membro desde{' '}
-            {userData.createdAt
-              ? new Date(userData.createdAt.seconds * 1000).toLocaleDateString(
-                  'pt-BR',
-                  {month: 'short', year: 'numeric'},
-                )
-              : 'agora'}
-          </Text>
-        </View>
       </View>
     </Animated.View>
   );

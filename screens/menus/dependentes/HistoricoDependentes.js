@@ -328,10 +328,26 @@ const HistoricoMedicamentosScreen = ({navigation, route}) => {
   };
 
   const renderMedicamentoItem = medicamento => {
+    // Verificar se é medicamento não tomado
+    const naoTomado = medicamento.status === 'nao_tomado';
+    
     return (
-      <View key={medicamento.id} style={styles.medicamentoItem}>
-        <View style={styles.medicamentoIconContainer}>
-          <MaterialIcons name="medication" size={18} color="#10B981" />
+      <View 
+        key={medicamento.id} 
+        style={[
+          styles.medicamentoItem,
+          naoTomado && styles.medicamentoItemNaoTomado
+        ]}
+      >
+        <View style={[
+          styles.medicamentoIconContainer,
+          naoTomado && styles.medicamentoIconContainerNaoTomado
+        ]}>
+          <MaterialIcons 
+            name="medication" 
+            size={18} 
+            color={naoTomado ? '#EF4444' : '#10B981'} 
+          />
         </View>
 
         <View style={styles.medicamentoInfo}>
@@ -339,21 +355,46 @@ const HistoricoMedicamentosScreen = ({navigation, route}) => {
             <Text style={styles.medicamentoNome} numberOfLines={1}>
               {medicamento.remedioNome}
             </Text>
-            <Text style={styles.medicamentoHorario}>{medicamento.horario}</Text>
+            <Text style={[
+              styles.medicamentoHorario,
+              naoTomado && styles.medicamentoHorarioNaoTomado
+            ]}>
+              {medicamento.horarioAgendado || medicamento.horario}
+            </Text>
           </View>
-          <Text style={styles.medicamentoDosagem}>
-            Dosagem: {medicamento.dosagem}
-          </Text>
+          <View style={styles.medicamentoFooter}>
+            <Text style={styles.medicamentoDosagem}>
+              Dosagem: {medicamento.dosagem}
+            </Text>
+            {naoTomado && (
+              <View style={styles.naoTomadoBadge}>
+                <Icon name="alert-circle" size={12} color="#EF4444" />
+                <Text style={styles.naoTomadoText}>Não tomado</Text>
+              </View>
+            )}
+          </View>
         </View>
 
-        <View style={styles.statusBadge}>
-          <Icon name="checkmark" size={12} color="#FFFFFF" />
+        <View style={[
+          styles.statusBadge,
+          naoTomado && styles.statusBadgeNaoTomado
+        ]}>
+          <Icon 
+            name={naoTomado ? "close" : "checkmark"} 
+            size={12} 
+            color="#FFFFFF" 
+          />
         </View>
       </View>
     );
   };
 
   const renderDiaGroup = (dia, medicamentos) => {
+    // Calcular estatísticas do dia
+    const totalMedicamentos = medicamentos.length;
+    const medicamentosTomadosCount = medicamentos.filter(m => m.status !== 'nao_tomado').length;
+    const medicamentosNaoTomadosCount = medicamentos.filter(m => m.status === 'nao_tomado').length;
+    
     return (
       <View key={dia} style={styles.diaGroup}>
         <View style={styles.diaHeader}>
@@ -361,8 +402,19 @@ const HistoricoMedicamentosScreen = ({navigation, route}) => {
             <Icon name="calendar-outline" size={16} color="#F59E0B" />
             <Text style={styles.diaData}>{formatarData(dia)}</Text>
           </View>
-          <View style={styles.diaCounterBadge}>
-            <Text style={styles.diaContador}>{medicamentos.length}</Text>
+          <View style={styles.diaStats}>
+            {medicamentosTomadosCount > 0 && (
+              <View style={styles.diaCounterBadge}>
+                <Icon name="checkmark" size={10} color="#FFFFFF" />
+                <Text style={styles.diaContador}>{medicamentosTomadosCount}</Text>
+              </View>
+            )}
+            {medicamentosNaoTomadosCount > 0 && (
+              <View style={styles.diaCounterBadgeNaoTomado}>
+                <Icon name="close" size={10} color="#FFFFFF" />
+                <Text style={styles.diaContador}>{medicamentosNaoTomadosCount}</Text>
+              </View>
+            )}
           </View>
         </View>
         <View style={styles.medicamentosContainer}>
@@ -715,12 +767,32 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
   },
+  diaStats: {
+    flexDirection: 'row',
+    gap: 8,
+  },
   diaCounterBadge: {
-    backgroundColor: '#F59E0B',
-    paddingHorizontal: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#10B981',
+    paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
-    shadowColor: '#F59E0B',
+    shadowColor: '#10B981',
+    shadowOffset: {width: 0, height: 1},
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+  },
+  diaCounterBadgeNaoTomado: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#EF4444',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    shadowColor: '#EF4444',
     shadowOffset: {width: 0, height: 1},
     shadowOpacity: 0.2,
     shadowRadius: 2,
@@ -746,6 +818,10 @@ const styles = StyleSheet.create({
     borderLeftWidth: 4,
     borderLeftColor: '#10B981',
   },
+  medicamentoItemNaoTomado: {
+    borderLeftColor: '#EF4444',
+    backgroundColor: 'rgba(30, 41, 59, 0.9)',
+  },
   medicamentoIconContainer: {
     width: 36,
     height: 36,
@@ -754,6 +830,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
+  },
+  medicamentoIconContainerNaoTomado: {
+    backgroundColor: 'rgba(239, 68, 68, 0.2)',
   },
   medicamentoInfo: {
     flex: 1,
@@ -780,10 +859,36 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
+  medicamentoHorarioNaoTomado: {
+    color: '#EF4444',
+  },
+  medicamentoFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   medicamentoDosagem: {
     fontSize: 14,
     color: '#94a3b8',
     letterSpacing: 0.1,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
+  },
+  naoTomadoBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+  },
+  naoTomadoText: {
+    fontSize: 11,
+    color: '#EF4444',
+    fontWeight: '600',
+    letterSpacing: 0.3,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   statusBadge: {
@@ -794,6 +899,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: 8,
+  },
+  statusBadgeNaoTomado: {
+    backgroundColor: '#EF4444',
   },
 });
 

@@ -4,6 +4,7 @@ import {NavigationContainer} from '@react-navigation/native';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import auth, {FirebaseAuthTypes} from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import FastImage from 'react-native-fast-image';
 import notifee, {
   AndroidImportance,
@@ -21,6 +22,7 @@ import AlarmSystem from './components/AlarmSystem.js';
 import AlertasMenu from './screens/menus/AlertasMenu.js';
 import RemediosMenu from './screens/menus/RemediosMenu.js';
 import HistoricoMenu from './screens/menus/HistoricoMenu.js';
+import ConfigDependentes from './screens/telas_dependentes/menu_dependentes/ConfigDependente.js'
 
 import DependentesMenu from './screens/menus/dependentes/DependentesMenu.js';
 import AdicionarDependente from './screens/forms/dependentes/FormDependentes.js';
@@ -155,6 +157,9 @@ export default function App() {
   const [gifDone, setGifDone] = useState(false);
   const [initialAuthCheck, setInitialAuthCheck] = useState(true);
   const [appState, setAppState] = useState(AppState.currentState);
+  
+  // Estados para controle da animação de login
+  const [isWaitingForLoginAnimation, setIsWaitingForLoginAnimation] = useState(false);
 
   // Inicializar sistema de notificações apenas uma vez
   useEffect(() => {
@@ -190,7 +195,7 @@ export default function App() {
     };
   }, [appState]);
 
-  // Listener de autenticação
+  // Listener de autenticação COM SISTEMA DE ANIMAÇÃO
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
     let mounted = true;
@@ -205,6 +210,7 @@ export default function App() {
             _user ? 'Logged in' : 'Logged out',
           );
 
+          // Primeira verificação de autenticação ao iniciar o app
           if (initialAuthCheck) {
             setInitialAuthCheck(false);
             setUser(_user);
@@ -220,13 +226,27 @@ export default function App() {
             return;
           }
 
+          // Detectar login manual do usuário
+          if (!user && _user) {
+            console.log('🎯 Usuário fez login manual, aguardando animação Lottie...');
+            setIsWaitingForLoginAnimation(true);
+            
+            await AsyncStorage.setItem('waitingForLoginAnimation', 'true');
+            
+            checkForAnimationCompletion();
+          }
+
           setUser(_user);
 
-          if (_user) {
+          // Processar dados apenas se não estiver aguardando animação
+          if (_user && !isWaitingForLoginAnimation) {
             await processUserData(_user);
-          } else {
+          } else if (!_user) {
             setProfileExists(null);
             setIsDependentUser(null);
+            setIsWaitingForLoginAnimation(false);
+            await AsyncStorage.removeItem('waitingForLoginAnimation');
+            await AsyncStorage.removeItem('loginAnimationCompleted');
           }
 
           setFirebaseReady(true);
@@ -247,11 +267,51 @@ export default function App() {
         unsubscribe();
       }
     };
-  }, [initialAuthCheck]);
+  }, [initialAuthCheck, user, isWaitingForLoginAnimation]);
 
   useEffect(() => {
     requestAlarmPermissions();
   }, []);
+
+  /**
+   * Função que verifica periodicamente se a animação Lottie foi concluída
+   * Usa polling de 500ms e timeout de 10 segundos
+   */
+  const checkForAnimationCompletion = async () => {
+    const checkInterval = setInterval(async () => {
+      try {
+        const animationCompleted = await AsyncStorage.getItem('loginAnimationCompleted');
+        
+        if (animationCompleted === 'true') {
+          console.log('✅ Animação Lottie concluída, processando dados do usuário...');
+          
+          setIsWaitingForLoginAnimation(false);
+          
+          await AsyncStorage.removeItem('waitingForLoginAnimation');
+          await AsyncStorage.removeItem('loginAnimationCompleted');
+          
+          if (user) {
+            await processUserData(user);
+          }
+          
+          clearInterval(checkInterval);
+        }
+      } catch (error) {
+        console.error('Erro ao verificar conclusão da animação:', error);
+      }
+    }, 500);
+
+    // Timeout de segurança de 10 segundos
+    setTimeout(() => {
+      clearInterval(checkInterval);
+      if (isWaitingForLoginAnimation) {
+        console.log('⚠️ Timeout da animação - prosseguindo...');
+        setIsWaitingForLoginAnimation(false);
+        AsyncStorage.removeItem('waitingForLoginAnimation');
+        AsyncStorage.removeItem('loginAnimationCompleted');
+      }
+    }, 10000);
+  };
 
   const processUserData = async (_user: FirebaseAuthTypes.User) => {
     try {
@@ -315,12 +375,18 @@ export default function App() {
     <>
       <NavigationContainer>
         <Stack.Navigator screenOptions={{headerShown: false}}>
-          {user ? (
+          {user && !isWaitingForLoginAnimation ? (
             isDependentUser ? (
-              <Stack.Screen
-                name="IndexTelaDependente"
-                component={IndexTelaDependente}
-              />
+              <>
+                <Stack.Screen
+                  name="IndexTelaDependente"
+                  component={IndexTelaDependente}
+                />
+                <Stack.Screen
+                    name="ConfigDependentes"
+                    component={ConfigDependentes}
+                  />
+              </>
             ) : profileExists === false ? (
               <Stack.Screen name="UserProfileForm">
                 {props => (
@@ -357,6 +423,8 @@ export default function App() {
                   name="IndexDependentes"
                   component={IndexDependentes}
                 />
+                
+
                 <Stack.Screen
                   name="HistoricoDependentes"
                   component={HistoricoDependentes}

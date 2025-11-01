@@ -935,10 +935,7 @@ const NextMedicationScreen = ({ navigation }) => {
       
       setTimeout(() => {
         if (navigation && navigation.navigate) {
-          navigation.navigate('ConfiguracoesAdmin', {
-            adminUid: adminUid,
-            dependenteUid: userId
-          });
+          navigation.navigate('ConfigDependentes');
         } else {
           Alert.alert('✅ Acesso Permitido', 'Configure a navegação para ConfiguracoesAdmin');
         }

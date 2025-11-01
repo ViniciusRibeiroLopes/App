@@ -226,6 +226,8 @@ const RegisterScreen = () => {
         password,
       );
       console.log('Usuário criado com sucesso:', userCredential);
+      // Mantém isLoading como true - será false apenas quando sair da tela
+      // ou quando houver erro
     } catch (error) {
       console.error('Erro ao criar conta:', error);
 
@@ -240,8 +242,7 @@ const RegisterScreen = () => {
       }
 
       Alert.alert('Erro', errorMessage);
-    } finally {
-      setIsLoading(false);
+      setIsLoading(false); // Só desativa o loading em caso de erro
     }
   };
 

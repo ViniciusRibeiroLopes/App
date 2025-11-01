@@ -437,7 +437,7 @@ const Dependentes = ({ navigation }) => {
               }>
               <Icon name="medical" size={16} color="#10B981" />
               <Text style={[styles.actionText, { color: '#10B981' }]}>
-                Medicamentos
+                Administrar
               </Text>
             </TouchableOpacity>
 
