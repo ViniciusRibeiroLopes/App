@@ -1,4 +1,5 @@
 import React, {useEffect, useState} from 'react';
+import {PermissionsAndroid, Platform, Linking, Alert} from 'react-native';
 import {NavigationContainer} from '@react-navigation/native';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import auth, {FirebaseAuthTypes} from '@react-native-firebase/auth';
@@ -105,6 +106,47 @@ const setupNotificationListeners = () => {
   }
 };
 
+async function requestAlarmPermissions() {
+  if (Platform.OS === 'android') {
+    try {
+      // 1. Permissão de notificações
+      const notifPermission = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+      );
+
+      console.log('📱 Permissão de notificação:', notifPermission);
+
+      // 2. Verificar se precisa de permissão para alarmes exatos (Android 12+)
+      if (Platform.Version >= 31) {
+        const canScheduleExactAlarms = await notifee.requestPermission();
+
+        if (!canScheduleExactAlarms) {
+          Alert.alert(
+            '⏰ Permissão Necessária',
+            'Para que os alarmes funcionem com o app fechado, você precisa permitir "Alarmes e lembretes" nas configurações.',
+            [
+              {text: 'Cancelar', style: 'cancel'},
+              {
+                text: 'Abrir Configurações',
+                onPress: () => {
+                  Linking.openSettings();
+                },
+              },
+            ],
+          );
+          return false;
+        }
+      }
+
+      return true;
+    } catch (error) {
+      console.error('❌ Erro ao solicitar permissões:', error);
+      return false;
+    }
+  }
+  return true;
+}
+
 export default function App() {
   const [user, setUser] = useState<FirebaseAuthTypes.User | null>(null);
   const [profileExists, setProfileExists] = useState<boolean | null>(null);
@@ -156,7 +198,7 @@ export default function App() {
     const setupAuth = async () => {
       try {
         unsubscribe = auth().onAuthStateChanged(async _user => {
-          if (!mounted) return;
+          if (!mounted) {return;}
 
           console.log(
             'Auth state changed:',
@@ -207,6 +249,10 @@ export default function App() {
     };
   }, [initialAuthCheck]);
 
+  useEffect(() => {
+    requestAlarmPermissions();
+  }, []);
+
   const processUserData = async (_user: FirebaseAuthTypes.User) => {
     try {
       console.log('Processing user data for:', _user.uid);
@@ -253,9 +299,11 @@ export default function App() {
   // Splash screen
   if (!firebaseReady || !gifDone) {
     return (
+      // eslint-disable-next-line react-native/no-inline-styles
       <View style={{flex: 1, backgroundColor: '#fff'}}>
         <FastImage
           source={require('./images/splash_screen.gif')}
+          // eslint-disable-next-line react-native/no-inline-styles
           style={{width: '100%', height: '100%'}}
           resizeMode={FastImage.resizeMode.cover}
         />

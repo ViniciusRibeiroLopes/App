@@ -94,7 +94,7 @@ const FormAlerta = ({navigation}) => {
     backgroundAnimation.start();
 
     return () => backgroundAnimation.stop();
-  }, []);
+  }, [backgroundAnim, fadeAnim, slideUpAnim]);
 
   useEffect(() => {
     const getCurrentUser = () => {

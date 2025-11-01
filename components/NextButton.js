@@ -19,7 +19,7 @@ const NextButton = ({ percentage, scrollTo }) => {
       easing: Easing.out(Easing.ease),
       useNativeDriver: false,
     }).start();
-  }, [percentage]);
+  }, [percentage, progressAnimation]);
 
   const strokeDashoffset = progressAnimation.interpolate({
     inputRange: [0, 100],
