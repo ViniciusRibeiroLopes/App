@@ -38,70 +38,352 @@ const NextMedicationScreen = ({ navigation }) => {
   const [senhaDigits, setSenhaDigits] = useState(['', '', '', '', '', '']);
   const [userId, setUserId] = useState(null);
   const [adminUid, setAdminUid] = useState(null);
+  const [showSuccessFeedback, setShowSuccessFeedback] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(false);
   
   const inputRefs = useRef([]);
   const pulseAnim = useRef(new Animated.Value(1)).current;
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(50)).current;
-  const rotateAnim = useRef(new Animated.Value(0)).current;
+  const fadeAnim = useRef(new Animated.Value(1)).current;
   const backgroundAnim = useRef(new Animated.Value(0)).current;
+  const glowAnim = useRef(new Animated.Value(1)).current;
+  const rotateAnim = useRef(new Animated.Value(0)).current;
+  const successAnim = useRef(new Animated.Value(0)).current;
+  const refreshAnim = useRef(new Animated.Value(0)).current;
 
   const uid = auth().currentUser?.uid;
 
+  // Inicialização
   useEffect(() => {
-    console.log('=== INICIANDO TELA ===');
+    console.log('=== MONTANDO COMPONENTE ===');
     console.log('UID:', uid);
     
-    if (uid) {
-      setUserId(uid);
-      buscarSenhaAdmin(uid);
-      fetchNextMedication();
-      startTimeUpdater();
+    if (!uid) {
+      console.log('Sem UID, nao pode continuar');
+      setLoading(false);
+      return;
     }
 
-    // Animação de entrada
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 800,
-        useNativeDriver: true,
-      }),
-      Animated.spring(slideAnim, {
-        toValue: 0,
-        tension: 50,
-        friction: 8,
-        useNativeDriver: true,
-      }),
-    ]).start();
+    setUserId(uid);
+    buscarSenhaAdmin(uid);
+    fetchNextMedication();
 
-    // Pulsação sutil no botão
-    const pulseAnimation = Animated.loop(
+    // Listener em tempo real para medicamentos tomados
+    const unsubscribe = firestore()
+      .collection('medicamentos_tomados_dependentes')
+      .where('dependenteId', '==', uid)
+      .onSnapshot((snapshot) => {
+        console.log('🔔 LISTENER DISPARADO - Mudanca detectada em medicamentos_tomados_dependentes');
+        console.log(`   📊 Total de documentos: ${snapshot.size}`);
+        console.log(`   🔄 Tipo de mudança: ${snapshot.docChanges().map(c => c.type).join(', ')}`);
+        
+        // Atualização imediata quando houver mudança
+        setTimeout(() => {
+          console.log('   ⏳ Buscando medicamentos após mudança...');
+          fetchNextMedication();
+        }, 300);
+      });
+
+    console.log('✅ Componente montado com sucesso');
+
+    return () => {
+      console.log('🧹 Desmontando componente');
+      unsubscribe();
+    };
+  }, [uid]);
+
+  // Sistema de atualização a cada 30 segundos
+  useEffect(() => {
+    if (!uid) return;
+
+    console.log('⏰ Iniciando intervalos de atualizacao');
+
+    const timeInterval = setInterval(() => {
+      console.log('[INTERVALO] Atualizando horario e medicamentos');
+      setCurrentTime(new Date());
+      fetchNextMedication();
+    }, 30000); // 30 segundos
+
+    return () => {
+      console.log('Limpando intervalos');
+      clearInterval(timeInterval);
+    };
+  }, [uid]);
+
+  // ========== NOVA FUNCIONALIDADE: Verificação de medicamentos não tomados ==========
+  useEffect(() => {
+    if (!uid) return;
+
+    console.log('⚠️ Iniciando verificação de medicamentos não tomados');
+
+    // Verificação imediata na montagem
+    verificarMedicamentosNaoTomados();
+
+    // Verificação a cada 1 minuto (para detectar rapidamente os 10 minutos)
+    const naoTomadosInterval = setInterval(() => {
+      console.log('[INTERVALO] Verificando medicamentos não tomados');
+      verificarMedicamentosNaoTomados();
+    }, 60000); // 1 minuto
+
+    return () => {
+      console.log('Limpando intervalo de não tomados');
+      clearInterval(naoTomadosInterval);
+    };
+  }, [uid]);
+
+  /**
+   * NOVA FUNÇÃO: Verifica e registra medicamentos não tomados
+   * Se passou 10 minutos do horário e não foi tomado, registra como não tomado
+   */
+  const verificarMedicamentosNaoTomados = async () => {
+    if (!uid) return;
+
+    try {
+      console.log('\n🔍 ========== VERIFICANDO MEDICAMENTOS NÃO TOMADOS ==========');
+      
+      const now = new Date();
+      const currentTimeStr = now.toTimeString().slice(0, 5);
+      const currentDay = diasSemana[now.getDay()].abrev;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const diaStr = today.toISOString().slice(0, 10);
+
+      // Buscar todos os alertas do usuário
+      const todosAlertasSnapshot = await firestore()
+        .collection('alertas_dependentes')
+        .where('dependenteId', '==', uid)
+        .get();
+
+      console.log(`📋 Total de alertas para verificar: ${todosAlertasSnapshot.size}`);
+
+      for (const doc of todosAlertasSnapshot.docs) {
+        const alerta = doc.data();
+        
+        // Processar alertas de dias fixos
+        if (alerta.tipoAlerta === 'dias') {
+          if (!alerta.dias || !Array.isArray(alerta.dias)) continue;
+          if (!alerta.dias.includes(currentDay)) continue;
+
+          const horarioAlerta = alerta.horario;
+          const [hAlerta, mAlerta] = horarioAlerta.split(':').map(Number);
+          const minutosAlerta = hAlerta * 60 + mAlerta;
+
+          const [hAtual, mAtual] = currentTimeStr.split(':').map(Number);
+          const minutosAtuais = hAtual * 60 + mAtual;
+
+          const diferencaMinutos = minutosAtuais - minutosAlerta;
+
+          // Se passaram mais de 10 minutos do horário
+          if (diferencaMinutos > 10) {
+            console.log(`⚠️ Medicamento ${alerta.remedioId} passou 10min (${diferencaMinutos}min)`);
+
+            // Verificar se já foi registrado
+            const jaRegistrado = await verificarSeJaRegistrado(
+              alerta.remedioId,
+              horarioAlerta,
+              diaStr,
+              doc.id
+            );
+
+            if (!jaRegistrado) {
+              console.log(`❌ Registrando como NÃO TOMADO`);
+              await registrarMedicamentoNaoTomado(alerta, diaStr, doc.id);
+            } else {
+              console.log(`✅ Já estava registrado (tomado ou não tomado)`);
+            }
+          }
+        }
+        
+        // Processar alertas de intervalo
+        if (alerta.tipoAlerta === 'intervalo') {
+          const horarioAlerta = alerta.horarioInicio;
+          const [hAlerta, mAlerta] = horarioAlerta.split(':').map(Number);
+          const minutosAlerta = hAlerta * 60 + mAlerta;
+
+          const [hAtual, mAtual] = currentTimeStr.split(':').map(Number);
+          const minutosAtuais = hAtual * 60 + mAtual;
+
+          const diferencaMinutos = minutosAtuais - minutosAlerta;
+
+          // Se passaram mais de 10 minutos do horário
+          if (diferencaMinutos > 10) {
+            console.log(`⚠️ Medicamento INTERVALO ${alerta.remedioId} passou 10min (${diferencaMinutos}min)`);
+
+            // Verificar se já foi registrado
+            const jaRegistrado = await verificarSeJaRegistrado(
+              alerta.remedioId,
+              horarioAlerta,
+              diaStr,
+              doc.id
+            );
+
+            if (!jaRegistrado) {
+              console.log(`❌ Registrando como NÃO TOMADO e atualizando próximo horário`);
+              await registrarMedicamentoNaoTomado(alerta, diaStr, doc.id);
+            } else {
+              console.log(`✅ Já estava registrado (tomado ou não tomado)`);
+            }
+          }
+        }
+      }
+
+      console.log('========== FIM DA VERIFICAÇÃO DE NÃO TOMADOS ==========\n');
+    } catch (error) {
+      console.error('❌ Erro ao verificar medicamentos não tomados:', error);
+    }
+  };
+
+  /**
+   * NOVA FUNÇÃO: Verifica se medicamento já foi registrado (tomado ou não tomado)
+   */
+  const verificarSeJaRegistrado = async (remedioId, horario, diaStr, alertaId) => {
+    try {
+      const registroSnapshot = await firestore()
+        .collection('medicamentos_tomados_dependentes')
+        .where('dependenteId', '==', uid)
+        .where('remedioId', '==', remedioId)
+        .where('dia', '==', diaStr)
+        .where('alertaId', '==', alertaId)
+        .get();
+
+      if (registroSnapshot.empty) return false;
+
+      // Verificar se algum registro corresponde ao horário
+      const jaRegistrado = registroSnapshot.docs.some(doc => {
+        const data = doc.data();
+        return data.horarioAgendado === horario || data.horario === horario;
+      });
+
+      return jaRegistrado;
+    } catch (error) {
+      console.error('❌ Erro ao verificar registro:', error);
+      return false;
+    }
+  };
+
+  /**
+   * NOVA FUNÇÃO: Registra medicamento como não tomado
+   */
+  const registrarMedicamentoNaoTomado = async (alerta, diaStr, alertaId) => {
+    try {
+      // Buscar dados do remédio
+      const remedioDoc = await firestore()
+        .collection('remedios')
+        .doc(alerta.remedioId)
+        .get();
+
+      if (!remedioDoc.exists) {
+        console.log('❌ Remédio não encontrado');
+        return;
+      }
+
+      const remedioData = remedioDoc.data();
+      const horarioQueDeveriaTerSido = alerta.tipoAlerta === 'intervalo' 
+        ? alerta.horarioInicio 
+        : alerta.horario;
+
+      const dadosParaSalvar = {
+        dia: diaStr,
+        dosagem: alerta.dosagem,
+        horario: horarioQueDeveriaTerSido,
+        horarioAgendado: horarioQueDeveriaTerSido,
+        remedioId: alerta.remedioId,
+        remedioNome: remedioData.nome,
+        dependenteId: alerta.dependenteId,
+        tipoAlerta: alerta.tipoAlerta || 'dias',
+        alertaId: alertaId,
+        status: 'nao_tomado',
+        timestamp: firestore.FieldValue.serverTimestamp(),
+      };
+
+      await firestore()
+        .collection('medicamentos_tomados_dependentes')
+        .add(dadosParaSalvar);
+
+      console.log('✅ Registrado como NÃO TOMADO:', remedioData.nome, horarioQueDeveriaTerSido);
+
+      // ⭐ NOVO: Se for alerta de INTERVALO, calcular próximo horário baseado no atual
+      if (alerta.tipoAlerta === 'intervalo') {
+        await atualizarProximoHorarioIntervalo(alerta, alertaId);
+      }
+    } catch (error) {
+      console.error('❌ Erro ao registrar não tomado:', error);
+    }
+  };
+
+  /**
+   * ⭐ NOVA FUNÇÃO: Atualiza o próximo horário de um alerta de intervalo
+   * Calcula: horário atual + intervalo
+   */
+  const atualizarProximoHorarioIntervalo = async (alerta, alertaId) => {
+    try {
+      console.log('\n🔄 ========== ATUALIZANDO PRÓXIMO HORÁRIO (INTERVALO) ==========');
+      
+      const now = new Date();
+      const horaAtual = now.getHours();
+      const minutoAtual = now.getMinutes();
+      
+      // Calcular próximo horário: agora + intervalo
+      const intervaloMinutos = alerta.intervaloHoras * 60;
+      const minutosAtuais = horaAtual * 60 + minutoAtual;
+      const proximosMinutos = minutosAtuais + intervaloMinutos;
+      
+      // Verificar se ainda é hoje
+      if (proximosMinutos > 23 * 60 + 59) {
+        console.log('⏭️ Próximo horário seria amanhã - não atualizando');
+        return;
+      }
+      
+      const proximaHora = Math.floor(proximosMinutos / 60);
+      const proximoMinuto = proximosMinutos % 60;
+      const novoHorario = `${String(proximaHora).padStart(2, '0')}:${String(proximoMinuto).padStart(2, '0')}`;
+      
+      console.log('   ⏰ Horário atual:', `${String(horaAtual).padStart(2, '0')}:${String(minutoAtual).padStart(2, '0')}`);
+      console.log('   ➕ Intervalo:', alerta.intervaloHoras, 'horas');
+      console.log('   🎯 NOVO horário calculado:', novoHorario);
+      
+      // Atualizar o alerta no Firestore com o novo horário
+      await firestore()
+        .collection('alertas_dependentes')
+        .doc(alertaId)
+        .update({
+          horarioInicio: novoHorario,
+          ultimaAtualizacao: firestore.FieldValue.serverTimestamp()
+        });
+      
+      console.log('✅ Horário do alerta atualizado no Firestore');
+      console.log('========== FIM DA ATUALIZAÇÃO ==========\n');
+      
+    } catch (error) {
+      console.error('❌ Erro ao atualizar próximo horário:', error);
+    }
+  };
+
+  // Verificar horário correto
+  useEffect(() => {
+    checkTimeCorrectness();
+  }, [currentTime, nextMedication]);
+
+  // Animações
+  useEffect(() => {
+    console.log('🎬 Iniciando animações');
+
+    const pulse = Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, {
-          toValue: 1.03,
-          duration: 2000,
+          toValue: 1.08,
+          duration: 1200,
           useNativeDriver: true,
         }),
         Animated.timing(pulseAnim, {
           toValue: 1,
-          duration: 2000,
+          duration: 1200,
           useNativeDriver: true,
         }),
       ])
     );
 
-    // Rotação suave do ícone de loading
-    const rotateAnimation = Animated.loop(
-      Animated.timing(rotateAnim, {
-        toValue: 1,
-        duration: 3000,
-        useNativeDriver: true,
-      })
-    );
-
-    // Animação do fundo
-    const backgroundAnimation = Animated.loop(
+    const background = Animated.loop(
       Animated.sequence([
         Animated.timing(backgroundAnim, {
           toValue: 1,
@@ -116,89 +398,151 @@ const NextMedicationScreen = ({ navigation }) => {
       ])
     );
 
-    pulseAnimation.start();
-    rotateAnimation.start();
-    backgroundAnimation.start();
+    const glow = Animated.loop(
+      Animated.sequence([
+        Animated.timing(glowAnim, {
+          toValue: 1.15,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(glowAnim, {
+          toValue: 1,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+
+    const rotate = Animated.loop(
+      Animated.timing(rotateAnim, {
+        toValue: 1,
+        duration: 3000,
+        useNativeDriver: true,
+      })
+    );
+
+    pulse.start();
+    background.start();
+    glow.start();
+    rotate.start();
 
     return () => {
-      pulseAnimation.stop();
-      rotateAnimation.stop();
-      backgroundAnimation.stop();
+      console.log('🧹 Parando animações');
+      pulse.stop();
+      background.stop();
+      glow.stop();
+      rotate.stop();
     };
   }, []);
 
-  useEffect(() => {
-    checkTimeCorrectness();
-  }, [currentTime, nextMedication]);
-
   const buscarSenhaAdmin = async (userUid) => {
     try {
-      console.log('🔍 Buscando senha admin para dependente UID:', userUid);
+      console.log('🔍 Buscando senha admin...');
       
-      // Primeiro, busca o documento do dependente
       const dependenteDoc = await firestore()
         .collection('users_dependentes')
         .doc(userUid)
         .get();
       
-      console.log('📄 Documento dependente existe?', dependenteDoc.exists);
-      
       if (dependenteDoc.exists) {
         const dependenteData = dependenteDoc.data();
-        console.log('📋 Dados do dependente:', dependenteData);
+        const adminUidFound = dependenteData.usuarioId;
         
-        const adminUid = dependenteData.usuarioId;
-        console.log('👤 UID do administrador:', adminUid);
-        
-        if (adminUid) {
-          setAdminUid(adminUid); // Salva o UID do admin
+        if (adminUidFound) {
+          setAdminUid(adminUidFound);
           
-          // Agora busca o documento do administrador
           const adminDoc = await firestore()
             .collection('users')
-            .doc(adminUid)
+            .doc(adminUidFound)
             .get();
-          
-          console.log('📄 Documento admin existe?', adminDoc.exists);
           
           if (adminDoc.exists) {
             const adminData = adminDoc.data();
-            console.log('📋 Dados do admin:', adminData);
-            
             const senha = adminData.adminPassword || '';
             setSenhaAdmin(senha);
-            console.log('✅ Senha admin carregada:', senha ? `Configurada (${senha.length} dígitos)` : 'Não configurada');
-          } else {
-            console.log('❌ Documento do administrador não encontrado');
+            console.log('✅ Senha admin carregada');
           }
-        } else {
-          console.log('❌ usuarioId não encontrado no documento do dependente');
         }
-      } else {
-        console.log('❌ Documento do dependente não encontrado');
       }
     } catch (error) {
       console.error('❌ Erro ao buscar senha admin:', error);
-      console.error('Detalhes do erro:', error.message);
     }
   };
 
-  const startTimeUpdater = () => {
-    const interval = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 30000);
+  // Verificar se medicamento já foi tomado
+  const verificarMedicamentoTomado = async (remedioId, horario, diaStr, tipoAlerta, alertaId) => {
+    try {
+      console.log('\n🔍 ========== VERIFICANDO SE FOI TOMADO ==========');
+      console.log('   📋 Remédio ID:', remedioId);
+      console.log('   ⏰ Horário:', horario);
+      console.log('   📅 Dia:', diaStr);
+      console.log('   📝 Tipo:', tipoAlerta);
+      console.log('   🆔 Alerta ID:', alertaId);
+      
+      const tomadoSnapshot = await firestore()
+        .collection('medicamentos_tomados_dependentes')
+        .where('dependenteId', '==', uid)
+        .where('remedioId', '==', remedioId)
+        .where('dia', '==', diaStr)
+        .where('alertaId', '==', alertaId)
+        .get();
 
-    return () => clearInterval(interval);
+      console.log(`   📊 Total de registros para ESTE ALERTA hoje: ${tomadoSnapshot.size}`);
+
+      if (tomadoSnapshot.empty) {
+        console.log('   ✅ RESULTADO: NÃO FOI TOMADO (histórico vazio)');
+        console.log('========== FIM DA VERIFICAÇÃO ==========\n');
+        return false;
+      }
+
+      // Para alertas de horário fixo, verificar horário exato
+      if (tipoAlerta === 'dias') {
+        console.log('   🔎 Verificando horário fixo...');
+        const tomadoExato = tomadoSnapshot.docs.some(doc => {
+          const data = doc.data();
+          const match1 = data.horario === horario;
+          const match2 = data.horarioAgendado === horario;
+          return match1 || match2;
+        });
+        console.log(`   ${tomadoExato ? '✅ RESULTADO: JÁ FOI TOMADO' : '❌ RESULTADO: NÃO FOI TOMADO'}`);
+        console.log('========== FIM DA VERIFICAÇÃO ==========\n');
+        return tomadoExato;
+      }
+
+      // Para alertas de intervalo: Verificar se ESTE HORÁRIO ESPECÍFICO foi tomado
+      if (tipoAlerta === 'intervalo') {
+        console.log('   🔎 Verificando intervalo (HORÁRIO FIXO)...');
+        
+        const jaFoiTomado = tomadoSnapshot.docs.some(doc => {
+          const tomadoData = doc.data();
+          const match = tomadoData.horarioAgendado === horario;
+          console.log(`      Registro: agendado="${tomadoData.horarioAgendado}" vs esperado="${horario}" = ${match}`);
+          return match;
+        });
+
+        console.log(`   ${jaFoiTomado ? '✅ RESULTADO: JÁ FOI TOMADO' : '❌ RESULTADO: NÃO FOI TOMADO'}`);
+        console.log('========== FIM DA VERIFICAÇÃO ==========\n');
+        return jaFoiTomado;
+      }
+
+      return false;
+    } catch (error) {
+      console.error('❌ ERRO ao verificar medicamento tomado:', error);
+      return false;
+    }
   };
 
   const fetchNextMedication = async () => {
     if (!uid) {
-      console.log('❌ UID não encontrado');
+      console.log('Sem UID na busca');
+      setLoading(false);
       return;
     }
 
     try {
-      setLoading(true);
+      console.log('\n===== BUSCANDO MEDICAMENTOS =====');
+      setIsRefreshing(true);
+      
       const now = new Date();
       const currentTimeStr = now.toTimeString().slice(0, 5);
       const currentDay = diasSemana[now.getDay()].abrev;
@@ -206,66 +550,214 @@ const NextMedicationScreen = ({ navigation }) => {
       today.setHours(0, 0, 0, 0);
       const diaStr = today.toISOString().slice(0, 10);
 
-      console.log('📅 Buscando medicamentos para:', currentDay, currentTimeStr);
+      console.log('📅 Dia:', currentDay, '| ⏰ Hora:', currentTimeStr);
+      console.log('📋 Data:', diaStr);
 
-      const alertasSnapshot = await firestore()
+      // BUSCAR TODOS OS ALERTAS
+      const todosAlertasSnapshot = await firestore()
         .collection('alertas_dependentes')
         .where('dependenteId', '==', uid)
         .get();
 
-      console.log('📋 Alertas encontrados:', alertasSnapshot.docs.length);
+      console.log('📊 Total de alertas:', todosAlertasSnapshot.size);
 
-      let nextMed = null;
-      let closestTime = null;
+      let medicamentosDisponiveis = [];
 
-      for (const doc of alertasSnapshot.docs) {
+      // PROCESSAR TODOS OS ALERTAS
+      for (const doc of todosAlertasSnapshot.docs) {
         const alerta = doc.data();
         
-        if (!alerta.dias.includes(currentDay)) continue;
+        console.log('\n📋 Processando:', doc.id);
+        console.log('   Tipo:', alerta.tipoAlerta);
 
-        const tomadoSnapshot = await firestore()
-          .collection('medicamentos_tomados_dependentes')
-          .where('dependenteId', '==', alerta.dependenteId)
-          .where('remedioId', '==', alerta.remedioId)
-          .where('horario', '==', alerta.horario)
-          .where('dia', '==', diaStr)
-          .get();
+        // ALERTAS DE HORARIO FIXO
+        if (alerta.tipoAlerta === 'dias') {
+          console.log('   ⏰ Horario:', alerta.horario);
+          console.log('   📅 Dias:', alerta.dias);
 
-        if (!tomadoSnapshot.empty) continue;
+          if (!alerta.dias || !Array.isArray(alerta.dias)) {
+            console.log('   ❌ Campo dias invalido');
+            continue;
+          }
 
-        const remedioDoc = await firestore()
-          .collection('remedios')
-          .doc(alerta.remedioId)
-          .get();
+          if (!alerta.dias.includes(currentDay)) {
+            console.log('   ⏭️ Nao e para hoje');
+            continue;
+          }
 
-        if (remedioDoc.exists) {
+          console.log('   ✅ E para hoje!');
+
+          const jaFoiTomado = await verificarMedicamentoTomado(
+            alerta.remedioId,
+            alerta.horario,
+            diaStr,
+            'dias',
+            doc.id
+          );
+
+          if (jaFoiTomado) {
+            console.log('   ✅ Ja foi tomado - IGNORANDO');
+            continue;
+          }
+
+          console.log('   ⏳ Ainda nao tomado');
+
+          const remedioDoc = await firestore()
+            .collection('remedios')
+            .doc(alerta.remedioId)
+            .get();
+
+          if (!remedioDoc.exists) {
+            console.log('   ❌ Remedio nao encontrado');
+            continue;
+          }
+
           const remedioData = remedioDoc.data();
-          
-          const medicationData = {
+          console.log('   💊 Remedio:', remedioData.nome);
+
+          medicamentosDisponiveis.push({
             ...alerta,
             remedioNome: remedioData.nome,
-            alertaId: doc.id
-          };
+            alertaId: doc.id,
+            tipoAlerta: 'dias',
+            horarioOrdenacao: alerta.horario
+          });
+          console.log('   ✅ Adicionado a lista');
+        }
 
-          if (alerta.horario >= currentTimeStr) {
-            if (!closestTime || alerta.horario < closestTime) {
-              closestTime = alerta.horario;
-              nextMed = medicationData;
-            }
+        // ALERTAS DE INTERVALO
+        else if (alerta.tipoAlerta === 'intervalo') {
+          console.log('   ⏱️ Horario inicio:', alerta.horarioInicio);
+          console.log('   ⏲️ Intervalo:', alerta.intervaloHoras, 'horas');
+          console.log('   🔛 Ativo:', alerta.ativo);
+
+          const estaAtivo = alerta.ativo === true || alerta.ativo === undefined;
+
+          if (!estaAtivo) {
+            console.log('   ❌ Alerta desativado');
+            continue;
           }
+
+          if (!alerta.horarioInicio || !alerta.intervaloHoras) {
+            console.log('   ❌ Dados de intervalo incompletos');
+            continue;
+          }
+
+          const proximoHorario = calcularProximoIntervalo(alerta, now, diaStr);
+
+          if (!proximoHorario) {
+            console.log('   ❌ Sem proximo horario hoje');
+            continue;
+          }
+
+          console.log('   ⏰ Proximo horario calculado:', proximoHorario);
+
+          const jaFoiTomado = await verificarMedicamentoTomado(
+            alerta.remedioId,
+            proximoHorario,
+            diaStr,
+            'intervalo',
+            doc.id
+          );
+
+          if (jaFoiTomado) {
+            console.log('   ✅ Ja foi tomado neste horario - IGNORANDO');
+            continue;
+          }
+
+          console.log('   ⏳ Ainda nao tomado');
+
+          const remedioDoc = await firestore()
+            .collection('remedios')
+            .doc(alerta.remedioId)
+            .get();
+
+          if (!remedioDoc.exists) {
+            console.log('   ❌ Remedio nao encontrado');
+            continue;
+          }
+
+          const remedioData = remedioDoc.data();
+          console.log('   💊 Remedio:', remedioData.nome);
+
+          medicamentosDisponiveis.push({
+            ...alerta,
+            remedioNome: remedioData.nome,
+            alertaId: doc.id,
+            horario: proximoHorario,
+            tipoAlerta: 'intervalo',
+            horarioOrdenacao: proximoHorario
+          });
+          console.log('   ✅ Adicionado a lista (INTERVALO)');
         }
       }
 
-      console.log('🎯 Próximo medicamento:', nextMed ? nextMed.remedioNome : 'Nenhum');
-      setNextMedication(nextMed);
-    } catch (error) {
-      console.error('❌ Erro ao buscar medicamentos:', error);
-      Alert.alert('Erro', 'Não foi possível carregar as informações.');
-    } finally {
+      console.log('\n📊 MEDICAMENTOS DISPONIVEIS:', medicamentosDisponiveis.length);
+
+      // ORDENAR POR HORARIO MAIS PROXIMO
+      if (medicamentosDisponiveis.length > 0) {
+        medicamentosDisponiveis.sort((a, b) => {
+          return a.horarioOrdenacao.localeCompare(b.horarioOrdenacao);
+        });
+
+        const proximoMedicamento = medicamentosDisponiveis[0];
+        
+        console.log('\n🎯 MEDICAMENTO MAIS PROXIMO:');
+        console.log('   💊 Nome:', proximoMedicamento.remedioNome);
+        console.log('   ⏰ Horario:', proximoMedicamento.horarioOrdenacao);
+        console.log('   📋 Tipo:', proximoMedicamento.tipoAlerta);
+        
+        setNextMedication(proximoMedicamento);
+      } else {
+        console.log('\n✅ Nenhum medicamento disponivel');
+        setNextMedication(null);
+      }
+
+      console.log('===== FIM DA BUSCA =====\n');
       setLoading(false);
+      setIsRefreshing(false);
+
+    } catch (error) {
+      console.error('❌ ERRO na busca:', error);
+      setLoading(false);
+      setIsRefreshing(false);
+      Alert.alert('Erro', 'Falha ao buscar medicamentos');
     }
   };
 
+  const calcularProximoIntervalo = (alerta, now, diaStr) => {
+    try {
+      const [horaAtual, minutoAtual] = now.toTimeString().slice(0, 5).split(':').map(Number);
+      const minutosAtuais = horaAtual * 60 + minutoAtual;
+      const [horaBase, minutoBase] = String(alerta.horarioInicio).split(':').map(Number);
+      const minutosBase = horaBase * 60 + (minutoBase || 0);
+
+      console.log('📐 Calculando próximo intervalo:');
+      console.log('  Horario base (horarioInicio):', alerta.horarioInicio);
+      console.log('  Intervalo (horas):', alerta.intervaloHoras);
+      console.log('  Hora atual:', now.toTimeString().slice(0, 5));
+
+      // ⭐ NOVA LÓGICA: O horário base JÁ É o próximo horário
+      // Ele é atualizado dinamicamente quando o medicamento é tomado ou passa do prazo
+
+      // Se o horário base ainda não chegou, retornar ele
+      if (minutosAtuais < minutosBase) {
+        console.log('  ⏰ Próximo horário ainda não chegou:', alerta.horarioInicio);
+        return alerta.horarioInicio;
+      }
+
+      // Se o horário base já passou, significa que:
+      // 1. Ou o medicamento ainda não foi tomado (mostrar ele)
+      // 2. Ou está em atraso (será registrado como não tomado)
+      console.log('  ⏰ Horário atual já passou do base - mostrar este horário');
+      return alerta.horarioInicio;
+
+    } catch (error) {
+      console.error('❌ Erro ao calcular intervalo:', error);
+      return null;
+    }
+  };
+    
   const checkTimeCorrectness = () => {
     if (!nextMedication) {
       setIsTimeCorrect(false);
@@ -281,82 +773,131 @@ const NextMedicationScreen = ({ navigation }) => {
     const currentTotalMinutes = currentHour * 60 + currentMinute;
     
     const timeDiff = currentTotalMinutes - targetTotalMinutes;
-    const canTake = timeDiff >= -5 && timeDiff <= 30;
+    // Permite tomar 5 minutos antes até 10 minutos depois
+    const canTake = timeDiff >= -5 && timeDiff <= 10;
     
     setIsTimeCorrect(canTake);
   };
 
+  /**
+   * ⭐ MODIFICADO: Atualização imediata após marcar como tomado
+   * Previne múltiplos registros e atualiza a tela instantaneamente
+   */
   const markMedicationTaken = async () => {
-    if (!nextMedication || !isTimeCorrect) return;
+    // ⭐ PREVENIR MÚLTIPLOS CLIQUES
+    if (!nextMedication || !isTimeCorrect || isRegistering) {
+      console.log('❌ Nao pode marcar agora - bloqueado');
+      return;
+    }
 
-    Animated.sequence([
-      Animated.timing(scaleAnim, {
-        toValue: 0.95,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-      Animated.timing(scaleAnim, {
-        toValue: 1,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-    ]).start();
+    console.log('\n💾 ========== MARCANDO COMO TOMADO ==========');
+    console.log('📋 Medicamento:', nextMedication.remedioNome);
+    console.log('⏰ Horário:', nextMedication.horario);
+    console.log('📝 Tipo:', nextMedication.tipoAlerta);
+
+    // ⭐ BLOQUEAR IMEDIATAMENTE
+    setIsRegistering(true);
 
     try {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const diaStr = today.toISOString().slice(0, 10);
+      
+      const agora = new Date();
+      const horarioReal = agora.toTimeString().slice(0, 5);
 
       const dadosParaSalvar = {
         dia: diaStr,
         dosagem: nextMedication.dosagem,
-        horario: nextMedication.horario,
+        horario: horarioReal,
+        horarioAgendado: nextMedication.horario,
         remedioId: nextMedication.remedioId,
         remedioNome: nextMedication.remedioNome,
         dependenteId: nextMedication.dependenteId,
+        tipoAlerta: nextMedication.tipoAlerta || 'dias',
+        alertaId: nextMedication.alertaId,
+        status: 'tomado',
+        timestamp: firestore.FieldValue.serverTimestamp(),
       };
+
+      if (nextMedication.tipoAlerta === 'intervalo') {
+        dadosParaSalvar.intervaloHoras = nextMedication.intervaloHoras;
+      }
+
+      console.log('💾 Dados a salvar:', dadosParaSalvar);
 
       await firestore().collection('medicamentos_tomados_dependentes').add(dadosParaSalvar);
 
-      Alert.alert(
-        '✅ Registrado!', 
-        'Medicamento tomado com sucesso',
-        [
-          {
-            text: 'OK',
-            onPress: () => fetchNextMedication()
-          }
-        ]
-      );
+      console.log('✅ SALVO COM SUCESSO NO FIRESTORE!');
+
+      // ⭐ NOVO: Se for INTERVALO, atualizar o próximo horário no alerta
+      if (nextMedication.tipoAlerta === 'intervalo') {
+        console.log('🔄 É intervalo - atualizando próximo horário...');
+        await atualizarProximoHorarioIntervalo(nextMedication, nextMedication.alertaId);
+      }
+
+      // ⭐ LIMPAR MEDICAMENTO IMEDIATAMENTE (antes da animação)
+      console.log('🔄 Limpando medicamento da tela IMEDIATAMENTE...');
+      setNextMedication(null);
+      
+      // ⭐ MOSTRAR FEEDBACK E BUSCAR PRÓXIMO
+      setShowSuccessFeedback(true);
+      
+      // Animação de sucesso
+      Animated.sequence([
+        Animated.timing(successAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.delay(1500),
+        Animated.timing(successAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        setShowSuccessFeedback(false);
+      });
+
+      // ⭐ BUSCAR PRÓXIMO MEDICAMENTO IMEDIATAMENTE
+      console.log('🔍 Buscando próximo medicamento AGORA...');
+      
+      // Pequeno delay para garantir que o Firestore propagou
+      setTimeout(async () => {
+        await fetchNextMedication();
+        setIsRegistering(false);
+      }, 800);
+
+      console.log('========== FIM DO REGISTRO ==========\n');
 
     } catch (error) {
-      console.error('❌ Erro ao registrar medicamento:', error);
-      Alert.alert('Erro', 'Não foi possível registrar. Tente novamente.');
+      console.error('❌ ERRO AO SALVAR:', error);
+      Alert.alert('Erro', 'Nao foi possivel registrar.');
+      setIsRegistering(false);
+      
+      // ⭐ Restaurar o medicamento em caso de erro
+      fetchNextMedication();
     }
   };
 
   const handleSettingsPress = () => {
-    console.log('⚙️ Botão de configurações pressionado');
-    console.log('Senha admin atual:', senhaAdmin);
-    console.log('Admin UID:', adminUid);
+    console.log('⚙️ Abrindo configurações');
     
     if (!senhaAdmin) {
-      console.log('⚠️ Senha não configurada');
       Alert.alert(
         'Senha não configurada',
-        'O administrador ainda não configurou uma senha de acesso. Entre em contato com o responsável.',
+        'O administrador ainda não configurou uma senha de acesso.',
         [{ text: 'OK' }]
       );
       return;
     }
     
-    console.log('✅ Abrindo modal...');
     setSenhaDigits(['', '', '', '', '', '']);
     setModalVisible(true);
   };
 
   const handleDigitChange = (text, index) => {
-    // Permite apenas números
     const numericText = text.replace(/[^0-9]/g, '');
     
     if (numericText.length > 1) return;
@@ -365,12 +906,10 @@ const NextMedicationScreen = ({ navigation }) => {
     newDigits[index] = numericText;
     setSenhaDigits(newDigits);
     
-    // Se digitou um número, vai para o próximo campo
     if (numericText && index < 5) {
       inputRefs.current[index + 1]?.focus();
     }
     
-    // Se completou todos os 6 dígitos, verifica automaticamente
     if (index === 5 && numericText) {
       const senhaCompleta = newDigits.join('');
       if (senhaCompleta.length === 6) {
@@ -380,7 +919,6 @@ const NextMedicationScreen = ({ navigation }) => {
   };
 
   const handleKeyPress = (e, index) => {
-    // Se apertar backspace e o campo estiver vazio, volta para o anterior
     if (e.nativeEvent.key === 'Backspace' && !senhaDigits[index] && index > 0) {
       inputRefs.current[index - 1]?.focus();
     }
@@ -388,54 +926,38 @@ const NextMedicationScreen = ({ navigation }) => {
 
   const verificarSenha = (senhaCompleta) => {
     console.log('🔐 Verificando senha...');
-    console.log('Senha digitada:', senhaCompleta);
-    console.log('Senha esperada:', senhaAdmin);
     
     if (senhaCompleta === senhaAdmin) {
-      console.log('✅ Senha CORRETA!');
+      console.log('✅ Senha correta!');
       
-      // Fecha o modal
       setModalVisible(false);
       setSenhaDigits(['', '', '', '', '', '']);
       
-      // Navega para as configurações
       setTimeout(() => {
-        console.log('🚀 Navegando para ConfiguracoesAdmin...');
-        
-        // Verifica se a navegação existe
         if (navigation && navigation.navigate) {
-          // Navega passando o UID do admin como parâmetro
           navigation.navigate('ConfiguracoesAdmin', {
             adminUid: adminUid,
             dependenteUid: userId
           });
         } else {
-          Alert.alert(
-            '✅ Acesso Permitido',
-            'Bem-vindo às configurações!\n\nNOTA: Configure a tela "ConfiguracoesAdmin" na navegação.',
-            [{ text: 'OK' }]
-          );
+          Alert.alert('✅ Acesso Permitido', 'Configure a navegação para ConfiguracoesAdmin');
         }
       }, 300);
       
     } else {
-      console.log('❌ Senha INCORRETA!');
+      console.log('❌ Senha incorreta!');
       
-      // Limpa os campos e mostra erro
       setSenhaDigits(['', '', '', '', '', '']);
       
       Alert.alert(
         '❌ Senha Incorreta',
-        'A senha digitada não está correta. Tente novamente.',
+        'Tente novamente.',
         [
           {
             text: 'OK',
             onPress: () => {
-              // Volta o foco para o primeiro campo
               setTimeout(() => {
-                if (inputRefs.current[0]) {
-                  inputRefs.current[0].focus();
-                }
+                inputRefs.current[0]?.focus();
               }, 100);
             }
           }
@@ -458,10 +980,6 @@ const NextMedicationScreen = ({ navigation }) => {
   const fecharModal = () => {
     setModalVisible(false);
     setSenhaDigits(['', '', '', '', '', '']);
-  };
-
-  const formatarHorario = (date) => {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
   };
 
   const getTimeUntilNext = () => {
@@ -492,25 +1010,12 @@ const NextMedicationScreen = ({ navigation }) => {
     outputRange: ['0deg', '360deg'],
   });
 
-  // Função para renderizar o modal (usada em todos os returns)
   const renderModal = () => (
     <Modal
       animationType="slide"
       transparent={true}
       visible={modalVisible}
       onRequestClose={fecharModal}
-      onShow={() => {
-        console.log('📱 Modal exibido - onShow chamado');
-        setTimeout(() => {
-          console.log('⌨️ Tentando focar após onShow');
-          if (inputRefs.current[0]) {
-            inputRefs.current[0].focus();
-            console.log('✅ Foco aplicado com sucesso');
-          } else {
-            console.log('❌ inputRefs.current[0] ainda é null');
-          }
-        }, 100);
-      }}
     >
       <TouchableOpacity 
         style={styles.modalOverlay}
@@ -534,7 +1039,6 @@ const NextMedicationScreen = ({ navigation }) => {
                   key={index}
                   ref={(ref) => {
                     inputRefs.current[index] = ref;
-                    if (ref) console.log(`✅ Ref ${index} definida`);
                   }}
                   style={[
                     styles.digitInput,
@@ -547,7 +1051,6 @@ const NextMedicationScreen = ({ navigation }) => {
                   maxLength={1}
                   secureTextEntry
                   selectTextOnFocus
-                  autoFocus={index === 0}
                 />
               ))}
             </View>
@@ -573,6 +1076,9 @@ const NextMedicationScreen = ({ navigation }) => {
     </Modal>
   );
 
+  console.log('🎨 RENDERIZANDO | loading:', loading, '| nextMed:', !!nextMedication);
+
+  // TELA DE LOADING
   if (loading) {
     return (
       <View style={styles.container}>
@@ -586,6 +1092,14 @@ const NextMedicationScreen = ({ navigation }) => {
                 inputRange: [0, 1],
                 outputRange: [0.03, 0.08],
               }),
+              transform: [
+                {
+                  scale: backgroundAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [1, 1.1],
+                  }),
+                },
+              ],
             },
           ]}
         />
@@ -597,29 +1111,39 @@ const NextMedicationScreen = ({ navigation }) => {
                 inputRange: [0, 1],
                 outputRange: [0.05, 0.03],
               }),
+              transform: [
+                {
+                  scale: backgroundAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [1.1, 1],
+                  }),
+                },
+              ],
             },
           ]}
         />
+
+        <View style={[styles.decorativeCircle, styles.decorCircle1]} />
+        <View style={[styles.decorativeCircle, styles.decorCircle2]} />
+        <View style={[styles.decorativeCircle, styles.decorCircle3]} />
         
         <TouchableOpacity style={styles.settingsButton} onPress={handleSettingsPress}>
           <Icon name="settings-outline" size={28} color="#FFFFFF" />
         </TouchableOpacity>
 
-        <Animated.View style={[styles.loadingContainer, { 
-          opacity: fadeAnim,
-          transform: [{ translateY: slideAnim }]
-        }]}>
+        <View style={styles.loadingContainer}>
           <Animated.View style={{ transform: [{ rotate }] }}>
             <Icon name="hourglass-outline" size={80} color="#3B82F6" />
           </Animated.View>
           <Text style={styles.loadingText}>Carregando...</Text>
-        </Animated.View>
+        </View>
 
         {renderModal()}
       </View>
     );
   }
 
+  // TELA DE SUCESSO (sem medicamentos)
   if (!nextMedication) {
     return (
       <View style={styles.container}>
@@ -633,6 +1157,14 @@ const NextMedicationScreen = ({ navigation }) => {
                 inputRange: [0, 1],
                 outputRange: [0.03, 0.08],
               }),
+              transform: [
+                {
+                  scale: backgroundAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [1, 1.1],
+                  }),
+                },
+              ],
             },
           ]}
         />
@@ -644,18 +1176,27 @@ const NextMedicationScreen = ({ navigation }) => {
                 inputRange: [0, 1],
                 outputRange: [0.05, 0.03],
               }),
+              transform: [
+                {
+                  scale: backgroundAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [1.1, 1],
+                  }),
+                },
+              ],
             },
           ]}
         />
+
+        <View style={[styles.decorativeCircle, styles.decorCircle1]} />
+        <View style={[styles.decorativeCircle, styles.decorCircle2]} />
+        <View style={[styles.decorativeCircle, styles.decorCircle3]} />
         
         <TouchableOpacity style={styles.settingsButton} onPress={handleSettingsPress}>
           <Icon name="settings-outline" size={28} color="#FFFFFF" />
         </TouchableOpacity>
 
-        <Animated.View style={[styles.successContainer, { 
-          opacity: fadeAnim,
-          transform: [{ scale: fadeAnim }, { translateY: slideAnim }]
-        }]}>
+        <Animated.View style={[styles.successContainer, { opacity: fadeAnim }]}>
           <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
             <Icon name="checkmark-circle" size={120} color="#10B981" />
           </Animated.View>
@@ -670,6 +1211,10 @@ const NextMedicationScreen = ({ navigation }) => {
     );
   }
 
+  // TELA PRINCIPAL COM MEDICAMENTO
+  const isIntervalo = nextMedication?.tipoAlerta === 'intervalo';
+  const corPrincipal = isIntervalo ? '#6366F1' : '#10B981';
+  
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
@@ -677,119 +1222,249 @@ const NextMedicationScreen = ({ navigation }) => {
       <Animated.View
         style={[
           styles.backgroundCircle,
+          isIntervalo && { backgroundColor: '#6366F1' },
           {
             opacity: backgroundAnim.interpolate({
               inputRange: [0, 1],
               outputRange: [0.03, 0.08],
             }),
+            transform: [
+              {
+                scale: backgroundAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [1, 1.1],
+                }),
+              },
+            ],
           },
         ]}
       />
       <Animated.View
         style={[
           styles.backgroundCircle2,
+          isIntervalo && { backgroundColor: '#6366F1' },
           {
             opacity: backgroundAnim.interpolate({
               inputRange: [0, 1],
               outputRange: [0.05, 0.03],
             }),
+            transform: [
+              {
+                scale: backgroundAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [1.1, 1],
+                }),
+              },
+            ],
           },
         ]}
       />
+
+      <View style={[
+        styles.decorativeCircle, 
+        styles.decorCircle1,
+        isIntervalo && styles.decorCirclePurple
+      ]} />
+      <View style={[
+        styles.decorativeCircle, 
+        styles.decorCircle2,
+        isIntervalo && styles.decorCirclePurple
+      ]} />
+      <View style={[
+        styles.decorativeCircle, 
+        styles.decorCircle3,
+        isIntervalo && styles.decorCirclePurple
+      ]} />
       
       <TouchableOpacity style={styles.settingsButton} onPress={handleSettingsPress}>
         <Icon name="settings-outline" size={28} color="#FFFFFF" />
       </TouchableOpacity>
 
-      {/* Botão de teste para abrir modal diretamente */}
-      <TouchableOpacity 
-        style={[styles.settingsButton, { top: 120, backgroundColor: 'red' }]} 
-        onPress={() => {
-          console.log('🔴 BOTÃO DE TESTE PRESSIONADO');
-          console.log('Estado atual antes do setState:', modalVisible);
-          setModalVisible(prevState => {
-            console.log('🔴 Dentro do setState - prevState:', prevState);
-            return true;
-          });
-          setForceUpdate(prev => prev + 1);
-          console.log('🔴 setState chamado');
-        }}
-      >
-        <Text style={{ color: 'white', fontSize: 20, fontWeight: 'bold' }}>T</Text>
-      </TouchableOpacity>
+      <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
+        
+        {isIntervalo && (
+          <Animated.View
+            style={[
+              styles.intervalBadge,
+              { transform: [{ rotate }] }
+            ]}
+          >
+            <Icon name="timer-outline" size={20} color="#6366F1" />
+          </Animated.View>
+        )}
 
-      {/* Indicador de estado */}
-      <View style={{
-        position: 'absolute',
-        top: 200,
-        left: 20,
-        backgroundColor: modalVisible ? 'green' : 'orange',
-        padding: 10,
-        zIndex: 9999,
-        borderRadius: 5,
-      }}>
-        <Text style={{ color: 'white', fontWeight: 'bold' }}>
-          Modal: {modalVisible ? 'TRUE' : 'FALSE'}
-        </Text>
-        <Text style={{ color: 'white', fontSize: 10 }}>
-          Update: {forceUpdate}
-        </Text>
-      </View>
-
-      <Animated.View style={[styles.contentContainer, { 
-        opacity: fadeAnim,
-        transform: [{ translateY: slideAnim }]
-      }]}>
-        <View style={styles.clockContainer}>
-          <Text style={styles.currentTime}>{formatarHorario(currentTime)}</Text>
-        </View>
-
-        {!isTimeCorrect && (
-          <View style={styles.waitingContainer}>
-            <Icon name="time-outline" size={40} color="#F59E0B" />
-            <Text style={styles.waitingText}>{getTimeUntilNext()}</Text>
-            <Text style={styles.waitingSubtext}>Volte no horário certo</Text>
+        {isIntervalo && (
+          <View style={styles.intervalTextContainer}>
+            <Text style={styles.intervalText}>
+              A cada {nextMedication.intervaloHoras}h
+            </Text>
           </View>
         )}
 
-        {isTimeCorrect && (
-          <>
-            <View style={styles.medicationInfo}>
-              <Icon name="medical" size={50} color="#3B82F6" />
-              <Text style={styles.medicationName}>
-                {nextMedication.remedioNome}
-              </Text>
-              <Text style={styles.medicationDose}>
-                {nextMedication.dosagem}
-              </Text>
-              <Text style={styles.medicationTime}>
-                Horário: {nextMedication.horario}
-              </Text>
-            </View>
+        <View style={styles.topTimeContainer}>
+          <Icon name="time-outline" size={24} color="#F59E0B" />
+          <Text style={styles.topTimeText}>{getTimeUntilNext()}</Text>
+        </View>
 
-            <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-              <TouchableOpacity
-                style={styles.takeButton}
-                onPress={markMedicationTaken}
-                activeOpacity={0.85}
-              >
-                <Animated.View style={[
-                  styles.buttonPulse,
-                  { transform: [{ scale: pulseAnim }] }
-                ]}>
-                  <Icon name="checkmark-circle" size={40} color="#FFFFFF" />
-                  <Text style={styles.takeButtonText}>TOMEI</Text>
-                </Animated.View>
-              </TouchableOpacity>
+        {/* Feedback de sucesso */}
+        {showSuccessFeedback && (
+          <Animated.View
+            style={[
+              styles.successFeedback,
+              {
+                opacity: successAnim,
+                transform: [
+                  {
+                    scale: successAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.8, 1],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <Icon name="checkmark-circle" size={40} color="#10B981" />
+            <Text style={styles.successFeedbackText}>Registrado!</Text>
+          </Animated.View>
+        )}
+
+        {/* Indicador de refresh */}
+        {isRefreshing && !showSuccessFeedback && (
+          <View style={styles.refreshIndicator}>
+            <Animated.View style={{ transform: [{ rotate }] }}>
+              <Icon name="reload-outline" size={24} color="#3B82F6" />
             </Animated.View>
+            <Text style={styles.refreshText}>Atualizando...</Text>
+          </View>
+        )}
 
-            <View style={styles.instructionContainer}>
-              <Icon name="information-circle-outline" size={24} color="#94a3b8" />
-              <Text style={styles.instructionText}>
-                Aperte o botão após tomar{'\n'}o medicamento
-              </Text>
+        <Animated.View style={{ transform: [{ scale: glowAnim }] }}>
+          <Animated.View
+            style={[
+              styles.iconCircle,
+              isIntervalo && styles.iconCirclePurple,
+              !isTimeCorrect && styles.iconCircleDisabled,
+              { transform: [{ scale: pulseAnim }] }
+            ]}
+          >
+            <Icon 
+              name="medical-outline" 
+              size={70} 
+              color={!isTimeCorrect ? "#94a3b8" : (isIntervalo ? "#6366F1" : "#10B981")} 
+            />
+          </Animated.View>
+        </Animated.View>
+
+        <Text style={styles.medicationName}>{nextMedication.remedioNome}</Text>
+
+        <View style={[
+          styles.doseContainer,
+          !isTimeCorrect && styles.doseContainerDisabled
+        ]}>
+          <Icon 
+            name="fitness-outline" 
+            size={20} 
+            color={!isTimeCorrect ? "#94a3b8" : (isIntervalo ? "#6366F1" : "#10B981")} 
+          />
+          <Text style={styles.dosage}>{nextMedication.dosagem}</Text>
+        </View>
+
+        <View style={[
+          styles.timeContainer,
+          isIntervalo && styles.timeContainerPurple,
+          !isTimeCorrect && styles.timeContainerDisabled
+        ]}>
+          <Icon 
+            name="time-outline" 
+            size={24} 
+            color={!isTimeCorrect ? "#94a3b8" : (isIntervalo ? "#6366F1" : "#10B981")} 
+          />
+          <Text style={styles.time}>
+            {isIntervalo ? `Próximo: ${nextMedication.horario}` : nextMedication.horario}
+          </Text>
+        </View>
+
+        <Animated.View
+          style={{ 
+            transform: [{ scale: isTimeCorrect ? pulseAnim : 1 }], 
+            width: '100%' 
+          }}
+        >
+          <TouchableOpacity
+            style={[
+              styles.button,
+              isIntervalo && styles.buttonPurple,
+              (!isTimeCorrect || isRegistering) && styles.buttonDisabled
+            ]}
+            onPress={markMedicationTaken}
+            activeOpacity={(isTimeCorrect && !isRegistering) ? 0.9 : 1}
+            disabled={!isTimeCorrect || isRegistering}
+          >
+            <View style={styles.buttonContent}>
+              {isRegistering ? (
+                <>
+                  <Animated.View style={{ transform: [{ rotate }] }}>
+                    <Icon name="reload-outline" size={28} color="#FFFFFF" />
+                  </Animated.View>
+                  <Text style={styles.buttonText}>SALVANDO...</Text>
+                </>
+              ) : (
+                <>
+                  <Icon 
+                    name={isTimeCorrect ? "checkmark-circle" : "lock-closed"} 
+                    size={28} 
+                    color={isTimeCorrect ? "#FFFFFF" : "#64748b"} 
+                  />
+                  <Text style={[
+                    styles.buttonText,
+                    !isTimeCorrect && styles.buttonTextDisabled
+                  ]}>
+                    {isTimeCorrect ? "TOMEI" : "AGUARDE"}
+                  </Text>
+                </>
+              )}
             </View>
-          </>
+          </TouchableOpacity>
+        </Animated.View>
+
+        <View style={styles.indicators}>
+          <Animated.View
+            style={[
+              styles.indicator,
+              {
+                opacity: pulseAnim,
+                backgroundColor: !isTimeCorrect ? '#64748b' : corPrincipal,
+              },
+            ]}
+          />
+          <Animated.View
+            style={[
+              styles.indicator,
+              {
+                opacity: pulseAnim,
+                backgroundColor: !isTimeCorrect ? '#64748b' : corPrincipal,
+              },
+            ]}
+          />
+          <Animated.View
+            style={[
+              styles.indicator,
+              {
+                opacity: pulseAnim,
+                backgroundColor: !isTimeCorrect ? '#64748b' : corPrincipal,
+              },
+            ]}
+          />
+        </View>
+
+        {!isTimeCorrect && (
+          <View style={styles.instructionContainer}>
+            <Icon name="information-circle-outline" size={24} color="#F59E0B" />
+            <Text style={styles.instructionText}>
+              Volte no horário certo{'\n'}para marcar como tomado
+            </Text>
+          </View>
         )}
       </Animated.View>
 
@@ -804,6 +1479,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#0F172A',
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 30,
+    position: 'relative',
   },
   backgroundCircle: {
     position: 'absolute',
@@ -822,6 +1499,35 @@ const styles = StyleSheet.create({
     backgroundColor: '#3B82F6',
     bottom: -width * 0.6,
     right: -width * 0.4,
+  },
+  decorativeCircle: {
+    position: 'absolute',
+    borderRadius: 100,
+    zIndex: 1,
+  },
+  decorCircle1: {
+    top: height * 0.15,
+    right: width * 0.1,
+    width: 80,
+    height: 80,
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+  },
+  decorCircle2: {
+    bottom: height * 0.2,
+    left: width * 0.05,
+    width: 60,
+    height: 60,
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+  },
+  decorCircle3: {
+    top: height * 0.35,
+    left: width * 0.1,
+    width: 50,
+    height: 50,
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+  },
+  decorCirclePurple: {
+    backgroundColor: 'rgba(99, 102, 241, 0.15)',
   },
   settingsButton: {
     position: 'absolute',
@@ -864,114 +1570,267 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 30,
   },
-  contentContainer: {
-    alignItems: 'center',
-    paddingHorizontal: 30,
+  content: {
     width: '100%',
-    gap: 30,
-  },
-  clockContainer: {
-    backgroundColor: 'rgba(59, 130, 246, 0.15)',
-    paddingVertical: 20,
-    paddingHorizontal: 40,
-    borderRadius: 25,
-    borderWidth: 2,
-    borderColor: 'rgba(59, 130, 246, 0.3)',
-  },
-  currentTime: {
-    fontSize: 48,
-    color: '#FFFFFF',
-    fontFamily: 'monospace',
-    fontWeight: '300',
-    letterSpacing: 2,
-  },
-  waitingContainer: {
+    maxWidth: 400,
     alignItems: 'center',
-    gap: 16,
-    marginTop: 20,
+    zIndex: 10,
   },
-  waitingText: {
-    fontSize: 28,
+  topTimeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: 'rgba(245, 158, 11, 0.25)',
+    marginBottom: 24,
+    shadowColor: '#F59E0B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+  },
+  topTimeText: {
+    fontSize: 18,
+    fontWeight: '700',
     color: '#F59E0B',
-    fontWeight: '700',
+    marginLeft: 12,
   },
-  waitingSubtext: {
-    fontSize: 20,
-    color: '#94a3b8',
-    fontWeight: '500',
-  },
-  medicationInfo: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 25,
-    padding: 30,
-    width: '100%',
-    gap: 16,
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
-  },
-  medicationName: {
-    fontSize: 32,
-    color: '#FFFFFF',
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  medicationDose: {
-    fontSize: 24,
-    color: '#94a3b8',
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  medicationTime: {
-    fontSize: 20,
-    color: '#3B82F6',
-    fontWeight: '600',
-    marginTop: 8,
-  },
-  takeButton: {
-    width: width * 0.7,
-    height: width * 0.7,
-    maxWidth: 280,
-    maxHeight: 280,
-    borderRadius: width * 0.35,
-    backgroundColor: '#10B981',
+  iconCircle: {
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 4,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
     shadowColor: '#10B981',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.5,
+    shadowOpacity: 0.4,
     shadowRadius: 20,
-    elevation: 15,
-    borderWidth: 6,
-    borderColor: 'rgba(16, 185, 129, 0.3)',
   },
-  buttonPulse: {
+  iconCircleDisabled: {
+    backgroundColor: 'rgba(148, 163, 184, 0.08)',
+    borderColor: 'rgba(148, 163, 184, 0.2)',
+    shadowColor: '#64748b',
+    shadowOpacity: 0.2,
+  },
+  iconCirclePurple: {
+    backgroundColor: 'rgba(99, 102, 241, 0.15)',
+    borderColor: 'rgba(99, 102, 241, 0.3)',
+    shadowColor: '#6366F1',
+  },
+  intervalBadge: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: 'rgba(99, 102, 241, 0.15)',
+    justifyContent: 'center',
     alignItems: 'center',
-    gap: 12,
+    borderWidth: 2,
+    borderColor: 'rgba(99, 102, 241, 0.3)',
+    shadowColor: '#6366F1',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    marginBottom: 12,
   },
-  takeButtonText: {
-    color: '#FFFFFF',
+  intervalTextContainer: {
+    backgroundColor: 'rgba(99, 102, 241, 0.12)',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(99, 102, 241, 0.25)',
+    marginBottom: 16,
+  },
+  intervalText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#A5B4FC',
+    letterSpacing: 0.5,
+  },
+  medicationName: {
     fontSize: 36,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginTop: 20,
+    marginBottom: 12,
+    letterSpacing: -0.5,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+  },
+  doseContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  doseContainerDisabled: {
+    backgroundColor: 'rgba(148, 163, 184, 0.05)',
+    borderColor: 'rgba(148, 163, 184, 0.1)',
+  },
+  dosage: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#D1D5DB',
+    marginLeft: 10,
+  },
+  timeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    paddingVertical: 16,
+    paddingHorizontal: 28,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: 'rgba(16, 185, 129, 0.25)',
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+  },
+  timeContainerDisabled: {
+    backgroundColor: 'rgba(148, 163, 184, 0.08)',
+    borderColor: 'rgba(148, 163, 184, 0.15)',
+    shadowColor: '#64748b',
+    shadowOpacity: 0.1,
+  },
+  timeContainerPurple: {
+    backgroundColor: 'rgba(99, 102, 241, 0.12)',
+    borderColor: 'rgba(99, 102, 241, 0.25)',
+    shadowColor: '#6366F1',
+  },
+  time: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    fontFamily: 'monospace',
+    marginLeft: 12,
+  },
+  button: {
+    backgroundColor: '#10B981',
+    paddingVertical: 20,
+    paddingHorizontal: 50,
+    borderRadius: 25,
+    width: '100%',
+    borderWidth: 3,
+    borderColor: 'rgba(16, 185, 129, 0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.5,
+    shadowRadius: 15
+  },
+  buttonDisabled: {
+    backgroundColor: '#1e293b',
+    shadowColor: '#64748b',
+    shadowOpacity: 0.2,
+    borderColor: 'rgba(100, 116, 139, 0.3)',
+  },
+  buttonPurple: {
+    backgroundColor: '#6366F1',
+    shadowColor: '#6366F1',
+    borderColor: 'rgba(99, 102, 241, 0.4)',
+  },
+  buttonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  buttonText: {
+    fontSize: 22,
     fontWeight: '900',
+    color: '#FFFFFF',
     letterSpacing: 2,
+    marginLeft: 12,
+  },
+  buttonTextDisabled: {
+    color: '#64748b',
+  },
+  indicators: {
+    flexDirection: 'row',
+    marginTop: 20,
+  },
+  indicator: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginHorizontal: 6,
   },
   instructionContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: 'rgba(148, 163, 184, 0.1)',
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
     paddingVertical: 16,
     paddingHorizontal: 24,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(148, 163, 184, 0.2)',
+    borderColor: 'rgba(245, 158, 11, 0.2)',
+    marginTop: 16,
   },
   instructionText: {
     fontSize: 16,
-    color: '#94a3b8',
-    fontWeight: '500',
+    color: '#F59E0B',
+    fontWeight: '600',
     textAlign: 'center',
     lineHeight: 22,
+  },
+  successFeedback: {
+    position: 'absolute',
+    top: 20,
+    alignSelf: 'center',
+    backgroundColor: 'rgba(16, 185, 129, 0.95)',
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    zIndex: 1000,
+  },
+  successFeedbackText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  refreshIndicator: {
+    position: 'absolute',
+    top: 20,
+    alignSelf: 'center',
+    backgroundColor: 'rgba(59, 130, 246, 0.95)',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    shadowColor: '#3B82F6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    zIndex: 1000,
+  },
+  refreshText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
   modalOverlay: {
     flex: 1,
@@ -994,7 +1853,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.5,
     shadowRadius: 20,
-    elevation: 20,
   },
   modalTitle: {
     fontSize: 24,
@@ -1060,7 +1918,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
     shadowRadius: 10,
-    elevation: 8,
   },
   modalConfirmText: {
     color: '#FFFFFF',

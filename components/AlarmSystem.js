@@ -1,4 +1,3 @@
-/* eslint-disable no-undef */
 // AlarmSystem.js
 import React, {useEffect, useState, useRef, useCallback} from 'react';
 import {
@@ -12,9 +11,9 @@ import {
   StatusBar,
   Vibration,
   AppState,
-  NativeEventEmitter,
   NativeModules,
   Platform,
+  DeviceEventEmitter,
 } from 'react-native';
 
 import Sound from 'react-native-sound';
@@ -28,7 +27,10 @@ import notifee, {
   AndroidCategory,
   EventType,
   AndroidStyle,
+  TriggerType,
 } from '@notifee/react-native';
+
+const MedicationModule = NativeModules;
 
 const windowDimensions = Dimensions.get('window');
 
@@ -121,7 +123,9 @@ const AlarmHorarioFixo = ({visible, onDismiss, alarmData}) => {
     }
   }, [visible, scaleAnim, pulseAnim, backgroundAnim, glowAnim]);
 
-  if (!visible || !alarmData) return null;
+  if (!visible || !alarmData) {
+    return null;
+  }
 
   return (
     <Modal
@@ -204,6 +208,7 @@ const AlarmHorarioFixo = ({visible, onDismiss, alarmData}) => {
 
           {/* Botão */}
           <Animated.View
+            // eslint-disable-next-line react-native/no-inline-styles
             style={{transform: [{scale: pulseAnim}], width: '100%'}}>
             <TouchableOpacity
               style={styles.button}
@@ -221,6 +226,7 @@ const AlarmHorarioFixo = ({visible, onDismiss, alarmData}) => {
             <Animated.View
               style={[
                 styles.indicator,
+                // eslint-disable-next-line react-native/no-inline-styles
                 {
                   opacity: pulseAnim,
                   backgroundColor: '#10B981',
@@ -230,6 +236,7 @@ const AlarmHorarioFixo = ({visible, onDismiss, alarmData}) => {
             <Animated.View
               style={[
                 styles.indicator,
+                // eslint-disable-next-line react-native/no-inline-styles
                 {
                   opacity: pulseAnim,
                   backgroundColor: '#10B981',
@@ -239,6 +246,7 @@ const AlarmHorarioFixo = ({visible, onDismiss, alarmData}) => {
             <Animated.View
               style={[
                 styles.indicator,
+                // eslint-disable-next-line react-native/no-inline-styles
                 {
                   opacity: pulseAnim,
                   backgroundColor: '#10B981',
@@ -343,7 +351,9 @@ const AlarmIntervalo = ({visible, onDismiss, alarmData}) => {
     }
   }, [visible, scaleAnim, pulseAnim, backgroundAnim, glowAnim, rotateAnim]);
 
-  if (!visible || !alarmData) return null;
+  if (!visible || !alarmData) {
+    return null;
+  }
 
   const rotateInterpolate = rotateAnim.interpolate({
     inputRange: [0, 1],
@@ -363,6 +373,7 @@ const AlarmIntervalo = ({visible, onDismiss, alarmData}) => {
         <Animated.View
           style={[
             styles.backgroundCircle1,
+            // eslint-disable-next-line react-native/no-inline-styles
             {
               backgroundColor: '#6366F1',
               opacity: backgroundAnim.interpolate({
@@ -383,6 +394,7 @@ const AlarmIntervalo = ({visible, onDismiss, alarmData}) => {
         <Animated.View
           style={[
             styles.backgroundCircle2,
+            // eslint-disable-next-line react-native/no-inline-styles
             {
               backgroundColor: '#6366F1',
               opacity: backgroundAnim.interpolate({
@@ -452,6 +464,7 @@ const AlarmIntervalo = ({visible, onDismiss, alarmData}) => {
 
           {/* Botão */}
           <Animated.View
+            // eslint-disable-next-line react-native/no-inline-styles
             style={{transform: [{scale: pulseAnim}], width: '100%'}}>
             <TouchableOpacity
               style={[styles.button, styles.buttonPurple]}
@@ -469,6 +482,7 @@ const AlarmIntervalo = ({visible, onDismiss, alarmData}) => {
             <Animated.View
               style={[
                 styles.indicator,
+                // eslint-disable-next-line react-native/no-inline-styles
                 {
                   opacity: pulseAnim,
                   backgroundColor: '#6366F1',
@@ -478,6 +492,7 @@ const AlarmIntervalo = ({visible, onDismiss, alarmData}) => {
             <Animated.View
               style={[
                 styles.indicator,
+                // eslint-disable-next-line react-native/no-inline-styles
                 {
                   opacity: pulseAnim,
                   backgroundColor: '#6366F1',
@@ -487,6 +502,7 @@ const AlarmIntervalo = ({visible, onDismiss, alarmData}) => {
             <Animated.View
               style={[
                 styles.indicator,
+                // eslint-disable-next-line react-native/no-inline-styles
                 {
                   opacity: pulseAnim,
                   backgroundColor: '#6366F1',
@@ -519,9 +535,8 @@ async function createNotificationChannel() {
   }
 }
 
-// Função para mostrar notificação imediata
 async function showMedicationNotification(id, title, body, alarmData) {
-  console.log('📱 Attempting to show medication notification:', {
+  console.log('📱 Exibindo notificação persistente:', {
     id,
     title,
     body,
@@ -538,19 +553,32 @@ async function showMedicationNotification(id, title, body, alarmData) {
         channelId,
         smallIcon: '@drawable/icon',
         category: AndroidCategory.ALARM,
+        // CONFIGURAÇÕES CRÍTICAS PARA NÃO SER DESCARTÁVEL
         ongoing: true,
         autoCancel: false,
-        fullScreenAction: {id: 'default'},
+        onlyAlertOnce: false,
+        showTimestamp: true,
+        timestamp: Date.now(),
         sound: 'default',
         importance: AndroidImportance.HIGH,
+        // REMOVER esta linha que causa o erro:
+        // timeoutAfter: 0,
+        localOnly: true,
+        visibility: 1,
+        fullScreenAction: {
+          id: 'default',
+          launchActivity: 'default',
+        },
         pressAction: {
           id: 'default',
+          launchActivity: 'default',
         },
         actions: [
           {
             title: '✅ Tomei o medicamento',
             pressAction: {
               id: 'confirm',
+              launchActivity: 'default',
             },
           },
         ],
@@ -567,11 +595,14 @@ async function showMedicationNotification(id, title, body, alarmData) {
         tipoAlerta: String(alarmData?.tipoAlerta || ''),
         horario: String(alarmData?.horario || ''),
         intervaloHoras: String(alarmData?.intervaloHoras || ''),
+        persistent: 'true',
       },
     });
-    console.log('✅ Notification displayed successfully');
+    console.log(
+      '✅ Notificação persistente não-descartável exibida com sucesso',
+    );
   } catch (error) {
-    console.error('❌ Error displaying notification:', error);
+    console.error('❌ Erro ao exibir notificação:', error);
   }
 }
 
@@ -587,6 +618,15 @@ async function scheduleNotification(id, title, body, triggerDate, alarmData) {
   try {
     const channelId = await createNotificationChannel();
 
+    // Criar o trigger corretamente tipado
+    const trigger = {
+      type: TriggerType.TIMESTAMP,
+      timestamp: triggerDate.getTime(),
+      alarmManager: {
+        allowWhileIdle: true,
+      },
+    };
+
     await notifee.createTriggerNotification(
       {
         id,
@@ -594,8 +634,9 @@ async function scheduleNotification(id, title, body, triggerDate, alarmData) {
         body,
         android: {
           channelId,
-          smallIcon: '@drawable/icon',
+          smallIcon: 'ic_launcher', // Certifique-se que este ícone existe
           category: AndroidCategory.ALARM,
+          ongoing: true,
           autoCancel: false,
           sound: 'default',
           importance: AndroidImportance.HIGH,
@@ -625,17 +666,13 @@ async function scheduleNotification(id, title, body, triggerDate, alarmData) {
           intervaloHoras: String(alarmData?.intervaloHoras || ''),
         },
       },
-      {
-        type: notifee.TriggerType.TIMESTAMP,
-        timestamp: triggerDate.getTime(),
-        alarmManager: {
-          allowWhileIdle: true,
-        },
-      },
+      trigger,
     );
+
     console.log('✅ Notificação agendada com sucesso para:', triggerDate);
   } catch (error) {
     console.error('❌ Erro ao agendar notificação:', error);
+    throw error; // Re-lançar para tratamento upstream
   }
 }
 
@@ -656,21 +693,21 @@ async function cancelAllScheduledNotifications() {
 
 // Função para registrar handlers de notificação
 function registerMedicationHandler(callback) {
-  console.log('🎯 Registering medication notification handlers...');
+  console.log('🎯 Registrando handlers de notificação...');
 
   // Registrar handler de foreground
   const foregroundSubscription = notifee.onForegroundEvent(
     async ({type, detail}) => {
-      console.log('📱 Foreground event received:', {type, detail});
+      console.log('📱 Evento foreground recebido:', {type, detail});
       try {
         if (type === EventType.ACTION_PRESS || type === EventType.PRESS) {
-          console.log('👆 Action press detected');
+          console.log('👆 Action press detectada');
           const {pressAction, notification} = detail;
           if (pressAction && pressAction.id === 'confirm') {
-            console.log('✅ Confirm action pressed');
+            console.log('✅ Ação de confirmação pressionada');
             const notifData = notification?.data;
             if (notifData) {
-              console.log('💊 Notification data:', notifData);
+              console.log('💊 Dados da notificação:', notifData);
               await callback(notifData);
               // Cancelar a notificação após confirmação
               if (notification?.id) {
@@ -680,7 +717,7 @@ function registerMedicationHandler(callback) {
           }
         }
       } catch (err) {
-        console.error('❌ Error in foreground handler:', err);
+        console.error('❌ Erro no handler foreground:', err);
       }
     },
   );
@@ -688,21 +725,24 @@ function registerMedicationHandler(callback) {
   // Registrar handler de background
   let backgroundSubscription;
   try {
-    console.log('🌙 Setting up background event handler...');
+    console.log('🌙 Configurando handler de background...');
     backgroundSubscription = notifee.onBackgroundEvent(
       async ({type, detail}) => {
-        console.log('🌙 Background event received:', {type, detail});
+        console.log('🌙 Evento background recebido:', {type, detail});
         try {
           if (type === EventType.ACTION_PRESS || type === EventType.PRESS) {
-            console.log('👆 Background action press detected');
+            console.log('👆 Action press em background detectada');
             const {pressAction, notification} = detail;
             if (pressAction && pressAction.id === 'confirm') {
-              console.log('✅ Background confirm action pressed');
+              console.log('✅ Ação de confirmação em background pressionada');
               const notifData = notification?.data;
               if (notifData) {
-                console.log('💊 Background notification data:', notifData);
+                console.log(
+                  '💊 Dados da notificação em background:',
+                  notifData,
+                );
                 await callback(notifData);
-                console.log('✅ Background callback executed successfully');
+                console.log('✅ Callback de background executado com sucesso');
                 // Cancelar a notificação após confirmação
                 if (notification?.id) {
                   await notifee.cancelNotification(notification.id);
@@ -711,15 +751,15 @@ function registerMedicationHandler(callback) {
             }
           }
         } catch (err) {
-          console.error('❌ Error in background handler:', err);
+          console.error('❌ Erro no handler background:', err);
         }
       },
     );
   } catch (err) {
-    console.error('❌ Failed to register background event handler:', err);
+    console.error('❌ Falha ao registrar handler de background:', err);
   }
 
-  // Retorna função de cleanup que chama os unsubscribes
+  // Retorna função de cleanup
   return () => {
     try {
       if (foregroundSubscription) {
@@ -740,7 +780,7 @@ function registerMedicationHandler(callback) {
 const AlarmSystem = () => {
   const [showAlarm, setShowAlarm] = useState(false);
   const [currentAlarm, setCurrentAlarm] = useState(null);
-  const [alarmType, setAlarmType] = useState(null); // 'horario' ou 'intervalo'
+  const [alarmType, setAlarmType] = useState(null);
   const [appState, setAppState] = useState(AppState.currentState);
 
   const alarmSound = useRef(null);
@@ -749,7 +789,7 @@ const AlarmSystem = () => {
 
   const uid = auth().currentUser?.uid;
 
-  // Formata minuto com zero à esquerda para evitar strings como "9:5"
+  // Formata minuto com zero à esquerda
   const formatHourMinute = date => {
     const hh = String(date.getHours()).padStart(2, '0');
     const mm = String(date.getMinutes()).padStart(2, '0');
@@ -758,7 +798,9 @@ const AlarmSystem = () => {
 
   // Agendar notificações do dia
   const scheduleAllNotifications = useCallback(async () => {
-    if (!uid) return;
+    if (!uid) {
+      return;
+    }
 
     console.log('📅 Iniciando agendamento de notificações do dia...');
 
@@ -873,7 +915,9 @@ const AlarmSystem = () => {
         for (const doc of snapshot.docs) {
           const alarm = doc.data();
 
-          if (!alarm.horarioInicio || !alarm.intervaloHoras) continue;
+          if (!alarm.horarioInicio || !alarm.intervaloHoras) {
+            continue;
+          }
 
           const [hora, minuto] = String(alarm.horarioInicio)
             .split(':')
@@ -890,7 +934,6 @@ const AlarmSystem = () => {
 
           let contador = 0;
           while (proximaDose <= fimDia && contador < 24) {
-            // Limitar a 24 doses por dia
             if (proximaDose > now) {
               const horarioFormatado = proximaDose.toTimeString().slice(0, 5);
               const diaHojeStr = hoje.toISOString().slice(0, 10);
@@ -905,7 +948,9 @@ const AlarmSystem = () => {
 
               const jaFoiTomado = tomadoSnapshot.docs.some(tomadoDoc => {
                 const tomadoData = tomadoDoc.data();
-                if (!tomadoData.horario) return false;
+                if (!tomadoData.horario) {
+                  return false;
+                }
 
                 const [hTomado, mTomado] = String(tomadoData.horario)
                   .split(':')
@@ -968,10 +1013,8 @@ const AlarmSystem = () => {
   // Inicializa som e inicia verificação
   const initializeAlarmSystem = useCallback(() => {
     try {
-      // Em iOS pode-se definir categoria
       if (Sound && Sound.setCategory) {
         try {
-          // categoria para permitir reprodução em background dependendo da configuração nativa
           if (Platform.OS === 'ios') {
             Sound.setCategory('Playback');
           }
@@ -996,13 +1039,11 @@ const AlarmSystem = () => {
   }, [startAlarmChecker]);
 
   const startAlarmChecker = useCallback(() => {
-    // evita múltiplos intervalos
     if (checkAlarmInterval.current) {
       return;
     }
 
     checkForAlarms();
-    // roda a cada 10s (você pode ajustar)
     checkAlarmInterval.current = BackgroundTimer.setInterval(() => {
       checkForAlarms();
     }, 10000);
@@ -1016,7 +1057,9 @@ const AlarmSystem = () => {
   }, []);
 
   const checkForAlarms = useCallback(async () => {
-    if (!uid) return;
+    if (!uid) {
+      return;
+    }
 
     try {
       const now = new Date();
@@ -1041,9 +1084,6 @@ const AlarmSystem = () => {
     }
   }, [checkHorarioFixoAlarms, checkIntervaloAlarms, uid]);
 
-  /**
-   * Verifica alarmes de horário fixo
-   */
   const checkHorarioFixoAlarms = useCallback(
     async (now, currentTime, currentDay) => {
       try {
@@ -1053,12 +1093,13 @@ const AlarmSystem = () => {
           .where('tipoAlerta', '==', 'dias')
           .get();
 
-        if (snapshot.empty) return;
+        if (snapshot.empty) {
+          return;
+        }
 
         for (const doc of snapshot.docs) {
           const alarm = doc.data();
 
-          // supondo que alarm.horario esteja em formato "HH:mm"
           if (
             alarm.horario &&
             alarm.horario <= currentTime &&
@@ -1074,7 +1115,9 @@ const AlarmSystem = () => {
               .where('dia', '==', diaStr)
               .get();
 
-            if (!tomadoSnapshot.empty) continue;
+            if (!tomadoSnapshot.empty) {
+              continue;
+            }
 
             const remedioDoc = await firestore()
               .collection('remedios')
@@ -1102,9 +1145,6 @@ const AlarmSystem = () => {
     [triggerAlarm, uid],
   );
 
-  /**
-   * Verifica alarmes de intervalo (X em X horas)
-   */
   const checkIntervaloAlarms = useCallback(
     async now => {
       try {
@@ -1117,17 +1157,16 @@ const AlarmSystem = () => {
 
         console.log(`📋 Alarmes de intervalo encontrados: ${snapshot.size}`);
 
-        if (snapshot.empty) return;
+        if (snapshot.empty) {
+          return;
+        }
 
         for (const doc of snapshot.docs) {
           const alarm = doc.data();
           console.log(
             `\n🔍 Verificando alarme: ${alarm.remedioNome || 'Sem nome'}`,
           );
-          console.log(`   Horário início: ${alarm.horarioInicio}`);
-          console.log(`   Intervalo: ${alarm.intervaloHoras}h`);
 
-          // Verificar se deve disparar baseado no horário de início
           const shouldTrigger = await checkIntervaloTiming(alarm, now);
 
           if (shouldTrigger) {
@@ -1157,47 +1196,35 @@ const AlarmSystem = () => {
     [checkIntervaloTiming, triggerAlarm, uid],
   );
 
-  /**
-   * Verifica se é hora de disparar alarme de intervalo
-   */
   const checkIntervaloTiming = useCallback(
     async (alarm, now) => {
       try {
-        if (!alarm || !alarm.horarioInicio || !alarm.intervaloHoras)
+        if (!alarm || !alarm.horarioInicio || !alarm.intervaloHoras) {
           return false;
+        }
 
         const currentTime = now.getTime();
         const intervaloMs = alarm.intervaloHoras * 60 * 60 * 1000;
 
-        // Calcular horário base (horarioInicio de hoje)
         const [hora, minuto] = String(alarm.horarioInicio)
           .split(':')
           .map(Number);
         const horarioBase = new Date(now);
         horarioBase.setHours(hora, minuto || 0, 0, 0);
 
-        // Se o horário base já passou hoje, considera o de ontem
         const horarioBaseOntem = new Date(horarioBase);
         horarioBaseOntem.setDate(horarioBaseOntem.getDate() - 1);
 
-        // Verificar qual horário base usar (se já passou ou não)
         let horarioReferencia = horarioBase.getTime();
         if (currentTime < horarioBase.getTime()) {
-          // Ainda não chegou o horário de hoje, usa o de ontem como base
           horarioReferencia = horarioBaseOntem.getTime();
         }
 
-        // Calcular quanto tempo passou desde o horário de referência
         const tempoDecorrido = currentTime - horarioReferencia;
-
-        // Calcular quantas doses já deveriam ter sido tomadas
         const dosesEsperadas = Math.floor(tempoDecorrido / intervaloMs);
-
-        // Calcular o horário exato do próximo alarme
         const proximoAlarmeTime =
           horarioReferencia + dosesEsperadas * intervaloMs;
 
-        // Verificar se estamos na janela de 5 minutos do próximo alarme
         const diffMinutos = (currentTime - proximoAlarmeTime) / 1000 / 60;
         const dentroJanela = diffMinutos >= 0 && diffMinutos <= 5;
 
@@ -1205,7 +1232,6 @@ const AlarmSystem = () => {
           return false;
         }
 
-        // Verificar se já foi tomado neste horário específico
         const hoje = new Date(now);
         hoje.setHours(0, 0, 0, 0);
         const diaHojeStr = hoje.toISOString().slice(0, 10);
@@ -1221,10 +1247,11 @@ const AlarmSystem = () => {
           .where('dia', '==', diaHojeStr)
           .get();
 
-        // Verificar se já foi marcado como tomado neste horário
         const jaFoiTomado = tomadosSnapshot.docs.some(doc => {
           const data = doc.data();
-          if (!data.horario) return false;
+          if (!data.horario) {
+            return false;
+          }
 
           const [hTomado, mTomado] = String(data.horario)
             .split(':')
@@ -1237,7 +1264,7 @@ const AlarmSystem = () => {
           const minutosEsperado = (hEsperado || 0) * 60 + (mEsperado || 0);
 
           const diferenca = Math.abs(minutosTomado - minutosEsperado);
-          return diferenca <= 30; // Margem de 30 minutos
+          return diferenca <= 30;
         });
 
         if (jaFoiTomado) {
@@ -1245,12 +1272,9 @@ const AlarmSystem = () => {
           return false;
         }
 
-        console.log(`⏰ Disparando alarme de intervalo:`);
-        console.log(`   Horário início: ${alarm.horarioInicio}`);
-        console.log(`   Intervalo: ${alarm.intervaloHoras}h`);
-        console.log(`   Horário esperado: ${horarioEsperado}`);
-        console.log(`   Doses esperadas: ${dosesEsperadas + 1}`);
-
+        console.log(
+          `⏰ Disparando alarme de intervalo no horário ${horarioEsperado}`,
+        );
         return true;
       } catch (error) {
         console.error('Erro ao verificar timing de intervalo:', error);
@@ -1260,12 +1284,13 @@ const AlarmSystem = () => {
     [uid],
   );
 
-  // Tocar som do alarme
   const playAlarmSound = useCallback(() => {
     if (alarmSound.current) {
       try {
         alarmSound.current.setNumberOfLoops(-1);
-        if (alarmSound.current.setVolume) alarmSound.current.setVolume(1.0);
+        if (alarmSound.current.setVolume) {
+          alarmSound.current.setVolume(1.0);
+        }
         alarmSound.current.play(success => {
           if (!success) {
             console.log('Erro ao tocar som');
@@ -1280,7 +1305,9 @@ const AlarmSystem = () => {
   const stopAlarmSound = useCallback(() => {
     try {
       if (alarmSound.current) {
-        if (alarmSound.current.stop) alarmSound.current.stop();
+        if (alarmSound.current.stop) {
+          alarmSound.current.stop();
+        }
       }
     } catch (e) {
       console.error('Erro stopAlarmSound:', e);
@@ -1288,25 +1315,26 @@ const AlarmSystem = () => {
     Vibration.cancel();
   }, []);
 
-  // Registrar medicação como tomada
   const logMedicationTaken = useCallback(
     async notifData => {
-      if (!uid) return;
+      if (!uid) {
+        return;
+      }
 
       try {
         console.log('💊 Registrando medicamento tomado:', notifData);
 
         const now = new Date();
         const diaStr = now.toISOString().slice(0, 10);
-        const timestamp = firestore.FieldValue.serverTimestamp();
 
+        // CORREÇÃO: Usar FieldValue.serverTimestamp() ao invés de Timestamp.now()
         const dados = {
           usuarioId: uid,
           remedioId: notifData.remedioId,
           remedioNome: notifData.remedioNome || '',
           dosagem: notifData.dosagem || '',
           dia: diaStr,
-          timestamp,
+          timestamp: firestore.FieldValue.serverTimestamp(), // FIX APLICADO
         };
 
         if (notifData.tipoAlerta === 'dias') {
@@ -1322,7 +1350,6 @@ const AlarmSystem = () => {
 
         console.log('✅ Medicamento registrado como tomado');
 
-        // Reagendar notificações após registrar
         setTimeout(() => {
           scheduleAllNotifications();
         }, 1000);
@@ -1333,41 +1360,63 @@ const AlarmSystem = () => {
     [uid, scheduleAllNotifications],
   );
 
-  // Dismiss do alarme (usuário confirma que tomou)
   const dismissAlarm = useCallback(
     async notifData => {
       console.log('✅ Usuário confirmou medicamento:', notifData);
 
-      // Parar som e vibração
       stopAlarmSound();
       Vibration.cancel();
 
-      // Registrar que tomou a medicação
       if (notifData) {
         await logMedicationTaken(notifData);
       }
 
-      // Atualizar estado do alarme
       setShowAlarm(false);
       setTimeout(() => {
         setCurrentAlarm(null);
         setAlarmType(null);
       }, 500);
 
-      // Cancelar notificação do Notifee
+      // ✅ PARAR SERVIÇO NATIVO (Remove notificação não descartável)
       try {
+        if (MedicationModule && MedicationModule.stopForegroundService) {
+          console.log('🛑 Parando serviço nativo de foreground...');
+          await MedicationModule.stopForegroundService();
+          console.log('✅ Serviço nativo parado - Notificação removida');
+        }
+
+        // Também cancelar notificações do notifee (fallback)
         if (notifData?.id) {
-          console.log('🔕 Cancelando notificação:', notifData.id);
+          console.log('🔕 Cancelando notificação notifee:', notifData.id);
           await notifee.cancelNotification(notifData.id);
         }
+
+        if (notifData?.remedioId) {
+          const displayedNotifications =
+            await notifee.getDisplayedNotifications();
+          console.log(
+            `🔍 Verificando ${displayedNotifications.length} notificações ativas`,
+          );
+
+          for (const notif of displayedNotifications) {
+            const notifRemedioId = notif.notification?.data?.remedioId;
+            if (notifRemedioId === notifData.remedioId) {
+              console.log(
+                `🔕 Cancelando notificação relacionada: ${notif.notification.id}`,
+              );
+              await notifee.cancelNotification(notif.notification.id);
+            }
+          }
+        }
+
+        console.log('✅ Todas as notificações foram removidas');
       } catch (e) {
-        console.error('❌ Erro ao cancelar notificação:', e);
+        console.error('❌ Erro ao remover notificações:', e);
       }
     },
     [logMedicationTaken, stopAlarmSound],
   );
 
-  // Dispara o alarme: mostra UI, toca som, vibra e inicia notificação
   const triggerAlarm = useCallback(
     async (alarmData, type) => {
       if (showAlarm) {
@@ -1380,32 +1429,51 @@ const AlarmSystem = () => {
       setAlarmType(type);
       setShowAlarm(true);
 
-      // Tocar som do alarme
       playAlarmSound();
 
       try {
-        // Vibrar em padrão de alarme
         Vibration.vibrate([1000, 500, 1000, 500], true);
       } catch (e) {
         console.warn('❌ Erro ao ativar vibração:', e);
       }
 
-      // Mostrar notificação usando Notifee
+      // ✅ USAR SERVIÇO NATIVO EM FOREGROUND - NOTIFICAÇÃO NÃO DESCARTÁVEL
       try {
-        await showMedicationNotification(
-          alarmData.id || 'default-alarm',
-          '💊 Hora de tomar seu medicamento',
-          `${alarmData.remedioNome || ''} - ${alarmData.dosagem || ''}`,
-          alarmData,
-        );
+        if (MedicationModule && MedicationModule.startForegroundService) {
+          console.log('🚀 Iniciando serviço nativo de foreground...');
+
+          const medicationData = {
+            medicationName: alarmData.remedioNome || 'Medicamento',
+            dosage: alarmData.dosagem || '',
+            time: alarmData.horario || new Date().toTimeString().slice(0, 5),
+            medicationId: alarmData.remedioId || '',
+            alarmType: type || 'dias',
+            intervalHours: alarmData.intervaloHoras
+              ? String(alarmData.intervaloHoras)
+              : '',
+          };
+
+          await MedicationModule.startForegroundService(medicationData);
+          console.log(
+            '✅ Serviço nativo iniciado - Notificação ABSOLUTAMENTE não descartável',
+          );
+        } else {
+          console.warn('⚠️ MedicationModule não disponível, usando notifee');
+          // Fallback para notifee se o módulo nativo não estiver disponível
+          await showMedicationNotification(
+            alarmData.id || 'default-alarm',
+            '💊 Hora de tomar seu medicamento',
+            `${alarmData.remedioNome || ''} - ${alarmData.dosagem || ''}`,
+            alarmData,
+          );
+        }
       } catch (e) {
-        console.error('❌ Erro ao mostrar notificação:', e);
+        console.error('❌ Erro ao iniciar serviço/notificação:', e);
       }
     },
     [playAlarmSound, showAlarm],
   );
 
-  // Limpeza geral
   const cleanup = useCallback(() => {
     stopAlarmChecker();
 
@@ -1424,83 +1492,117 @@ const AlarmSystem = () => {
       alarmSound.current = null;
     }
 
-    // garantir cancelamento de vibração
     try {
       Vibration.cancel();
     } catch (e) {}
   }, [stopAlarmChecker, stopAlarmSound]);
 
-  // Inicializar Notifee
+  // Inicializar handlers de notificação
   useEffect(() => {
-    // Este é o callback que será executado quando a notificação for confirmada
     const handleConfirm = async notifData => {
       console.log(
-        `👆 Usuário confirmou medicação pela notificação:`,
+        '👆 Usuário confirmou medicação pela notificação:',
         notifData,
       );
       await dismissAlarm(notifData);
     };
 
-    // Chama a sua função que registra os handlers
-    // e já retorna a função de cleanup correta.
     const cleanupHandlers = registerMedicationHandler(handleConfirm);
 
-    // Retorna a função de cleanup que o registerMedicationHandler proveu
+    // ✅ REGISTRAR LISTENER PARA EVENTOS DO MÓDULO NATIVO
+    let nativeEventListener = null;
+    if (MedicationModule) {
+      console.log('📡 Registrando listener para eventos nativos...');
+      nativeEventListener = DeviceEventEmitter.addListener(
+        'onMedicationConfirmed',
+        async data => {
+          console.log(
+            '📥 Evento nativo recebido - Medicamento confirmado:',
+            data,
+          );
+
+          // Converter dados do formato nativo para o formato esperado
+          const notifData = {
+            id: data.medicationId,
+            remedioId: data.medicationId,
+            remedioNome: data.medicationName,
+            dosagem: data.dosage,
+            horario: data.time,
+            tipoAlerta: data.alarmType,
+            intervaloHoras: data.intervalHours,
+          };
+
+          await dismissAlarm(notifData);
+        },
+      );
+    }
+
     return () => {
       console.log('🧹 Limpando handlers de notificação...');
       cleanupHandlers();
+
+      // Remover listener nativo
+      if (nativeEventListener) {
+        nativeEventListener.remove();
+      }
     };
   }, [dismissAlarm]);
 
-  // Hook principal para inicializar quando tivermos uid e escutar mudança de app state
+  // Hook principal
   useEffect(() => {
     if (uid) {
       initializeAlarmSystem();
-      // Agendar notificações quando o app iniciar
       scheduleAllNotifications();
     }
 
-    const subscription = AppState.addEventListener('change', nextAppState => {
-      setAppState(nextAppState);
-      if (nextAppState === 'active' && uid) {
-        checkForAlarms();
-        // Reagendar notificações quando o app voltar ao foreground
-        scheduleAllNotifications();
+    const handleAppStateChange = nextAppState => {
+      console.log('📱 App state mudou:', appState, '→', nextAppState);
+
+      // Quando o app volta para foreground
+      if (appState.match(/inactive|background/) && nextAppState === 'active') {
+        console.log('✅ App voltou para foreground');
+        if (uid) {
+          // Re-agendar notificações ao voltar (garante que estão atualizadas)
+          scheduleAllNotifications();
+          // Iniciar verificação em tempo real
+          startAlarmChecker();
+        }
       }
-    });
+
+      // Quando o app vai para background
+      if (nextAppState.match(/inactive|background/)) {
+        console.log('⏸️ App foi para background');
+        // Parar verificação em tempo real (economia de bateria)
+        stopAlarmChecker();
+      }
+
+      setAppState(nextAppState);
+    };
+
+    const subscription = AppState.addEventListener(
+      'change',
+      handleAppStateChange,
+    );
 
     return () => {
       cleanup();
-      // remover listener
       if (subscription && subscription.remove) {
         subscription.remove();
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [uid]);
+  }, [
+    uid,
+    appState,
+    initializeAlarmSystem,
+    scheduleAllNotifications,
+    startAlarmChecker,
+    stopAlarmChecker,
+    cleanup,
+  ]);
 
-  // Escuta ação de confirmação vinda da notificação persistente (módulo nativo)
-  useEffect(() => {
-    // Cria emitter apenas se o módulo existir
-    const nativeModule = NativeModules?.PersistentNotification;
-    if (!nativeModule) return;
-
-    const emitter = new NativeEventEmitter(nativeModule);
-    const sub = emitter.addListener('PersistentNotificationConfirmed', () => {
-      // Quando o usuário confirma pela notificação, dismiss do alarme
-      dismissAlarm();
-    });
-
-    return () => {
-      try {
-        sub.remove();
-      } catch (e) {
-        // ignore
-      }
-    };
-  }, [dismissAlarm]);
-
-  if (!uid) return null;
+  if (!uid) {
+    return null;
+  }
 
   return (
     <>
@@ -1599,7 +1701,6 @@ const styles = StyleSheet.create({
     shadowOffset: {width: 0, height: 8},
     shadowOpacity: 0.4,
     shadowRadius: 20,
-    elevation: 10,
   },
   iconCirclePurple: {
     backgroundColor: 'rgba(99, 102, 241, 0.15)',
@@ -1650,7 +1751,6 @@ const styles = StyleSheet.create({
     shadowOffset: {width: 0, height: 4},
     shadowOpacity: 0.2,
     shadowRadius: 8,
-    elevation: 6,
   },
   timeContainerPurple: {
     backgroundColor: 'rgba(99, 102, 241, 0.12)',
@@ -1680,7 +1780,6 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(16, 185, 129, 0.4)',
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 8,
   },
   buttonPurple: {
     backgroundColor: '#6366F1',
@@ -1715,7 +1814,6 @@ const styles = StyleSheet.create({
     shadowOffset: {width: 0, height: 4},
     shadowOpacity: 0.3,
     shadowRadius: 8,
-    elevation: 6,
     marginBottom: 8,
   },
   intervalTextContainer: {
