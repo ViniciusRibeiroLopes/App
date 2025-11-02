@@ -32,7 +32,6 @@ const RemedioForm = ({route, navigation}) => {
   const [nome, setNome] = useState('');
   const [utilidade, setUtilidade] = useState('');
   const [tipo, setTipo] = useState('');
-  const [quantidade, setQuantidade] = useState('');
   const [dosagem, setDosagem] = useState('');
   const [observacoes, setObservacoes] = useState('');
   const [modalTipoVisible, setModalTipoVisible] = useState(false);
@@ -102,7 +101,6 @@ const RemedioForm = ({route, navigation}) => {
       setNome(remedio.nome || '');
       setUtilidade(remedio.utilidade || '');
       setTipo(remedio.tipo || '');
-      setQuantidade(remedio.quantidade || '');
       setDosagem(remedio.dosagem || '');
       setObservacoes(remedio.observacoes || '');
     }
@@ -126,7 +124,6 @@ const RemedioForm = ({route, navigation}) => {
         nome: nome.trim(),
         utilidade: utilidade.trim(),
         tipo,
-        quantidade: quantidade.trim(),
         dosagem: dosagem.trim(),
         observacoes: observacoes.trim(),
         usuarioId: uid,
@@ -328,49 +325,24 @@ const RemedioForm = ({route, navigation}) => {
               <Text style={styles.sectionTitle}>Especificações</Text>
             </View>
 
-            <View style={styles.row}>
-              <View style={styles.halfInputContainer}>
-                <Text style={styles.inputLabel}>Quantidade</Text>
-                <View style={styles.inputContainer}>
-                  <View style={styles.inputContent}>
-                    <View
-                      style={[
-                        styles.iconContainer,
-                        {backgroundColor: '#E53E3E15'},
-                      ]}>
-                      <Icon name="layers" size={18} color="#E53E3E" />
-                    </View>
-                    <TextInput
-                      style={styles.textInput}
-                      placeholder="Ex: 20"
-                      placeholderTextColor="#64748b"
-                      value={quantidade}
-                      onChangeText={setQuantidade}
-                      keyboardType="numeric"
-                    />
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Dosagem</Text>
+              <View style={styles.inputContainer}>
+                <View style={styles.inputContent}>
+                  <View
+                    style={[
+                      styles.iconContainer,
+                      {backgroundColor: '#E53E3E15'},
+                    ]}>
+                    <Icon name="scale" size={18} color="#E53E3E" />
                   </View>
-                </View>
-              </View>
-
-              <View style={styles.halfInputContainer}>
-                <Text style={styles.inputLabel}>Dosagem</Text>
-                <View style={styles.inputContainer}>
-                  <View style={styles.inputContent}>
-                    <View
-                      style={[
-                        styles.iconContainer,
-                        {backgroundColor: '#E53E3E15'},
-                      ]}>
-                      <Icon name="scale" size={18} color="#E53E3E" />
-                    </View>
-                    <TextInput
-                      style={styles.textInput}
-                      placeholder="Ex: 500mg"
-                      placeholderTextColor="#64748b"
-                      value={dosagem}
-                      onChangeText={setDosagem}
-                    />
-                  </View>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="Ex: 500mg"
+                    placeholderTextColor="#64748b"
+                    value={dosagem}
+                    onChangeText={setDosagem}
+                  />
                 </View>
               </View>
             </View>
@@ -667,14 +639,6 @@ const styles = StyleSheet.create({
   textArea: {
     minHeight: 80,
     textAlignVertical: 'top',
-  },
-  row: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 16,
-  },
-  halfInputContainer: {
-    flex: 1,
   },
   saveButton: {
     backgroundColor: '#E53E3E',

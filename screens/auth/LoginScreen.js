@@ -20,56 +20,18 @@ import {
 import {useNavigation} from '@react-navigation/native';
 import auth from '@react-native-firebase/auth';
 import Icon from 'react-native-vector-icons/FontAwesome';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import LottieView from 'lottie-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-/**
- * Obtém as dimensões da tela do dispositivo
- * @type {Object}
- * @property {number} width - Largura da tela
- * @property {number} height - Altura da tela
- */
 const {width, height} = Dimensions.get('window');
 
-/**
- * Determina se a tela é considerada pequena (largura < 360px)
- * @type {boolean}
- */
 const isSmallScreen = width < 360;
-
-/**
- * Determina se a tela é considerada média (largura entre 360px e 400px)
- * @type {boolean}
- */
 const isMediumScreen = width >= 360 && width < 400;
-
-/**
- * Determina se a tela é considerada grande (largura >= 400px)
- * @type {boolean}
- */
 const isLargeScreen = width >= 400;
 
 /**
- * Componente de tela de login com autenticação Firebase
- * 
- * Este componente oferece uma interface completa de login com:
- * - Autenticação por email/senha
- * - Integração com Firebase Auth
- * - Animações personalizadas
- * - Modal de sucesso com animação Lottie
- * - Responsividade para diferentes tamanhos de tela
- * - Validação de campos
- * - Tratamento de erros
- * 
- * @component
- * @returns {React.JSX.Element} O componente da tela de login
- * 
- * @example
- * // Uso básico do componente
- * <LoginScreen />
- * 
- * @version 1.0.0
- * @since 2025
+ * Componente de tela de login com autenticação Firebase e recuperação de senha
  */
 const LoginScreen = () => {
   // Estados do formulário
@@ -80,6 +42,13 @@ const LoginScreen = () => {
   const [passwordFocused, setPasswordFocused] = useState(false);
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
 
+  // Estados do modal de recuperação de senha
+  const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetEmailFocused, setResetEmailFocused] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const [resetEmailSent, setResetEmailSent] = useState(false);
+
   // Referências para animações
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
@@ -89,16 +58,13 @@ const LoginScreen = () => {
   const backgroundAnim = useRef(new Animated.Value(0)).current;
   const lottieRef = useRef(null);
 
+  // Referências para animações do modal
+  const modalFadeAnim = useRef(new Animated.Value(0)).current;
+  const modalSlideAnim = useRef(new Animated.Value(50)).current;
+  const successIconAnim = useRef(new Animated.Value(0)).current;
+
   const navigation = useNavigation();
 
-  /**
-   * Efeito para inicializar as animações da tela
-   * Executa animações paralelas de fade, slide e escala do logo,
-   * além de uma animação contínua do fundo
-   * 
-   * @function
-   * @name useEffect
-   */
   useEffect(() => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
@@ -138,12 +104,56 @@ const LoginScreen = () => {
     return () => backgroundAnimation.stop();
   }, [backgroundAnim, fadeAnim, logoScaleAnim, slideAnim]);
 
-  /**
-   * Navega para a tela de registro
-   * Reseta a pilha de navegação e direciona para a tela de registro
-   * 
-   * @function goToRegister
-   */
+  // Animações do modal de recuperação
+  useEffect(() => {
+    if (showForgotPasswordModal) {
+      Animated.parallel([
+        Animated.timing(modalFadeAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.spring(modalSlideAnim, {
+          toValue: 0,
+          tension: 50,
+          friction: 8,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      modalFadeAnim.setValue(0);
+      modalSlideAnim.setValue(50);
+      successIconAnim.setValue(0);
+      setResetEmailSent(false);
+      setResetEmail('');
+    }
+  }, [showForgotPasswordModal, modalFadeAnim, modalSlideAnim, successIconAnim]);
+
+  // Animação do ícone de sucesso
+  useEffect(() => {
+    if (resetEmailSent) {
+      Animated.sequence([
+        Animated.timing(successIconAnim, {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+        Animated.spring(successIconAnim, {
+          toValue: 1.1,
+          tension: 50,
+          friction: 3,
+          useNativeDriver: true,
+        }),
+        Animated.spring(successIconAnim, {
+          toValue: 1,
+          tension: 50,
+          friction: 5,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [resetEmailSent, successIconAnim]);
+
   const goToRegister = () => {
     navigation.reset({
       index: 0,
@@ -151,25 +161,11 @@ const LoginScreen = () => {
     });
   };
 
-  /**
-   * Exibe o modal de animação de sucesso
-   * Ativa o estado que controla a exibição do modal com animação Lottie
-   * 
-   * @function showSuccessAnimationOverlay
-   */
   const showSuccessAnimationOverlay = () => {
     console.log('🎯 Iniciando modal de sucesso');
     setShowSuccessAnimation(true);
   };
 
-  /**
-   * Manipula o fim da animação Lottie de sucesso
-   * Salva o estado da animação no AsyncStorage e fecha o modal após delay
-   * 
-   * @async
-   * @function handleLottieAnimationFinish
-   * @throws {Error} Erro ao salvar no AsyncStorage
-   */
   const handleLottieAnimationFinish = async () => {
     console.log('🎬 Animação Lottie finalizada!');
     
@@ -186,14 +182,6 @@ const LoginScreen = () => {
     }, 500);
   };
 
-  /**
-   * Efeito para controlar a reprodução da animação Lottie
-   * Monitora o estado showSuccessAnimation e gerencia a reprodução da animação,
-   * incluindo timers de debug e fallback
-   * 
-   * @function
-   * @name useEffect
-   */
   useEffect(() => {
     if (showSuccessAnimation) {
       console.log('📺 Modal está visível, verificando Lottie...');
@@ -224,19 +212,6 @@ const LoginScreen = () => {
     }
   }, [showSuccessAnimation]);
 
-  /**
-   * Realiza o login do usuário com email e senha
-   * Valida os campos, executa animação do botão, autentica via Firebase
-   * e gerencia estados de loading e erros
-   * 
-   * @async
-   * @function signIn
-   * @throws {Error} Erros de autenticação do Firebase
-   * 
-   * @example
-   * // Chamado quando o usuário pressiona o botão "Entrar"
-   * await signIn();
-   */
   const signIn = async () => {
     if (!email || !password) {
       Alert.alert('Campos obrigatórios', 'Por favor, preencha todos os campos');
@@ -263,7 +238,6 @@ const LoginScreen = () => {
       console.log('Login realizado com sucesso:', userCredential.user.email);
       
       setIsLoading(false);
-      
       showSuccessAnimationOverlay();
       
     } catch (error) {
@@ -291,17 +265,6 @@ const LoginScreen = () => {
     }
   };
 
-  /**
-   * Inicia o processo de login com Google
-   * Executa animação do botão e exibe alerta temporário sobre implementação futura
-   * 
-   * @function signInWithGoogle
-   * @todo Implementar integração com Google Sign-In
-   * 
-   * @example
-   * // Chamado quando o usuário pressiona "Continuar com Google"
-   * signInWithGoogle();
-   */
   const signInWithGoogle = () => {
     Animated.sequence([
       Animated.timing(googleButtonScaleAnim, {
@@ -319,11 +282,226 @@ const LoginScreen = () => {
     Alert.alert('Em breve', 'Login com Google será implementado em breve.');
   };
 
+  // Abrir modal de recuperação de senha
+  const openForgotPasswordModal = () => {
+    console.log('📧 Tentando abrir modal de recuperação de senha');
+    console.log('📧 isLoading:', isLoading);
+    console.log('📧 showSuccessAnimation:', showSuccessAnimation);
+    console.log('📧 Email atual:', email);
+    
+    setResetEmail(email); // Pré-preencher com o email do login
+    setShowForgotPasswordModal(true);
+    
+    console.log('📧 Modal deve estar visível agora');
+  };
+
+  // Fechar modal de recuperação
+  const closeForgotPasswordModal = () => {
+    console.log('❌ Fechando modal de recuperação');
+    setShowForgotPasswordModal(false);
+  };
+
+  // Validar email
+  const validateEmail = (emailToValidate) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(emailToValidate);
+  };
+
+  // Enviar email de recuperação
+  const handlePasswordReset = async () => {
+    console.log('🔄 Iniciando recuperação de senha para:', resetEmail);
+
+    // Validações
+    if (!resetEmail.trim()) {
+      Alert.alert('Campo obrigatório', 'Por favor, digite seu email');
+      return;
+    }
+
+    if (!validateEmail(resetEmail)) {
+      Alert.alert('Email inválido', 'Por favor, digite um email válido');
+      return;
+    }
+
+    setIsResettingPassword(true);
+
+    try {
+      await auth().sendPasswordResetEmail(resetEmail);
+      console.log('✅ Email de recuperação enviado com sucesso');
+      
+      setIsResettingPassword(false);
+      setResetEmailSent(true);
+
+      // Fechar modal após 3 segundos
+      setTimeout(() => {
+        closeForgotPasswordModal();
+      }, 3000);
+
+    } catch (error) {
+      console.error('❌ Erro ao enviar email de recuperação:', error);
+      setIsResettingPassword(false);
+
+      let errorMessage = 'Erro ao enviar email. Tente novamente.';
+
+      switch (error.code) {
+        case 'auth/user-not-found':
+          errorMessage = 'Email não encontrado. Verifique e tente novamente.';
+          break;
+        case 'auth/invalid-email':
+          errorMessage = 'Email inválido. Digite um email válido.';
+          break;
+        case 'auth/too-many-requests':
+          errorMessage = 'Muitas tentativas. Aguarde alguns minutos.';
+          break;
+        case 'auth/network-request-failed':
+          errorMessage = 'Erro de conexão. Verifique sua internet.';
+          break;
+      }
+
+      Alert.alert('Erro', errorMessage);
+    }
+  };
+
+  // Modal de recuperação de senha
+  const renderForgotPasswordModal = () => {
+    console.log('🎨 Renderizando modal. Visível:', showForgotPasswordModal);
+    
+    if (!showForgotPasswordModal) {
+      return null;
+    }
+    
+    return (
+      <Modal
+        visible={true}
+        transparent={true}
+        animationType="none"
+        statusBarTranslucent={true}
+        onRequestClose={closeForgotPasswordModal}>
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => {
+            console.log('🖱️ Clicou no overlay');
+            closeForgotPasswordModal();
+          }}>
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={(e) => {
+              console.log('🖱️ Clicou no container do modal');
+              e.stopPropagation();
+            }}>
+            <Animated.View
+              style={[
+                styles.modalContainer,
+                {
+                  opacity: modalFadeAnim,
+                  transform: [{translateY: modalSlideAnim}],
+                },
+              ]}>
+              
+              {/* Conteúdo do modal - Estado normal */}
+              {!resetEmailSent ? (
+                <>
+                  {/* Cabeçalho */}
+                  <View style={styles.modalHeader}>
+                    <View style={styles.modalIconContainer}>
+                      <Ionicons name="key" size={28} color="#4D97DB" />
+                    </View>
+                    <Text style={styles.modalTitle}>Recuperar Senha</Text>
+                    <Text style={styles.modalSubtitle}>
+                      Digite seu email e enviaremos um link para redefinir sua senha
+                    </Text>
+                  </View>
+
+                  {/* Campo de email */}
+                  <View style={styles.modalInputContainer}>
+                    <Text style={styles.modalInputLabel}>E-mail</Text>
+                    <TextInput
+                      style={[
+                        styles.modalInput,
+                        resetEmailFocused && styles.modalInputFocused,
+                      ]}
+                      placeholder="Digite seu e-mail"
+                      placeholderTextColor="#8A8A8A"
+                      keyboardType="email-address"
+                      value={resetEmail}
+                      onChangeText={setResetEmail}
+                      onFocus={() => setResetEmailFocused(true)}
+                      onBlur={() => setResetEmailFocused(false)}
+                      autoCapitalize="none"
+                      editable={!isResettingPassword}
+                      autoFocus={true}
+                    />
+                  </View>
+
+                  {/* Botões de ação */}
+                  <View style={styles.modalButtons}>
+                    <TouchableOpacity
+                      style={styles.modalCancelButton}
+                      onPress={closeForgotPasswordModal}
+                      disabled={isResettingPassword}>
+                      <Text style={styles.modalCancelText}>Cancelar</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.modalConfirmButton,
+                        isResettingPassword && styles.modalButtonDisabled,
+                      ]}
+                      onPress={handlePasswordReset}
+                      disabled={isResettingPassword}>
+                      {isResettingPassword ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <>
+                          <Ionicons name="mail" size={18} color="#FFFFFF" />
+                          <Text style={styles.modalConfirmText}>Enviar</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </>
+              ) : (
+                /* Conteúdo do modal - Estado de sucesso */
+                <>
+                  <Animated.View
+                    style={[
+                      styles.modalSuccessContainer,
+                      {
+                        opacity: successIconAnim,
+                        transform: [{scale: successIconAnim}],
+                      },
+                    ]}>
+                    <View style={styles.successIconCircle}>
+                      <Ionicons name="checkmark-circle" size={64} color="#10B981" />
+                    </View>
+                    <Text style={styles.modalSuccessTitle}>Email Enviado!</Text>
+                    <Text style={styles.modalSuccessMessage}>
+                      Enviamos um link de recuperação para{'\n'}
+                      <Text style={styles.modalSuccessEmail}>{resetEmail}</Text>
+                    </Text>
+                    <Text style={styles.modalSuccessHint}>
+                      Verifique sua caixa de entrada e spam
+                    </Text>
+                  </Animated.View>
+
+                  <TouchableOpacity
+                    style={styles.modalSuccessButton}
+                    onPress={closeForgotPasswordModal}>
+                    <Text style={styles.modalSuccessButtonText}>Entendi</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </Animated.View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#121A29" />
 
-      {/* Círculos de fundo animados */}
       <Animated.View
         style={[
           styles.backgroundCircle,
@@ -371,7 +549,6 @@ const LoginScreen = () => {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled">
           
-          {/* Container do logo com animação */}
           <Animated.View
             style={[
               styles.logoContainer,
@@ -387,7 +564,6 @@ const LoginScreen = () => {
             />
           </Animated.View>
 
-          {/* Conteúdo principal do formulário */}
           <Animated.View
             style={[
               styles.content,
@@ -399,7 +575,6 @@ const LoginScreen = () => {
             <Text style={styles.welcomeText}>Bem-vindo de volta!</Text>
 
             <View style={styles.formContainer}>
-              {/* Campo de email */}
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>E-mail</Text>
                 <TextInput
@@ -416,7 +591,6 @@ const LoginScreen = () => {
                 />
               </View>
 
-              {/* Campo de senha */}
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>Senha</Text>
                 <TextInput
@@ -432,14 +606,18 @@ const LoginScreen = () => {
                 />
               </View>
 
-              {/* Link "Esqueceu a senha?" */}
+              {/* Link Esqueceu a Senha */}
               <TouchableOpacity 
                 style={styles.forgotPassword}
-                disabled={isLoading || showSuccessAnimation}>
+                onPress={() => {
+                  console.log('🖱️ CLICOU em Esqueceu a senha');
+                  openForgotPasswordModal();
+                }}
+                disabled={isLoading || showSuccessAnimation}
+                activeOpacity={0.7}>
                 <Text style={styles.forgotPasswordText}>Esqueceu a senha?</Text>
               </TouchableOpacity>
 
-              {/* Botão de login */}
               <Animated.View style={{transform: [{scale: buttonScaleAnim}]}}>
                 <TouchableOpacity
                   style={[
@@ -456,14 +634,12 @@ const LoginScreen = () => {
                 </TouchableOpacity>
               </Animated.View>
 
-              {/* Divisor "ou" */}
               <View style={styles.dividerContainer}>
                 <View style={styles.dividerLine} />
                 <Text style={styles.dividerText}>ou</Text>
                 <View style={styles.dividerLine} />
               </View>
 
-              {/* Botão do Google */}
               <Animated.View
                 style={{transform: [{scale: googleButtonScaleAnim}]}}>
                 <TouchableOpacity
@@ -481,7 +657,6 @@ const LoginScreen = () => {
               </Animated.View>
             </View>
 
-            {/* Rodapé com link para registro */}
             <View style={styles.footerContainer}>
               <TouchableOpacity
                 onPress={goToRegister}
@@ -495,7 +670,7 @@ const LoginScreen = () => {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Modal de animação de sucesso */}
+      {/* Modal de sucesso do login */}
       {showSuccessAnimation && (
         <Modal
           visible={true}
@@ -518,17 +693,13 @@ const LoginScreen = () => {
           </View>
         </Modal>
       )}
+
+      {/* Modal de recuperação de senha */}
+      {showForgotPasswordModal && renderForgotPasswordModal()}
     </SafeAreaView>
   );
 };
 
-/**
- * Estilos do componente LoginScreen
- * Define a aparência visual de todos os elementos da tela de login,
- * incluindo responsividade para diferentes tamanhos de tela
- * 
- * @type {Object}
- */
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -740,6 +911,196 @@ const styles = StyleSheet.create({
   lottieAnimation: {
     width: 200,
     height: 200,
+  },
+  // ===== ESTILOS DO MODAL DE RECUPERAÇÃO =====
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContainer: {
+    width: '100%',
+    maxWidth: 400,
+    backgroundColor: '#1E2A3A',
+    borderRadius: 20,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 10,
+    },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  modalHeader: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  modalIconContainer: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(77, 151, 219, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginBottom: 8,
+    textAlign: 'center',
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: '#8A8A8A',
+    textAlign: 'center',
+    lineHeight: 20,
+    paddingHorizontal: 10,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
+  },
+  modalInputContainer: {
+    marginBottom: 24,
+  },
+  modalInputLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#E1E7ED',
+    marginBottom: 8,
+    marginLeft: 4,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
+  },
+  modalInput: {
+    height: 52,
+    backgroundColor: '#121A29',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    fontSize: 16,
+    color: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#2A3441',
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
+  },
+  modalInputFocused: {
+    borderColor: '#4D97DB',
+    shadowColor: '#4D97DB',
+    shadowOffset: {
+      width: 0,
+      height: 0,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalCancelButton: {
+    flex: 1,
+    height: 52,
+    backgroundColor: 'transparent',
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#2A3441',
+  },
+  modalCancelText: {
+    color: '#8A8A8A',
+    fontSize: 16,
+    fontWeight: '600',
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
+  },
+  modalConfirmButton: {
+    flex: 1,
+    height: 52,
+    backgroundColor: '#4D97DB',
+    borderRadius: 12,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+    shadowColor: '#4D97DB',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  modalButtonDisabled: {
+    backgroundColor: '#2A5580',
+    shadowOpacity: 0.1,
+  },
+  modalConfirmText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
+  },
+  // ===== ESTILOS DO ESTADO DE SUCESSO =====
+  modalSuccessContainer: {
+    alignItems: 'center',
+    paddingVertical: 20,
+    marginBottom: 24,
+  },
+  successIconCircle: {
+    marginBottom: 20,
+  },
+  modalSuccessTitle: {
+    fontSize: 26,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginBottom: 12,
+    textAlign: 'center',
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
+  },
+  modalSuccessMessage: {
+    fontSize: 15,
+    color: '#8A8A8A',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 16,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
+  },
+  modalSuccessEmail: {
+    color: '#4D97DB',
+    fontWeight: '600',
+  },
+  modalSuccessHint: {
+    fontSize: 13,
+    color: '#666',
+    textAlign: 'center',
+    fontStyle: 'italic',
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
+  },
+  modalSuccessButton: {
+    height: 52,
+    backgroundColor: '#10B981',
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#10B981',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  modalSuccessButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
 });
 

@@ -88,6 +88,7 @@ const HistoricoMenu = ({navigation}) => {
           ...doc.data(),
         }));
 
+        // Aplicar filtro de período
         if (filtroSelecionado !== 'todos') {
           const dataFiltro = obterDataFiltro();
           lista = lista.filter(medicamento => {
@@ -99,6 +100,7 @@ const HistoricoMenu = ({navigation}) => {
           });
         }
 
+        // Ordenar por data e horário
         lista.sort((a, b) => {
           if (a.dia !== b.dia) {
             return b.dia.localeCompare(a.dia);
@@ -224,11 +226,28 @@ const HistoricoMenu = ({navigation}) => {
     );
   };
 
+  // ⭐ MODIFICADO: Renderizar item com suporte a "não tomado"
   const renderMedicamentoItem = medicamento => {
+    const foiTomado = medicamento.status === 'tomado' || !medicamento.status;
+    const naoFoiTomado = medicamento.status === 'nao_tomado';
+
     return (
-      <View key={medicamento.id} style={styles.medicamentoItem}>
-        <View style={styles.medicamentoIconContainer}>
-          <MaterialIcons name="medication" size={18} color="#10B981" />
+      <View
+        key={medicamento.id}
+        style={[
+          styles.medicamentoItem,
+          naoFoiTomado && styles.medicamentoItemNaoTomado,
+        ]}>
+        <View
+          style={[
+            styles.medicamentoIconContainer,
+            naoFoiTomado && styles.medicamentoIconContainerDanger,
+          ]}>
+          <MaterialIcons
+            name="medication"
+            size={18}
+            color={naoFoiTomado ? '#EF4444' : '#10B981'}
+          />
         </View>
 
         <View style={styles.medicamentoInfo}>
@@ -236,21 +255,55 @@ const HistoricoMenu = ({navigation}) => {
             <Text style={styles.medicamentoNome} numberOfLines={1}>
               {medicamento.remedioNome}
             </Text>
-            <Text style={styles.medicamentoHorario}>{medicamento.horario}</Text>
+            <Text
+              style={[
+                styles.medicamentoHorario,
+                naoFoiTomado && styles.medicamentoHorarioDanger,
+              ]}>
+              {medicamento.horario}
+            </Text>
           </View>
-          <Text style={styles.medicamentoDosagem}>
-            Dosagem: {medicamento.dosagem}
-          </Text>
+
+          <View style={styles.medicamentoFooter}>
+            <Text style={styles.medicamentoDosagem}>
+              Dosagem: {medicamento.dosagem}
+            </Text>
+
+            {/* ⭐ Badge de status */}
+            {naoFoiTomado && (
+              <View style={styles.statusTextBadge}>
+                <Icon name="alert-circle" size={12} color="#EF4444" />
+                <Text style={styles.statusTextBadgeText}>Não tomado</Text>
+              </View>
+            )}
+          </View>
         </View>
 
-        <View style={styles.statusBadge}>
-          <Icon name="checkmark" size={12} color="#FFFFFF" />
+        {/* ⭐ Badge visual de status */}
+        <View
+          style={[
+            styles.statusBadge,
+            naoFoiTomado && styles.statusBadgeDanger,
+          ]}>
+          <Icon
+            name={naoFoiTomado ? 'close' : 'checkmark'}
+            size={12}
+            color="#FFFFFF"
+          />
         </View>
       </View>
     );
   };
 
   const renderDiaGroup = (dia, medicamentos) => {
+    // ⭐ Calcular contadores por dia
+    const tomadosNoDia = medicamentos.filter(
+      m => m.status === 'tomado' || !m.status,
+    ).length;
+    const naoTomadosNoDia = medicamentos.filter(
+      m => m.status === 'nao_tomado',
+    ).length;
+
     return (
       <View key={dia} style={styles.diaGroup}>
         <View style={styles.diaHeader}>
@@ -258,8 +311,21 @@ const HistoricoMenu = ({navigation}) => {
             <Icon name="calendar-outline" size={16} color="#F59E0B" />
             <Text style={styles.diaData}>{formatarData(dia)}</Text>
           </View>
-          <View style={styles.diaCounterBadge}>
-            <Text style={styles.diaContador}>{medicamentos.length}</Text>
+
+          {/* ⭐ Mostrar contadores separados */}
+          <View style={styles.diaCounterContainer}>
+            {tomadosNoDia > 0 && (
+              <View style={styles.diaCounterBadge}>
+                <Icon name="checkmark" size={10} color="#FFFFFF" />
+                <Text style={styles.diaContador}>{tomadosNoDia}</Text>
+              </View>
+            )}
+            {naoTomadosNoDia > 0 && (
+              <View style={[styles.diaCounterBadge, styles.diaCounterBadgeDanger]}>
+                <Icon name="close" size={10} color="#FFFFFF" />
+                <Text style={styles.diaContador}>{naoTomadosNoDia}</Text>
+              </View>
+            )}
           </View>
         </View>
         <View style={styles.medicamentosContainer}>
@@ -352,6 +418,7 @@ const HistoricoMenu = ({navigation}) => {
             transform: [{translateY: slideUpAnim}],
           },
         ]}>
+
         <View style={styles.filtrosSection}>
           <View style={styles.sectionHeader}>
             <Icon name="filter" size={18} color="#F59E0B" />
@@ -596,15 +663,27 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
   },
+  // ⭐ NOVOS ESTILOS: Contadores separados por status
+  diaCounterContainer: {
+    flexDirection: 'row',
+    gap: 8,
+  },
   diaCounterBadge: {
-    backgroundColor: '#F59E0B',
-    paddingHorizontal: 10,
+    backgroundColor: '#10B981',
+    paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
-    shadowColor: '#F59E0B',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    shadowColor: '#10B981',
     shadowOffset: {width: 0, height: 1},
     shadowOpacity: 0.2,
     shadowRadius: 2,
+  },
+  diaCounterBadgeDanger: {
+    backgroundColor: '#EF4444',
+    shadowColor: '#EF4444',
   },
   diaContador: {
     fontSize: 12,
@@ -627,6 +706,11 @@ const styles = StyleSheet.create({
     borderLeftWidth: 4,
     borderLeftColor: '#10B981',
   },
+  // ⭐ NOVOS ESTILOS: Variante para não tomado
+  medicamentoItemNaoTomado: {
+    borderLeftColor: '#EF4444',
+    backgroundColor: 'rgba(30, 41, 59, 0.95)',
+  },
   medicamentoIconContainer: {
     width: 36,
     height: 36,
@@ -635,6 +719,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
+  },
+  medicamentoIconContainerDanger: {
+    backgroundColor: 'rgba(239, 68, 68, 0.2)',
   },
   medicamentoInfo: {
     flex: 1,
@@ -661,10 +748,35 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
+  medicamentoHorarioDanger: {
+    color: '#EF4444',
+  },
+  medicamentoFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   medicamentoDosagem: {
     fontSize: 14,
     color: '#94a3b8',
     letterSpacing: 0.1,
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
+  },
+  // ⭐ NOVOS ESTILOS: Badge de texto "Não tomado"
+  statusTextBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  statusTextBadgeText: {
+    fontSize: 11,
+    color: '#EF4444',
+    fontWeight: '700',
+    letterSpacing: 0.3,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   statusBadge: {
@@ -675,6 +787,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: 8,
+  },
+  statusBadgeDanger: {
+    backgroundColor: '#EF4444',
   },
 });
 

@@ -276,27 +276,13 @@ const RemediosScreen = ({navigation}) => {
             </View>
           )}
 
-          {(remedio.quantidade || remedio.dosagem) && (
-            <View style={styles.specificationsRow}>
-              {remedio.quantidade && (
-                <View style={styles.specItem}>
-                  <View style={styles.specHeader}>
-                    <Icon name="layers-outline" size={12} color="#64748b" />
-                    <Text style={styles.specLabel}>Quantidade</Text>
-                  </View>
-                  <Text style={styles.specValue}>{remedio.quantidade}</Text>
-                </View>
-              )}
-
-              {remedio.dosagem && (
-                <View style={styles.specItem}>
-                  <View style={styles.specHeader}>
-                    <Icon name="scale-outline" size={12} color="#64748b" />
-                    <Text style={styles.specLabel}>Dosagem</Text>
-                  </View>
-                  <Text style={styles.specValue}>{remedio.dosagem}</Text>
-                </View>
-              )}
+          {remedio.dosagem && (
+            <View style={styles.infoItem}>
+              <View style={styles.infoHeader}>
+                <Icon name="scale-outline" size={14} color="#64748b" />
+                <Text style={styles.infoLabel}>Dosagem</Text>
+              </View>
+              <Text style={styles.infoValue}>{remedio.dosagem}</Text>
             </View>
           )}
 
@@ -778,35 +764,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#e2e8f0',
     lineHeight: 20,
-    letterSpacing: 0.2,
-    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
-  },
-  specificationsRow: {
-    flexDirection: 'row',
-    marginBottom: 16,
-    gap: 20,
-  },
-  specItem: {
-    flex: 1,
-  },
-  specHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 6,
-    gap: 4,
-  },
-  specLabel: {
-    fontSize: 11,
-    color: '#64748b',
-    fontWeight: '500',
-    letterSpacing: 0.4,
-    textTransform: 'uppercase',
-    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
-  },
-  specValue: {
-    fontSize: 14,
-    color: '#f8fafc',
-    fontWeight: '500',
     letterSpacing: 0.2,
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
