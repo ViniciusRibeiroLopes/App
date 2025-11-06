@@ -67,7 +67,7 @@ async function scheduleNotification(id, title, body, triggerDate, alarmData) {
   try {
     console.log(`  📲 Criando notificação: ${id}`);
     console.log(`     Horário: ${triggerDate.toLocaleString('pt-BR')}`);
-    
+
     const channelId = await createNotificationChannel();
 
     const trigger = {
@@ -85,7 +85,7 @@ async function scheduleNotification(id, title, body, triggerDate, alarmData) {
       body,
       android: {
         channelId,
-        smallIcon: 'ic_launcher',
+        smallIcon: 'icon',
         category: AndroidCategory.ALARM,
         autoCancel: false,
         sound: 'default',
@@ -100,14 +100,6 @@ async function scheduleNotification(id, title, body, triggerDate, alarmData) {
         pressAction: {
           id: 'default',
         },
-        actions: [
-          {
-            title: '✅ Tomei o medicamento',
-            pressAction: {
-              id: 'confirm',
-            },
-          },
-        ],
         style: {
           type: AndroidStyle.BIGTEXT,
           text: body,
@@ -185,7 +177,11 @@ async function scheduleNotification(id, title, body, triggerDate, alarmData) {
     };
 
     await notifee.createTriggerNotification(reminderConfig, reminderTrigger);
-    console.log(`     ⏰ Lembrete agendado para ${reminderDate.toLocaleTimeString('pt-BR')}`);
+    console.log(
+      `     ⏰ Lembrete agendado para ${reminderDate.toLocaleTimeString(
+        'pt-BR',
+      )}`,
+    );
   } catch (error) {
     console.error('❌ Erro ao agendar notificação:', error);
     console.error('   Detalhes:', error.message);
@@ -200,10 +196,10 @@ async function agendarNotificacoesHorarioFixo(alerta, alertaId, remedioNome) {
     console.log('Medicamento:', remedioNome);
     console.log('Horário:', alerta.horario);
     console.log('Dias:', alerta.dias.join(', '));
-    
+
     const now = new Date();
     console.log('Hora atual:', now.toLocaleString('pt-BR'));
-    
+
     const [hora, minuto] = alerta.horario.split(':').map(Number);
 
     let agendados = 0;
@@ -212,14 +208,18 @@ async function agendarNotificacoesHorarioFixo(alerta, alertaId, remedioNome) {
       const dataFutura = new Date(now);
       dataFutura.setDate(now.getDate() + i);
       dataFutura.setHours(hora, minuto, 0, 0);
-      
+
       const diaSemana = diasSemana[dataFutura.getDay()].abrev;
 
       if (alerta.dias.includes(diaSemana) && dataFutura > now) {
         const notifId = `alarm_${alertaId}_${dataFutura.getTime()}`;
-        
-        console.log(`→ Agendando: ${diaSemana} ${dataFutura.toLocaleDateString('pt-BR')} ${alerta.horario}`);
-        
+
+        console.log(
+          `→ Agendando: ${diaSemana} ${dataFutura.toLocaleDateString(
+            'pt-BR',
+          )} ${alerta.horario}`,
+        );
+
         await scheduleNotification(
           notifId,
           '💊 Hora de tomar seu medicamento',
@@ -233,7 +233,7 @@ async function agendarNotificacoesHorarioFixo(alerta, alertaId, remedioNome) {
             horario: alerta.horario,
             alertaId: alertaId,
             usuarioId: alerta.usuarioId,
-          }
+          },
         );
 
         agendados++;
@@ -242,7 +242,7 @@ async function agendarNotificacoesHorarioFixo(alerta, alertaId, remedioNome) {
 
     console.log(`🎯 Total agendado: ${agendados} notificações`);
     console.log('==========================================\n');
-    
+
     return agendados;
   } catch (error) {
     console.error('❌ Erro ao agendar horário fixo:', error);
@@ -257,7 +257,7 @@ async function agendarNotificacoesIntervalo(alerta, alertaId, remedioNome) {
     console.log('Medicamento:', remedioNome);
     console.log('Intervalo:', alerta.intervaloHoras, 'horas');
     console.log('Início:', alerta.horarioInicio);
-    
+
     const now = new Date();
     const [hora, minuto] = alerta.horarioInicio.split(':').map(Number);
     const intervaloMs = alerta.intervaloHoras * 60 * 60 * 1000;
@@ -278,9 +278,13 @@ async function agendarNotificacoesIntervalo(alerta, alertaId, remedioNome) {
         if (proximaDose > now) {
           const horarioFormatado = proximaDose.toTimeString().slice(0, 5);
           const notifId = `interval_${alertaId}_${proximaDose.getTime()}`;
-          
-          console.log(`✅ ${proximaDose.toLocaleDateString('pt-BR')} às ${horarioFormatado}`);
-          
+
+          console.log(
+            `✅ ${proximaDose.toLocaleDateString(
+              'pt-BR',
+            )} às ${horarioFormatado}`,
+          );
+
           await scheduleNotification(
             notifId,
             '💊 Hora de tomar seu medicamento',
@@ -296,7 +300,7 @@ async function agendarNotificacoesIntervalo(alerta, alertaId, remedioNome) {
               intervaloHoras: alerta.intervaloHoras,
               alertaId: alertaId,
               usuarioId: alerta.usuarioId,
-            }
+            },
           );
 
           agendados++;
@@ -326,7 +330,7 @@ const FormAlerta = ({navigation}) => {
   const [showPickerModal, setShowPickerModal] = useState(false);
 
   const [tipoAlerta, setTipoAlerta] = useState('dias');
-  
+
   const [diasSelecionados, setDiasSelecionados] = useState([]);
   const [horario, setHorario] = useState(new Date());
   const [showTimePicker, setShowTimePicker] = useState(false);
@@ -334,7 +338,7 @@ const FormAlerta = ({navigation}) => {
   const [intervaloHoras, setIntervaloHoras] = useState('');
   const [horarioInicio, setHorarioInicio] = useState(new Date());
   const [showTimePickerInicio, setShowTimePickerInicio] = useState(false);
-  
+
   const [usarDataLimite, setUsarDataLimite] = useState(false);
   const [dataLimite, setDataLimite] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -353,79 +357,44 @@ const FormAlerta = ({navigation}) => {
             '⚠️ Permissão Necessária',
             'O app precisa de permissão para enviar notificações.',
             [
-              { text: 'Cancelar', style: 'cancel' },
-              { 
-                text: 'Abrir Configurações', 
-                onPress: () => notifee.openNotificationSettings() 
-              }
-            ]
+              {text: 'Cancelar', style: 'cancel'},
+              {
+                text: 'Abrir Configurações',
+                onPress: () => notifee.openNotificationSettings(),
+              },
+            ],
           );
           return;
         }
 
-        if (Platform.OS === 'android' && Platform.Version >= 31) {
-          Alert.alert(
-            '🚨 CONFIGURAÇÕES CRÍTICAS',
-            'Para as notificações funcionarem com o app FECHADO:\n\n' +
-            '1️⃣ "Alarmes e lembretes" - ATIVAR\n' +
-            '2️⃣ "Iniciar automaticamente" - ATIVAR\n' +
-            '3️⃣ "Executar em segundo plano" - ATIVAR\n' +
-            '4️⃣ "Otimização de bateria" - DESATIVAR\n\n' +
-            '⚠️ TODAS são necessárias!',
-            [
-              { text: 'Agora Não', style: 'cancel' },
-              { 
-                text: 'Configurar',
-                onPress: async () => {
-                  await notifee.openAlarmPermissionSettings();
-                  
-                  setTimeout(() => {
-                    Alert.alert(
-                      '📱 Outras Configurações',
-                      'Agora vá em:\n\n' +
-                      '⚙️ Configurações do Android\n' +
-                      '→ Apps\n' +
-                      '→ ' + 'Seu App' + '\n' +
-                      '→ Bateria\n' +
-                      '→ DESATIVAR "Otimização de bateria"\n\n' +
-                      '→ Permissões\n' +
-                      '→ Ativar "Iniciar automaticamente"\n' +
-                      '→ Ativar "Executar em segundo plano"',
-                      [{ text: 'Entendi' }]
-                    );
-                  }, 2000);
-                },
-                style: 'default'
-              }
-            ]
-          );
-        }
-
         await createNotificationChannel();
-        
+
         // Registrar handler de background
         notifee.onBackgroundEvent(async ({type, detail}) => {
           console.log('🔔 Evento em background:', type);
-          
-          if (type === EventType.ACTION_PRESS && detail.pressAction?.id === 'confirm') {
+
+          if (
+            type === EventType.ACTION_PRESS &&
+            detail.pressAction?.id === 'confirm'
+          ) {
             const notifData = detail.notification?.data;
             if (notifData) {
               await registrarMedicamentoTomado(notifData);
               await notifee.cancelNotification(detail.notification.id);
-              
-              const originalId = notifData.isReminder === 'true' 
-                ? notifData.originalNotificationId 
-                : detail.notification.id;
+
+              const originalId =
+                notifData.isReminder === 'true'
+                  ? notifData.originalNotificationId
+                  : detail.notification.id;
               const reminderId = `${originalId}_reminder`;
               await notifee.cancelNotification(reminderId);
             }
           }
-          
+
           if (type === EventType.DELIVERED) {
             console.log('✅ Notificação entregue:', detail.notification?.id);
           }
         });
-        
       } catch (error) {
         console.error('Erro ao solicitar permissões:', error);
         Alert.alert('Erro', 'Falha ao configurar permissões: ' + error.message);
@@ -437,33 +406,39 @@ const FormAlerta = ({navigation}) => {
 
   useEffect(() => {
     // APENAS listener de FOREGROUND (quando app está aberto)
-    const unsubscribeForeground = notifee.onForegroundEvent(async ({type, detail}) => {
-      console.log('🔔 [FOREGROUND] Evento:', type);
-      
-      if (type === EventType.ACTION_PRESS && detail.pressAction?.id === 'confirm') {
-        const notifData = detail.notification?.data;
-        if (notifData) {
-          await registrarMedicamentoTomado(notifData);
-          await notifee.cancelNotification(detail.notification.id);
-          
-          // Cancelar o lembrete de 10 minutos se existir
-          const originalId = notifData.isReminder === 'true' 
-            ? notifData.originalNotificationId 
-            : detail.notification.id;
-          const reminderId = `${originalId}_reminder`;
-          await notifee.cancelNotification(reminderId);
-          
-          console.log('✅ [FOREGROUND] Medicamento registrado');
+    const unsubscribeForeground = notifee.onForegroundEvent(
+      async ({type, detail}) => {
+        console.log('🔔 [FOREGROUND] Evento:', type);
+
+        if (
+          type === EventType.ACTION_PRESS &&
+          detail.pressAction?.id === 'confirm'
+        ) {
+          const notifData = detail.notification?.data;
+          if (notifData) {
+            await registrarMedicamentoTomado(notifData);
+            await notifee.cancelNotification(detail.notification.id);
+
+            // Cancelar o lembrete de 10 minutos se existir
+            const originalId =
+              notifData.isReminder === 'true'
+                ? notifData.originalNotificationId
+                : detail.notification.id;
+            const reminderId = `${originalId}_reminder`;
+            await notifee.cancelNotification(reminderId);
+
+            console.log('✅ [FOREGROUND] Medicamento registrado');
+          }
         }
-      }
-    });
+      },
+    );
 
     return () => {
       unsubscribeForeground();
     };
   }, []);
 
-  const registrarMedicamentoTomado = async (notifData) => {
+  const registrarMedicamentoTomado = async notifData => {
     try {
       const user = auth().currentUser;
       if (!user) return;
@@ -612,8 +587,16 @@ const FormAlerta = ({navigation}) => {
       }
     } else {
       const intervalo = parseInt(intervaloHoras);
-      if (!intervaloHoras || isNaN(intervalo) || intervalo < 1 || intervalo > 24) {
-        Alert.alert('Atenção', 'Informe um intervalo válido entre 1 e 24 horas');
+      if (
+        !intervaloHoras ||
+        isNaN(intervalo) ||
+        intervalo < 1 ||
+        intervalo > 24
+      ) {
+        Alert.alert(
+          'Atenção',
+          'Informe um intervalo válido entre 1 e 24 horas',
+        );
         return false;
       }
     }
@@ -632,7 +615,7 @@ const FormAlerta = ({navigation}) => {
 
     try {
       console.log('🎯 Iniciando salvamento do alerta...');
-      
+
       const alertaBase = {
         usuarioId: userInfo.uid,
         remedioId: remedioSelecionado,
@@ -667,14 +650,22 @@ const FormAlerta = ({navigation}) => {
       const remedio = remedios.find(r => r.id === remedioSelecionado);
       const remedioNome = remedio?.nome || 'Medicamento';
       console.log('💊 Medicamento:', remedioNome);
-      
+
       console.log('\n📅 Agendando notificações...');
-      
+
       if (tipoAlerta === 'dias') {
-        const agendados = await agendarNotificacoesHorarioFixo(alertaBase, alertaRef.id, remedioNome);
+        const agendados = await agendarNotificacoesHorarioFixo(
+          alertaBase,
+          alertaRef.id,
+          remedioNome,
+        );
         console.log(`✅ ${agendados} notificações agendadas`);
       } else {
-        await agendarNotificacoesIntervalo(alertaBase, alertaRef.id, remedioNome);
+        await agendarNotificacoesIntervalo(
+          alertaBase,
+          alertaRef.id,
+          remedioNome,
+        );
         console.log('✅ Notificações de intervalo agendadas');
       }
 
@@ -690,7 +681,12 @@ const FormAlerta = ({navigation}) => {
     } catch (error) {
       console.error('❌ Erro ao salvar:', error);
       console.error('Stack:', error.stack);
-      Alert.alert('Erro', `Não foi possível salvar o alerta.\n\n${error.message || 'Erro desconhecido'}`);
+      Alert.alert(
+        'Erro',
+        `Não foi possível salvar o alerta.\n\n${
+          error.message || 'Erro desconhecido'
+        }`,
+      );
     } finally {
       setLoading(false);
     }
@@ -761,7 +757,11 @@ const FormAlerta = ({navigation}) => {
                     setShowPickerModal(false);
                   }}>
                   <View style={styles.customPickerItemContent}>
-                    <MaterialIcons name="medication" size={20} color="#3B82F6" />
+                    <MaterialIcons
+                      name="medication"
+                      size={20}
+                      color="#3B82F6"
+                    />
                     <Text style={styles.customPickerItemText}>
                       {remedio.nome}
                     </Text>
@@ -868,9 +868,7 @@ const FormAlerta = ({navigation}) => {
 
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>Novo Alerta</Text>
-          <Text style={styles.headerSubtitle}>
-            Configure seu lembrete
-          </Text>
+          <Text style={styles.headerSubtitle}>Configure seu lembrete</Text>
         </View>
 
         <View style={styles.headerSpacer} />
@@ -988,7 +986,9 @@ const FormAlerta = ({navigation}) => {
                 <TouchableOpacity
                   style={styles.timeContainer}
                   onPress={() => setShowTimePicker(true)}>
-                  <Text style={styles.timeText}>{formatarHorario(horario)}</Text>
+                  <Text style={styles.timeText}>
+                    {formatarHorario(horario)}
+                  </Text>
                   <Icon name="alarm" size={24} color="#3B82F6" />
                 </TouchableOpacity>
               </View>
@@ -1008,7 +1008,9 @@ const FormAlerta = ({navigation}) => {
                         ? 'Todos os dias'
                         : `${diasSelecionados.length} dia${
                             diasSelecionados.length > 1 ? 's' : ''
-                          } selecionado${diasSelecionados.length > 1 ? 's' : ''}`}
+                          } selecionado${
+                            diasSelecionados.length > 1 ? 's' : ''
+                          }`}
                     </Text>
                   </View>
                 )}
@@ -1064,62 +1066,12 @@ const FormAlerta = ({navigation}) => {
             </>
           )}
 
-          {/* Data Limite */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Icon name="calendar-outline" size={20} color="#F59E0B" />
-              <Text style={styles.sectionTitle}>Data Limite (Opcional)</Text>
-            </View>
-
-            <TouchableOpacity
-              style={[
-                styles.checkboxContainer,
-                usarDataLimite && styles.checkboxContainerActive,
-              ]}
-              onPress={() => setUsarDataLimite(!usarDataLimite)}>
-              <View
-                style={[
-                  styles.checkbox,
-                  usarDataLimite && styles.checkboxChecked,
-                ]}>
-                {usarDataLimite && (
-                  <Icon name="checkmark" size={16} color="#FFFFFF" />
-                )}
-              </View>
-              <Text style={styles.checkboxText}>
-                Desativar automaticamente após uma data
-              </Text>
-            </TouchableOpacity>
-
-            {usarDataLimite && (
-              <TouchableOpacity
-                style={styles.dateContainer}
-                onPress={() => setShowDatePicker(true)}>
-                <Icon name="calendar" size={20} color="#F59E0B" />
-                <Text style={styles.dateText}>{formatarData(dataLimite)}</Text>
-                <Icon name="chevron-down" size={20} color="#94a3b8" />
-              </TouchableOpacity>
-            )}
-          </View>
-
-          {/* Info sobre notificações */}
-          <View style={styles.notificationInfoBox}>
-            <Icon name="notifications" size={20} color="#10B981" />
-            <View style={styles.notificationInfoContent}>
-              <Text style={styles.notificationInfoTitle}>
-                Sistema de Notificações por Trigger
-              </Text>
-              <Text style={styles.notificationInfoText}>
-                • Notificações agendadas automaticamente{'\n'}
-                • Funciona mesmo com app fechado{'\n'}
-                • Alarmes nos horários exatos programados
-              </Text>
-            </View>
-          </View>
-
           {/* Botão Salvar */}
           <TouchableOpacity
-            style={[styles.salvarButton, loading && styles.salvarButtonDisabled]}
+            style={[
+              styles.salvarButton,
+              loading && styles.salvarButtonDisabled,
+            ]}
             onPress={salvarAviso}
             disabled={loading}>
             {loading ? (
@@ -1160,19 +1112,6 @@ const FormAlerta = ({navigation}) => {
             setShowTimePickerInicio(Platform.OS === 'ios');
             if (selectedDate) setHorarioInicio(selectedDate);
           }}
-        />
-      )}
-
-      {showDatePicker && (
-        <DateTimePicker
-          value={dataLimite}
-          mode="date"
-          display="default"
-          onChange={(event, selectedDate) => {
-            setShowDatePicker(Platform.OS === 'ios');
-            if (selectedDate) setDataLimite(selectedDate);
-          }}
-          minimumDate={new Date()}
         />
       )}
 

@@ -570,15 +570,6 @@ async function showMedicationNotification(id, title, body, alarmData) {
           id: 'default',
           launchActivity: 'default',
         },
-        actions: [
-          {
-            title: '✅ Tomei o medicamento',
-            pressAction: {
-              id: 'confirm',
-              launchActivity: 'default',
-            },
-          },
-        ],
         style: {
           type: AndroidStyle.BIGTEXT,
           text: body,
@@ -639,14 +630,6 @@ async function scheduleNotification(id, title, body, triggerDate, alarmData) {
           pressAction: {
             id: 'default',
           },
-          actions: [
-            {
-              title: '✅ Tomei o medicamento',
-              pressAction: {
-                id: 'confirm',
-              },
-            },
-          ],
           style: {
             type: AndroidStyle.BIGTEXT,
             text: body,
