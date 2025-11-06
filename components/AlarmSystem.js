@@ -1,4 +1,4 @@
-// AlarmSystem.js - VERSÃO COM FUNÇÃO DE MEDICAMENTO NÃO TOMADO
+// AlarmSystem.js - VERSÃO CORRIGIDA
 import React, {useEffect, useState, useRef, useCallback} from 'react';
 import {
   Modal,
@@ -11,9 +11,7 @@ import {
   StatusBar,
   Vibration,
   AppState,
-  NativeModules,
   Platform,
-  DeviceEventEmitter,
 } from 'react-native';
 
 import Sound from 'react-native-sound';
@@ -26,11 +24,7 @@ import notifee, {
   AndroidImportance,
   AndroidCategory,
   EventType,
-  AndroidStyle,
-  TriggerType,
 } from '@notifee/react-native';
-
-const MedicationModule = NativeModules;
 
 const windowDimensions = Dimensions.get('window');
 
@@ -208,7 +202,6 @@ const AlarmHorarioFixo = ({visible, onDismiss, alarmData}) => {
 
           {/* Botão */}
           <Animated.View
-            // eslint-disable-next-line react-native/no-inline-styles
             style={{transform: [{scale: pulseAnim}], width: '100%'}}>
             <TouchableOpacity
               style={styles.button}
@@ -226,7 +219,6 @@ const AlarmHorarioFixo = ({visible, onDismiss, alarmData}) => {
             <Animated.View
               style={[
                 styles.indicator,
-                // eslint-disable-next-line react-native/no-inline-styles
                 {
                   opacity: pulseAnim,
                   backgroundColor: '#10B981',
@@ -236,7 +228,6 @@ const AlarmHorarioFixo = ({visible, onDismiss, alarmData}) => {
             <Animated.View
               style={[
                 styles.indicator,
-                // eslint-disable-next-line react-native/no-inline-styles
                 {
                   opacity: pulseAnim,
                   backgroundColor: '#10B981',
@@ -246,7 +237,6 @@ const AlarmHorarioFixo = ({visible, onDismiss, alarmData}) => {
             <Animated.View
               style={[
                 styles.indicator,
-                // eslint-disable-next-line react-native/no-inline-styles
                 {
                   opacity: pulseAnim,
                   backgroundColor: '#10B981',
@@ -373,7 +363,6 @@ const AlarmIntervalo = ({visible, onDismiss, alarmData}) => {
         <Animated.View
           style={[
             styles.backgroundCircle1,
-            // eslint-disable-next-line react-native/no-inline-styles
             {
               backgroundColor: '#6366F1',
               opacity: backgroundAnim.interpolate({
@@ -394,7 +383,6 @@ const AlarmIntervalo = ({visible, onDismiss, alarmData}) => {
         <Animated.View
           style={[
             styles.backgroundCircle2,
-            // eslint-disable-next-line react-native/no-inline-styles
             {
               backgroundColor: '#6366F1',
               opacity: backgroundAnim.interpolate({
@@ -464,7 +452,6 @@ const AlarmIntervalo = ({visible, onDismiss, alarmData}) => {
 
           {/* Botão */}
           <Animated.View
-            // eslint-disable-next-line react-native/no-inline-styles
             style={{transform: [{scale: pulseAnim}], width: '100%'}}>
             <TouchableOpacity
               style={[styles.button, styles.buttonPurple]}
@@ -482,7 +469,6 @@ const AlarmIntervalo = ({visible, onDismiss, alarmData}) => {
             <Animated.View
               style={[
                 styles.indicator,
-                // eslint-disable-next-line react-native/no-inline-styles
                 {
                   opacity: pulseAnim,
                   backgroundColor: '#6366F1',
@@ -492,7 +478,6 @@ const AlarmIntervalo = ({visible, onDismiss, alarmData}) => {
             <Animated.View
               style={[
                 styles.indicator,
-                // eslint-disable-next-line react-native/no-inline-styles
                 {
                   opacity: pulseAnim,
                   backgroundColor: '#6366F1',
@@ -502,7 +487,6 @@ const AlarmIntervalo = ({visible, onDismiss, alarmData}) => {
             <Animated.View
               style={[
                 styles.indicator,
-                // eslint-disable-next-line react-native/no-inline-styles
                 {
                   opacity: pulseAnim,
                   backgroundColor: '#6366F1',
@@ -516,7 +500,8 @@ const AlarmIntervalo = ({visible, onDismiss, alarmData}) => {
   );
 };
 
-// Função para criar canal de notificação
+// ===== FUNÇÕES DE NOTIFICAÇÃO =====
+
 async function createNotificationChannel() {
   try {
     const channelId = await notifee.createChannel({
@@ -535,222 +520,8 @@ async function createNotificationChannel() {
   }
 }
 
-async function showMedicationNotification(id, title, body, alarmData) {
-  console.log('📱 Exibindo notificação persistente:', {
-    id,
-    title,
-    body,
-  });
-
-  try {
-    const channelId = await createNotificationChannel();
-
-    await notifee.displayNotification({
-      id,
-      title,
-      body,
-      android: {
-        channelId,
-        smallIcon: '@drawable/icon',
-        category: AndroidCategory.ALARM,
-        ongoing: true,
-        autoCancel: false,
-        onlyAlertOnce: false,
-        showTimestamp: true,
-        timestamp: Date.now(),
-        sound: 'default',
-        importance: AndroidImportance.HIGH,
-        localOnly: true,
-        visibility: 1,
-        fullScreenAction: {
-          id: 'default',
-          launchActivity: 'default',
-        },
-        pressAction: {
-          id: 'default',
-          launchActivity: 'default',
-        },
-        style: {
-          type: AndroidStyle.BIGTEXT,
-          text: body,
-        },
-      },
-      data: {
-        id: String(id || ''),
-        remedioId: String(alarmData?.remedioId || ''),
-        remedioNome: String(alarmData?.remedioNome || ''),
-        dosagem: String(alarmData?.dosagem || ''),
-        tipoAlerta: String(alarmData?.tipoAlerta || ''),
-        horario: String(alarmData?.horario || ''),
-        intervaloHoras: String(alarmData?.intervaloHoras || ''),
-        persistent: 'true',
-      },
-    });
-    console.log(
-      '✅ Notificação persistente não-descartável exibida com sucesso',
-    );
-  } catch (error) {
-    console.error('❌ Erro ao exibir notificação:', error);
-  }
-}
-
-// Função para agendar notificação com trigger
-async function scheduleNotification(id, title, body, triggerDate, alarmData) {
-  console.log('📅 Agendando notificação:', {
-    id,
-    title,
-    body,
-    triggerDate,
-  });
-
-  try {
-    const channelId = await createNotificationChannel();
-
-    const trigger = {
-      type: TriggerType.TIMESTAMP,
-      timestamp: triggerDate.getTime(),
-      alarmManager: {
-        allowWhileIdle: true,
-      },
-    };
-
-    await notifee.createTriggerNotification(
-      {
-        id,
-        title,
-        body,
-        android: {
-          channelId,
-          smallIcon: 'ic_launcher',
-          category: AndroidCategory.ALARM,
-          ongoing: true,
-          autoCancel: false,
-          sound: 'default',
-          importance: AndroidImportance.HIGH,
-          pressAction: {
-            id: 'default',
-          },
-          style: {
-            type: AndroidStyle.BIGTEXT,
-            text: body,
-          },
-        },
-        data: {
-          id: String(id || ''),
-          remedioId: String(alarmData?.remedioId || ''),
-          remedioNome: String(alarmData?.remedioNome || ''),
-          dosagem: String(alarmData?.dosagem || ''),
-          tipoAlerta: String(alarmData?.tipoAlerta || ''),
-          horario: String(alarmData?.horario || ''),
-          intervaloHoras: String(alarmData?.intervaloHoras || ''),
-        },
-      },
-      trigger,
-    );
-
-    console.log('✅ Notificação agendada com sucesso para:', triggerDate);
-  } catch (error) {
-    console.error('❌ Erro ao agendar notificação:', error);
-    throw error;
-  }
-}
-
-// Função para cancelar todas as notificações agendadas
-async function cancelAllScheduledNotifications() {
-  try {
-    const notifications = await notifee.getTriggerNotifications();
-    console.log(`🗑️ Cancelando ${notifications.length} notificações agendadas`);
-
-    for (const notification of notifications) {
-      await notifee.cancelNotification(notification.notification.id);
-    }
-    console.log('✅ Todas as notificações agendadas foram canceladas');
-  } catch (error) {
-    console.error('❌ Erro ao cancelar notificações:', error);
-  }
-}
-
-// Função para registrar handlers de notificação
-function registerMedicationHandler(callback) {
-  console.log('🎯 Registrando handlers de notificação...');
-
-  const foregroundSubscription = notifee.onForegroundEvent(
-    async ({type, detail}) => {
-      console.log('📱 Evento foreground recebido:', {type, detail});
-      try {
-        if (type === EventType.ACTION_PRESS || type === EventType.PRESS) {
-          console.log('👆 Action press detectada');
-          const {pressAction, notification} = detail;
-          if (pressAction && pressAction.id === 'confirm') {
-            console.log('✅ Ação de confirmação pressionada');
-            const notifData = notification?.data;
-            if (notifData) {
-              console.log('💊 Dados da notificação:', notifData);
-              await callback(notifData);
-              if (notification?.id) {
-                await notifee.cancelNotification(notification.id);
-              }
-            }
-          }
-        }
-      } catch (err) {
-        console.error('❌ Erro no handler foreground:', err);
-      }
-    },
-  );
-
-  let backgroundSubscription;
-  try {
-    console.log('🌙 Configurando handler de background...');
-    backgroundSubscription = notifee.onBackgroundEvent(
-      async ({type, detail}) => {
-        console.log('🌙 Evento background recebido:', {type, detail});
-        try {
-          if (type === EventType.ACTION_PRESS || type === EventType.PRESS) {
-            console.log('👆 Action press em background detectada');
-            const {pressAction, notification} = detail;
-            if (pressAction && pressAction.id === 'confirm') {
-              console.log('✅ Ação de confirmação em background pressionada');
-              const notifData = notification?.data;
-              if (notifData) {
-                console.log(
-                  '💊 Dados da notificação em background:',
-                  notifData,
-                );
-                await callback(notifData);
-                console.log('✅ Callback de background executado com sucesso');
-                if (notification?.id) {
-                  await notifee.cancelNotification(notification.id);
-                }
-              }
-            }
-          }
-        } catch (err) {
-          console.error('❌ Erro no handler background:', err);
-        }
-      },
-    );
-  } catch (err) {
-    console.error('❌ Falha ao registrar handler de background:', err);
-  }
-
-  return () => {
-    try {
-      if (foregroundSubscription) {
-        foregroundSubscription();
-      }
-      if (backgroundSubscription) {
-        backgroundSubscription();
-      }
-    } catch (err) {
-      console.warn('Erro ao desregistrar handlers:', err);
-    }
-  };
-}
-
 /**
- * Componente AlarmSystem - Gerencia alarmes e notificações
- * AGORA COM FUNÇÃO DE MEDICAMENTO NÃO TOMADO APÓS 10 MINUTOS
+ * Componente AlarmSystem - Monitora medicamentos e exibe alarmes
  */
 const AlarmSystem = () => {
   const [showAlarm, setShowAlarm] = useState(false);
@@ -759,159 +530,190 @@ const AlarmSystem = () => {
   const [appState, setAppState] = useState(AppState.currentState);
 
   const alarmSound = useRef(null);
-  const checkAlarmInterval = useRef(null);
-  const checkNaoTomadoInterval = useRef(null);
-  const lastCheckedMinute = useRef(null);
-  const processadosHoje = useRef(new Set()); // ⭐ NOVO: Cache de medicamentos já processados
+  const checkInterval = useRef(null);
+  const processadosHoje = useRef(new Set());
+  const lembretesEnviados = useRef(new Set()); // ✅ NOVO: Controlar lembretes únicos
+  const ultimaLimpezaCache = useRef(null); // ✅ NOVO: Controlar limpeza de cache
 
   const uid = auth().currentUser?.uid;
 
-  // Formata minuto com zero à esquerda
-  const formatHourMinute = date => {
-    const hh = String(date.getHours()).padStart(2, '0');
-    const mm = String(date.getMinutes()).padStart(2, '0');
-    return `${hh}:${mm}`;
-  };
+  // ⭐ FUNÇÃO: Verificar se medicamento já foi tomado
+  const verificarSeMedicamentoFoiTomado = useCallback(
+    async (remedioId, horario, diaStr) => {
+      try {
+        const registroSnapshot = await firestore()
+          .collection('medicamentos_tomados')
+          .where('usuarioId', '==', uid)
+          .where('remedioId', '==', remedioId)
+          .where('dia', '==', diaStr)
+          .where('horarioAgendado', '==', horario)
+          .where('status', '==', 'tomado')
+          .get();
 
-  // ⭐ NOVA FUNÇÃO: Verificar se medicamento já foi registrado
-  const verificarSeJaRegistrado = useCallback(async (remedioId, horario, diaStr, alertaId) => {
+        return !registroSnapshot.empty;
+      } catch (error) {
+        console.error('❌ Erro ao verificar registro:', error);
+        return false;
+      }
+    },
+    [uid],
+  );
+
+  // ⭐ FUNÇÃO: Enviar notificação de lembrete (APENAS UMA VEZ)
+  const enviarNotificacaoLembrete = useCallback(async (alerta, remedioNome) => {
     try {
-      const registroSnapshot = await firestore()
-        .collection('medicamentos_tomados')
-        .where('usuarioId', '==', uid)
-        .where('remedioId', '==', remedioId)
-        .where('dia', '==', diaStr)
-        .get();
-
-      if (registroSnapshot.empty) return false;
-
-      const jaRegistrado = registroSnapshot.docs.some(doc => {
-        const data = doc.data();
-        // Verificar tanto horario quanto horarioAgendado
-        return data.horarioAgendado === horario || data.horario === horario;
-      });
-
-      return jaRegistrado;
-    } catch (error) {
-      console.error('❌ Erro ao verificar registro:', error);
-      return false;
-    }
-  }, [uid]);
-
-  // ⭐ NOVA FUNÇÃO: Atualizar próximo horário de intervalo
-  const atualizarProximoHorarioIntervalo = useCallback(async (alerta, alertaId) => {
-    try {
-      console.log('\n🔄 ========== ATUALIZANDO PRÓXIMO HORÁRIO (INTERVALO) ==========');
-      
       const now = new Date();
-      const horaAtual = now.getHours();
-      const minutoAtual = now.getMinutes();
-      
-      const intervaloMinutos = alerta.intervaloHoras * 60;
-      const minutosAtuais = horaAtual * 60 + minutoAtual;
-      const proximosMinutos = minutosAtuais + intervaloMinutos;
-      
-      // Verificar se ainda é hoje
-      if (proximosMinutos > 23 * 60 + 59) {
-        console.log('⏭️ Próximo horário seria amanhã - não atualizando');
+      const diaStr = now.toISOString().slice(0, 10);
+
+      const horario =
+        alerta.tipoAlerta === 'intervalo'
+          ? alerta.horarioInicio
+          : alerta.horario;
+
+      // ✅ NOVO: Chave única para controlar se o lembrete já foi enviado
+      const chaveLembrete = `${alerta.remedioId}-${horario}-${diaStr}-lembrete`;
+
+      if (lembretesEnviados.current.has(chaveLembrete)) {
+        console.log('⏭️ Lembrete já foi enviado para este medicamento hoje');
         return;
       }
-      
-      const proximaHora = Math.floor(proximosMinutos / 60);
-      const proximoMinuto = proximosMinutos % 60;
-      const novoHorario = `${String(proximaHora).padStart(2, '0')}:${String(proximoMinuto).padStart(2, '0')}`;
-      
-      console.log('   ⏰ Horário atual:', `${String(horaAtual).padStart(2, '0')}:${String(minutoAtual).padStart(2, '0')}`);
-      console.log('   ➕ Intervalo:', alerta.intervaloHoras, 'horas');
-      console.log('   🎯 NOVO horário calculado:', novoHorario);
-      
-      await firestore()
-        .collection('alertas')
-        .doc(alertaId)
-        .update({
-          horarioInicio: novoHorario,
-          ultimaAtualizacao: firestore.FieldValue.serverTimestamp()
-        });
-      
-      console.log('✅ Horário do alerta atualizado no Firestore');
-      console.log('========== FIM DA ATUALIZAÇÃO ==========\n');
-      
+
+      const channelId = await createNotificationChannel();
+
+      await notifee.displayNotification({
+        id: `reminder_${alerta.remedioId}_${horario.replace(
+          ':',
+          '',
+        )}_${diaStr}`,
+        title: '⚠️ Você ainda não tomou seu medicamento!',
+        body: `${remedioNome} - ${alerta.dosagem} (${horario})`,
+        android: {
+          channelId,
+          smallIcon: 'icon',
+          category: AndroidCategory.ALARM,
+          autoCancel: false,
+          sound: 'default',
+          importance: AndroidImportance.HIGH,
+          color: '#F59E0B',
+          vibrationPattern: [300, 500, 300, 500],
+        },
+        data: {
+          remedioId: String(alerta.remedioId || ''),
+          remedioNome: String(remedioNome || ''),
+          dosagem: String(alerta.dosagem || ''),
+          horario: String(horario || ''),
+          tipoAlerta: String(alerta.tipoAlerta || ''),
+          isReminder: 'true',
+        },
+      });
+
+      // ✅ NOVO: Marcar que o lembrete foi enviado
+      lembretesEnviados.current.add(chaveLembrete);
+
+      console.log('✅ Notificação de lembrete enviada (ÚNICA):', remedioNome);
     } catch (error) {
-      console.error('❌ Erro ao atualizar próximo horário:', error);
+      console.error('❌ Erro ao enviar lembrete:', error);
     }
   }, []);
 
-  // ⭐ NOVA FUNÇÃO: Registrar medicamento como não tomado
-  const registrarMedicamentoNaoTomado = useCallback(async (alerta, diaStr, alertaId) => {
-    try {
-      console.log('❌ Registrando medicamento como NÃO TOMADO');
-      
-      const remedioDoc = await firestore()
-        .collection('remedios')
-        .doc(alerta.remedioId)
-        .get();
-
-      if (!remedioDoc.exists) {
-        console.log('❌ Remédio não encontrado');
-        return;
-      }
-
-      const remedioData = remedioDoc.data();
-      const horarioQueDeveriaTerSido = alerta.tipoAlerta === 'intervalo' 
-        ? alerta.horarioInicio 
-        : alerta.horario;
-
-      const dadosParaSalvar = {
-        dia: diaStr,
-        dosagem: alerta.dosagem,
-        horario: horarioQueDeveriaTerSido,
-        horarioAgendado: horarioQueDeveriaTerSido,
-        remedioId: alerta.remedioId,
-        remedioNome: remedioData.nome,
-        usuarioId: uid,
-        tipoAlerta: alerta.tipoAlerta || 'dias',
-        status: 'nao_tomado', // ⭐ Campo chave
-        timestamp: firestore.FieldValue.serverTimestamp(),
-      };
-
-      await firestore()
-        .collection('medicamentos_tomados')
-        .add(dadosParaSalvar);
-
-      console.log('✅ Registrado como NÃO TOMADO:', remedioData.nome, horarioQueDeveriaTerSido);
-
-      // ⭐ Enviar notificação informando ao usuário
+  // ⭐ FUNÇÃO: Registrar medicamento como não tomado
+  const registrarMedicamentoNaoTomado = useCallback(
+    async (alerta, diaStr, remedioNome) => {
       try {
-        await notifee.displayNotification({
-          title: '⚠️ Medicamento não tomado',
-          body: `${remedioData.nome} (${horarioQueDeveriaTerSido}) foi registrado como não tomado`,
-          android: {
-            channelId: await createNotificationChannel(),
-            smallIcon: '@drawable/icon',
-            importance: AndroidImportance.DEFAULT,
-            color: '#F59E0B',
-          },
+        const horarioQueDeveriaTerSido =
+          alerta.tipoAlerta === 'intervalo'
+            ? alerta.horarioInicio
+            : alerta.horario;
+
+        // ✅ Verificar se já existe QUALQUER registro para este medicamento no horário
+        const registrosExistentes = await firestore()
+          .collection('medicamentos_tomados')
+          .where('usuarioId', '==', uid)
+          .where('remedioId', '==', alerta.remedioId)
+          .where('dia', '==', diaStr)
+          .where('horarioAgendado', '==', horarioQueDeveriaTerSido)
+          .get();
+
+        if (!registrosExistentes.empty) {
+          console.log(
+            '⏭️ Já existe registro para este medicamento (tomado ou não tomado)',
+          );
+          return;
+        }
+
+        const dadosParaSalvar = {
+          dia: diaStr,
+          dosagem: alerta.dosagem,
+          horario: horarioQueDeveriaTerSido,
+          horarioAgendado: horarioQueDeveriaTerSido,
+          remedioId: alerta.remedioId,
+          remedioNome: remedioNome,
+          usuarioId: uid,
+          tipoAlerta: alerta.tipoAlerta || 'dias',
+          status: 'nao_tomado',
+          timestamp: firestore.FieldValue.serverTimestamp(),
+        };
+
+        await firestore()
+          .collection('medicamentos_tomados')
+          .add(dadosParaSalvar);
+
+        console.log(
+          '✅ Registrado como NÃO TOMADO:',
+          remedioNome,
+          horarioQueDeveriaTerSido,
+        );
+      } catch (error) {
+        console.error('❌ Erro ao registrar não tomado:', error);
+      }
+    },
+    [uid],
+  );
+
+  // ⭐ FUNÇÃO: Atualizar próximo horário de intervalo
+  const atualizarProximoHorarioIntervalo = useCallback(
+    async (alerta, alertaId) => {
+      try {
+        console.log('\n🔄 Atualizando próximo horário (intervalo)...');
+
+        const now = new Date();
+        const horaAtual = now.getHours();
+        const minutoAtual = now.getMinutes();
+
+        const intervaloMinutos = alerta.intervaloHoras * 60;
+        const minutosAtuais = horaAtual * 60 + minutoAtual;
+        const proximosMinutos = minutosAtuais + intervaloMinutos;
+
+        // Verificar se ainda é hoje
+        if (proximosMinutos > 23 * 60 + 59) {
+          console.log('⏭️ Próximo horário seria amanhã - não atualizando');
+          return;
+        }
+
+        const proximaHora = Math.floor(proximosMinutos / 60);
+        const proximoMinuto = proximosMinutos % 60;
+        const novoHorario = `${String(proximaHora).padStart(2, '0')}:${String(
+          proximoMinuto,
+        ).padStart(2, '0')}`;
+
+        await firestore().collection('alertas').doc(alertaId).update({
+          horarioInicio: novoHorario,
+          ultimaAtualizacao: firestore.FieldValue.serverTimestamp(),
         });
-      } catch (notifError) {
-        console.error('Erro ao enviar notificação de não tomado:', notifError);
-      }
 
-      // ⭐ Se for intervalo, atualizar próximo horário
-      if (alerta.tipoAlerta === 'intervalo') {
-        await atualizarProximoHorarioIntervalo(alerta, alertaId);
+        console.log('✅ Próximo horário atualizado para:', novoHorario);
+      } catch (error) {
+        console.error('❌ Erro ao atualizar próximo horário:', error);
       }
-    } catch (error) {
-      console.error('❌ Erro ao registrar não tomado:', error);
-    }
-  }, [uid, atualizarProximoHorarioIntervalo]);
+    },
+    [],
+  );
 
-  // ⭐ NOVA FUNÇÃO: Verificar medicamentos não tomados (roda a cada 1 minuto)
+  // ⭐ FUNÇÃO PRINCIPAL: Verificar medicamentos (HORÁRIO EXATO + ATRASADOS)
   const verificarMedicamentosNaoTomados = useCallback(async () => {
     if (!uid) return;
 
     try {
-      console.log('\n🔍 ========== VERIFICANDO MEDICAMENTOS NÃO TOMADOS ==========');
-      
       const now = new Date();
       const currentTimeStr = now.toTimeString().slice(0, 5);
       const currentDay = diasSemana[now.getDay()].abrev;
@@ -920,25 +722,33 @@ const AlarmSystem = () => {
       const diaStr = today.toISOString().slice(0, 10);
 
       // Limpar cache se mudou o dia
-      const cacheDate = processadosHoje.current.size > 0 
-        ? Array.from(processadosHoje.current)[0]?.split('-')[2] 
-        : null;
-      if (cacheDate && cacheDate !== diaStr) {
-        console.log('🗑️ Limpando cache - novo dia detectado');
+      if (ultimaLimpezaCache.current !== diaStr) {
+        console.log('🗑️ Limpando cache - novo dia detectado:', diaStr);
         processadosHoje.current.clear();
+        lembretesEnviados.current.clear();
+        ultimaLimpezaCache.current = diaStr;
       }
 
-      // Buscar todos os alertas do usuário
+      // Buscar todos os alertas ativos
       const todosAlertasSnapshot = await firestore()
         .collection('alertas')
         .where('usuarioId', '==', uid)
+        .where('ativo', '==', true)
         .get();
-
-      console.log(`📋 Total de alertas para verificar: ${todosAlertasSnapshot.size}`);
 
       for (const doc of todosAlertasSnapshot.docs) {
         const alerta = doc.data();
-        
+
+        // Buscar nome do remédio
+        const remedioDoc = await firestore()
+          .collection('remedios')
+          .doc(alerta.remedioId)
+          .get();
+
+        if (!remedioDoc.exists) continue;
+
+        const remedioNome = remedioDoc.data().nome;
+
         // ========== PROCESSAR ALERTAS DE DIAS FIXOS ==========
         if (alerta.tipoAlerta === 'dias') {
           if (!alerta.dias || !Array.isArray(alerta.dias)) continue;
@@ -953,40 +763,74 @@ const AlarmSystem = () => {
 
           const diferencaMinutos = minutosAtuais - minutosAlerta;
 
-          // ⭐ Se passaram mais de 10 minutos do horário
-          if (diferencaMinutos > 10 && diferencaMinutos <= 1440) { // Max 24h
-            const chave = `${alerta.remedioId}-${horarioAlerta}-${diaStr}`;
-            
-            // Verificar cache local
-            if (processadosHoje.current.has(chave)) {
-              continue;
+          // ✅ NOVO: Disparar alarme no HORÁRIO EXATO (0 a 1 minuto)
+          if (diferencaMinutos >= 0 && diferencaMinutos <= 1) {
+            const chaveHorarioExato = `${alerta.remedioId}-${horarioAlerta}-${diaStr}-exato`;
+
+            if (!processadosHoje.current.has(chaveHorarioExato)) {
+              console.log(
+                `🔔 HORÁRIO EXATO: ${remedioNome} às ${horarioAlerta}`,
+              );
+
+              const foiTomado = await verificarSeMedicamentoFoiTomado(
+                alerta.remedioId,
+                horarioAlerta,
+                diaStr,
+              );
+
+              if (!foiTomado) {
+                const alarmData = {
+                  remedioId: alerta.remedioId,
+                  remedioNome: remedioNome,
+                  dosagem: alerta.dosagem,
+                  horario: horarioAlerta,
+                  tipoAlerta: 'dias',
+                };
+                triggerAlarm(alarmData, 'horario');
+                processadosHoje.current.add(chaveHorarioExato);
+              } else {
+                processadosHoje.current.add(chaveHorarioExato);
+              }
             }
+          }
 
-            console.log(`⚠️ Medicamento ${alerta.remedioId} passou 10min (${diferencaMinutos}min)`);
+          // ✅ Se passou 10 minutos (lembrete de atraso) - APENAS UMA VEZ
+          if (diferencaMinutos >= 10 && diferencaMinutos < 1440) {
+            const chaveAtraso = `${alerta.remedioId}-${horarioAlerta}-${diaStr}-atraso`;
 
-            const jaRegistrado = await verificarSeJaRegistrado(
-              alerta.remedioId,
-              horarioAlerta,
-              diaStr,
-              doc.id
-            );
+            if (!processadosHoje.current.has(chaveAtraso)) {
+              console.log(
+                `⚠️ Medicamento ${remedioNome} passou 10min (${diferencaMinutos}min)`,
+              );
 
-            if (!jaRegistrado) {
-              console.log(`❌ Registrando como NÃO TOMADO`);
-              await registrarMedicamentoNaoTomado(alerta, diaStr, doc.id);
-              processadosHoje.current.add(chave);
-            } else {
-              console.log(`✅ Já estava registrado (tomado ou não tomado)`);
-              processadosHoje.current.add(chave);
+              const foiTomado = await verificarSeMedicamentoFoiTomado(
+                alerta.remedioId,
+                horarioAlerta,
+                diaStr,
+              );
+
+              if (!foiTomado) {
+                // Registrar como não tomado
+                await registrarMedicamentoNaoTomado(
+                  alerta,
+                  diaStr,
+                  remedioNome,
+                );
+
+                // Enviar notificação de lembrete (APENAS UMA VEZ)
+                await enviarNotificacaoLembrete(alerta, remedioNome);
+              } else {
+                console.log(`✅ ${remedioNome} já foi tomado`);
+              }
+
+              // ✅ IMPORTANTE: Marcar como processado SEMPRE, independente se foi tomado ou não
+              processadosHoje.current.add(chaveAtraso);
             }
           }
         }
-        
+
         // ========== PROCESSAR ALERTAS DE INTERVALO ==========
         else if (alerta.tipoAlerta === 'intervalo') {
-          const estaAtivo = alerta.ativo === true || alerta.ativo === undefined;
-          if (!estaAtivo) continue;
-
           const horarioAlerta = alerta.horarioInicio;
           const [hAlerta, mAlerta] = horarioAlerta.split(':').map(Number);
           const minutosAlerta = hAlerta * 60 + mAlerta;
@@ -996,271 +840,124 @@ const AlarmSystem = () => {
 
           const diferencaMinutos = minutosAtuais - minutosAlerta;
 
-          // ⭐ Se passaram mais de 10 minutos do horário
-          if (diferencaMinutos > 9 && diferencaMinutos <= 1440) {
-            const chave = `${alerta.remedioId}-${horarioAlerta}-${diaStr}-intervalo`;
-            
-            // Verificar cache local
-            if (processadosHoje.current.has(chave)) {
-              continue;
+          // ✅ NOVO: Disparar alarme no HORÁRIO EXATO (0 a 1 minuto)
+          if (diferencaMinutos >= 0 && diferencaMinutos <= 1) {
+            const chaveHorarioExato = `${alerta.remedioId}-${horarioAlerta}-${diaStr}-intervalo-exato`;
+
+            if (!processadosHoje.current.has(chaveHorarioExato)) {
+              console.log(
+                `🔔 HORÁRIO EXATO (INTERVALO): ${remedioNome} às ${horarioAlerta}`,
+              );
+
+              const foiTomado = await verificarSeMedicamentoFoiTomado(
+                alerta.remedioId,
+                horarioAlerta,
+                diaStr,
+              );
+
+              if (!foiTomado) {
+                const alarmData = {
+                  remedioId: alerta.remedioId,
+                  remedioNome: remedioNome,
+                  dosagem: alerta.dosagem,
+                  horarioInicio: horarioAlerta,
+                  intervaloHoras: alerta.intervaloHoras,
+                  tipoAlerta: 'intervalo',
+                };
+                triggerAlarm(alarmData, 'intervalo');
+                processadosHoje.current.add(chaveHorarioExato);
+              } else {
+                processadosHoje.current.add(chaveHorarioExato);
+              }
             }
+          }
 
-            console.log(`⚠️ Medicamento INTERVALO ${alerta.remedioId} passou 10min (${diferencaMinutos}min)`);
+          // ✅ MODIFICADO: Se passou 10 minutos (lembrete de atraso)
+          if (diferencaMinutos >= 10 && diferencaMinutos <= 1440) {
+            const chaveAtraso = `${alerta.remedioId}-${horarioAlerta}-${diaStr}-intervalo-atraso`;
 
-            const jaRegistrado = await verificarSeJaRegistrado(
-              alerta.remedioId,
-              horarioAlerta,
-              diaStr,
-              doc.id
-            );
+            if (!processadosHoje.current.has(chaveAtraso)) {
+              console.log(
+                `⚠️ Medicamento INTERVALO ${remedioNome} passou 10min (${diferencaMinutos}min)`,
+              );
 
-            if (!jaRegistrado) {
-              console.log(`❌ Registrando como NÃO TOMADO e atualizando próximo horário`);
-              await registrarMedicamentoNaoTomado(alerta, diaStr, doc.id);
-              processadosHoje.current.add(chave);
-            } else {
-              console.log(`✅ Já estava registrado (tomado ou não tomado)`);
-              processadosHoje.current.add(chave);
+              const foiTomado = await verificarSeMedicamentoFoiTomado(
+                alerta.remedioId,
+                horarioAlerta,
+                diaStr,
+              );
+
+              if (!foiTomado) {
+                // Registrar como não tomado
+                await registrarMedicamentoNaoTomado(
+                  alerta,
+                  diaStr,
+                  remedioNome,
+                );
+
+                // Enviar notificação de lembrete (APENAS UMA VEZ)
+                await enviarNotificacaoLembrete(alerta, remedioNome);
+
+                // Atualizar próximo horário
+                await atualizarProximoHorarioIntervalo(alerta, doc.id);
+
+                processadosHoje.current.add(chaveAtraso);
+              } else {
+                console.log(`✅ ${remedioNome} (intervalo) já foi tomado`);
+                processadosHoje.current.add(chaveAtraso);
+              }
             }
           }
         }
       }
-
-      console.log('========== FIM DA VERIFICAÇÃO DE NÃO TOMADOS ==========\n');
     } catch (error) {
       console.error('❌ Erro ao verificar medicamentos não tomados:', error);
     }
-  }, [uid, verificarSeJaRegistrado, registrarMedicamentoNaoTomado]);
+  }, [
+    uid,
+    verificarSeMedicamentoFoiTomado,
+    triggerAlarm,
+    registrarMedicamentoNaoTomado,
+    enviarNotificacaoLembrete,
+    atualizarProximoHorarioIntervalo,
+  ]);
 
-  // ⭐ NOVO USEEFFECT: Iniciar verificação de não tomados
-  useEffect(() => {
-    if (!uid) return;
-
-    console.log('⚠️ Iniciando verificação de medicamentos não tomados');
-
-    // Verificação imediata
-    verificarMedicamentosNaoTomados();
-
-    // Verificação a cada 1 minuto
-    checkNaoTomadoInterval.current = BackgroundTimer.setInterval(() => {
-      console.log('[INTERVALO] Verificando medicamentos não tomados');
-      verificarMedicamentosNaoTomados();
-    }, 10000); 
-
-    return () => {
-      if (checkNaoTomadoInterval.current) {
-        BackgroundTimer.clearInterval(checkNaoTomadoInterval.current);
-        checkNaoTomadoInterval.current = null;
-      }
-    };
-  }, [uid, verificarMedicamentosNaoTomados]);
-
-  // Agendar notificações do dia
-  const scheduleAllNotifications = useCallback(async () => {
-    if (!uid) {
-      return;
-    }
-
-    console.log('📅 Iniciando agendamento de notificações do dia...');
-
-    try {
-      await cancelAllScheduledNotifications();
-
-      const now = new Date();
-      const hoje = new Date(now);
-      hoje.setHours(0, 0, 0, 0);
-
-      await scheduleHorarioFixoNotifications(now, hoje);
-      await scheduleIntervaloNotifications(now, hoje);
-
-      console.log('✅ Todas as notificações foram agendadas com sucesso');
-    } catch (error) {
-      console.error('❌ Erro ao agendar notificações:', error);
-    }
-  }, [scheduleHorarioFixoNotifications, scheduleIntervaloNotifications, uid]);
-
-  // Agendar notificações de horário fixo
-  const scheduleHorarioFixoNotifications = useCallback(
-    async (now, hoje) => {
+  // ⭐ FUNÇÃO: Registrar medicamento tomado (tarde)
+  const registrarMedicamentoTomadoTarde = useCallback(
+    async notifData => {
       try {
-        const currentDay = diasSemana[now.getDay()].abrev;
-        const diaHojeStr = hoje.toISOString().slice(0, 10);
+        console.log('💊 Registrando medicamento tomado (atrasado):', notifData);
 
-        const snapshot = await firestore()
-          .collection('alertas')
-          .where('usuarioId', '==', uid)
-          .where('tipoAlerta', '==', 'dias')
-          .get();
+        const now = new Date();
+        const diaStr = now.toISOString().slice(0, 10);
+        const horarioAtual = now.toTimeString().slice(0, 5);
 
-        console.log(`📋 Encontrados ${snapshot.size} alarmes de horário fixo`);
+        const dados = {
+          usuarioId: uid,
+          remedioId: notifData.remedioId,
+          remedioNome: notifData.remedioNome || '',
+          dosagem: notifData.dosagem || '',
+          dia: diaStr,
+          horario: horarioAtual,
+          horarioAgendado: notifData.horario,
+          timestamp: firestore.FieldValue.serverTimestamp(),
+          status: 'tomado',
+          atrasado: true,
+          tipoAlerta: notifData.tipoAlerta || 'dias',
+        };
 
-        for (const doc of snapshot.docs) {
-          const alarm = doc.data();
+        await firestore().collection('medicamentos_tomados').add(dados);
 
-          if (alarm.dias && alarm.dias.includes(currentDay)) {
-            const [hora, minuto] = String(alarm.horario).split(':').map(Number);
-            const triggerDate = new Date(hoje);
-            triggerDate.setHours(hora, minuto || 0, 0, 0);
-
-            if (triggerDate > now) {
-              const tomadoSnapshot = await firestore()
-                .collection('medicamentos_tomados')
-                .where('usuarioId', '==', uid)
-                .where('horario', '==', alarm.horario)
-                .where('dia', '==', diaHojeStr)
-                .get();
-
-              if (tomadoSnapshot.empty) {
-                const remedioDoc = await firestore()
-                  .collection('remedios')
-                  .doc(alarm.remedioId)
-                  .get();
-
-                if (remedioDoc.exists) {
-                  const remedioData = remedioDoc.data();
-                  const notifId = `horario-${doc.id}-${alarm.horario}`;
-
-                  await scheduleNotification(
-                    notifId,
-                    '💊 Hora de tomar seu medicamento',
-                    `${remedioData?.nome || ''} - ${alarm.dosagem || ''}`,
-                    triggerDate,
-                    {
-                      ...alarm,
-                      remedioNome: remedioData?.nome || '',
-                      id: doc.id,
-                      tipoAlerta: 'dias',
-                    },
-                  );
-
-                  console.log(
-                    `✅ Notificação agendada: ${remedioData?.nome} às ${alarm.horario}`,
-                  );
-                }
-              }
-            }
-          }
-        }
+        console.log('✅ Medicamento registrado como tomado (atrasado)');
       } catch (error) {
-        console.error(
-          '❌ Erro ao agendar notificações de horário fixo:',
-          error,
-        );
+        console.error('❌ Erro ao registrar medicamento:', error);
       }
     },
     [uid],
   );
 
-  // Agendar notificações de intervalo
-  const scheduleIntervaloNotifications = useCallback(
-    async (now, hoje) => {
-      try {
-        const snapshot = await firestore()
-          .collection('alertas')
-          .where('usuarioId', '==', uid)
-          .where('tipoAlerta', '==', 'intervalo')
-          .where('ativo', '==', true)
-          .get();
-
-        console.log(`📋 Encontrados ${snapshot.size} alarmes de intervalo`);
-
-        for (const doc of snapshot.docs) {
-          const alarm = doc.data();
-
-          if (!alarm.horarioInicio || !alarm.intervaloHoras) {
-            continue;
-          }
-
-          const [hora, minuto] = String(alarm.horarioInicio)
-            .split(':')
-            .map(Number);
-          const intervaloMs = alarm.intervaloHoras * 60 * 60 * 1000;
-
-          let proximaDose = new Date(hoje);
-          proximaDose.setHours(hora, minuto || 0, 0, 0);
-
-          const fimDia = new Date(hoje);
-          fimDia.setHours(23, 59, 59, 999);
-
-          let contador = 0;
-          while (proximaDose <= fimDia && contador < 24) {
-            if (proximaDose > now) {
-              const horarioFormatado = proximaDose.toTimeString().slice(0, 5);
-              const diaHojeStr = hoje.toISOString().slice(0, 10);
-
-              const tomadoSnapshot = await firestore()
-                .collection('medicamentos_tomados')
-                .where('usuarioId', '==', uid)
-                .where('remedioId', '==', alarm.remedioId)
-                .where('dia', '==', diaHojeStr)
-                .get();
-
-              const jaFoiTomado = tomadoSnapshot.docs.some(tomadoDoc => {
-                const tomadoData = tomadoDoc.data();
-                if (!tomadoData.horario) {
-                  return false;
-                }
-
-                const [hTomado, mTomado] = String(tomadoData.horario)
-                  .split(':')
-                  .map(Number);
-                const [hEsperado, mEsperado] = String(horarioFormatado)
-                  .split(':')
-                  .map(Number);
-
-                const minutosTomado = (hTomado || 0) * 60 + (mTomado || 0);
-                const minutosEsperado =
-                  (hEsperado || 0) * 60 + (mEsperado || 0);
-
-                return Math.abs(minutosTomado - minutosEsperado) <= 30;
-              });
-
-              if (!jaFoiTomado) {
-                const remedioDoc = await firestore()
-                  .collection('remedios')
-                  .doc(alarm.remedioId)
-                  .get();
-
-                if (remedioDoc.exists) {
-                  const remedioData = remedioDoc.data();
-                  const notifId = `intervalo-${doc.id}-${horarioFormatado}`;
-
-                  await scheduleNotification(
-                    notifId,
-                    '💊 Hora de tomar seu medicamento',
-                    `${remedioData?.nome || ''} - ${
-                      alarm.dosagem || ''
-                    } (A cada ${alarm.intervaloHoras}h)`,
-                    proximaDose,
-                    {
-                      ...alarm,
-                      remedioNome: remedioData?.nome || '',
-                      horario: horarioFormatado,
-                      id: doc.id,
-                      tipoAlerta: 'intervalo',
-                    },
-                  );
-
-                  console.log(
-                    `✅ Notificação de intervalo agendada: ${remedioData?.nome} às ${horarioFormatado}`,
-                  );
-                }
-              }
-            }
-
-            proximaDose = new Date(proximaDose.getTime() + intervaloMs);
-            contador++;
-          }
-        }
-      } catch (error) {
-        console.error('❌ Erro ao agendar notificações de intervalo:', error);
-      }
-    },
-    [uid],
-  );
-
-  // Inicializa som e inicia verificação
-  const initializeAlarmSystem = useCallback(() => {
+  // ⭐ INICIALIZAR SOM DO ALARME
+  const initializeAlarmSound = useCallback(() => {
     try {
       if (Sound && Sound.setCategory) {
         try {
@@ -1280,256 +977,12 @@ const AlarmSystem = () => {
           console.log('Som carregado com sucesso');
         }
       });
-
-      startAlarmChecker();
     } catch (e) {
-      console.error('Erro initializeAlarmSystem:', e);
-    }
-  }, [startAlarmChecker]);
-
-  const startAlarmChecker = useCallback(() => {
-    if (checkAlarmInterval.current) {
-      return;
-    }
-
-    checkForAlarms();
-    checkAlarmInterval.current = BackgroundTimer.setInterval(() => {
-      checkForAlarms();
-    }, 10000);
-  }, [checkForAlarms]);
-
-  const stopAlarmChecker = useCallback(() => {
-    if (checkAlarmInterval.current) {
-      BackgroundTimer.clearInterval(checkAlarmInterval.current);
-      checkAlarmInterval.current = null;
+      console.error('Erro ao inicializar som:', e);
     }
   }, []);
 
-  const checkForAlarms = useCallback(async () => {
-    if (!uid) {
-      return;
-    }
-
-    try {
-      const now = new Date();
-      const currentTime = now.toTimeString().slice(0, 5);
-      const currentMinute = formatHourMinute(now);
-      const currentDay = diasSemana[now.getDay()].abrev;
-
-      if (lastCheckedMinute.current === currentMinute) {
-        return;
-      }
-      lastCheckedMinute.current = currentMinute;
-
-      console.log(`🔍 Verificando alarmes: ${currentTime} - ${currentDay}`);
-
-      await checkHorarioFixoAlarms(now, currentTime, currentDay);
-      await checkIntervaloAlarms(now);
-    } catch (error) {
-      console.error('❌ Erro ao verificar alarmes:', error);
-    }
-  }, [checkHorarioFixoAlarms, checkIntervaloAlarms, uid]);
-
-  const checkHorarioFixoAlarms = useCallback(
-    async (now, currentTime, currentDay) => {
-      try {
-        const snapshot = await firestore()
-          .collection('alertas')
-          .where('usuarioId', '==', uid)
-          .where('tipoAlerta', '==', 'dias')
-          .get();
-
-        if (snapshot.empty) {
-          return;
-        }
-
-        for (const doc of snapshot.docs) {
-          const alarm = doc.data();
-
-          if (
-            alarm.horario &&
-            alarm.horario <= currentTime &&
-            alarm.dias &&
-            alarm.dias.includes(currentDay)
-          ) {
-            const diaStr = now.toISOString().slice(0, 10);
-
-            const tomadoSnapshot = await firestore()
-              .collection('medicamentos_tomados')
-              .where('usuarioId', '==', uid)
-              .where('horario', '==', alarm.horario)
-              .where('dia', '==', diaStr)
-              .get();
-
-            if (!tomadoSnapshot.empty) {
-              continue;
-            }
-
-            const remedioDoc = await firestore()
-              .collection('remedios')
-              .doc(alarm.remedioId)
-              .get();
-
-            if (remedioDoc.exists) {
-              const remedioData = remedioDoc.data();
-              const alarmData = {
-                ...alarm,
-                remedioNome: remedioData?.nome || '',
-                id: doc.id,
-              };
-
-              console.log('🚨 Disparando alarme de horário fixo:', alarmData);
-              triggerAlarm(alarmData, 'horario');
-              break;
-            }
-          }
-        }
-      } catch (e) {
-        console.error('Erro em checkHorarioFixoAlarms:', e);
-      }
-    },
-    [triggerAlarm, uid],
-  );
-
-  const checkIntervaloAlarms = useCallback(
-    async now => {
-      try {
-        const snapshot = await firestore()
-          .collection('alertas')
-          .where('usuarioId', '==', uid)
-          .where('tipoAlerta', '==', 'intervalo')
-          .where('ativo', '==', true)
-          .get();
-
-        console.log(`📋 Alarmes de intervalo encontrados: ${snapshot.size}`);
-
-        if (snapshot.empty) {
-          return;
-        }
-
-        for (const doc of snapshot.docs) {
-          const alarm = doc.data();
-          console.log(
-            `\n🔍 Verificando alarme: ${alarm.remedioNome || 'Sem nome'}`,
-          );
-
-          const shouldTrigger = await checkIntervaloTiming(alarm, now);
-
-          if (shouldTrigger) {
-            const remedioDoc = await firestore()
-              .collection('remedios')
-              .doc(alarm.remedioId)
-              .get();
-
-            if (remedioDoc.exists) {
-              const remedioData = remedioDoc.data();
-              const alarmData = {
-                ...alarm,
-                remedioNome: remedioData?.nome || '',
-                id: doc.id,
-              };
-
-              console.log('🚨 Disparando alarme de intervalo:', alarmData);
-              triggerAlarm(alarmData, 'intervalo');
-              break;
-            }
-          }
-        }
-      } catch (e) {
-        console.error('Erro em checkIntervaloAlarms:', e);
-      }
-    },
-    [checkIntervaloTiming, triggerAlarm, uid],
-  );
-
-  const checkIntervaloTiming = useCallback(
-    async (alarm, now) => {
-      try {
-        if (!alarm || !alarm.horarioInicio || !alarm.intervaloHoras) {
-          return false;
-        }
-
-        const currentTime = now.getTime();
-        const intervaloMs = alarm.intervaloHoras * 60 * 60 * 1000;
-
-        const [hora, minuto] = String(alarm.horarioInicio)
-          .split(':')
-          .map(Number);
-        const horarioBase = new Date(now);
-        horarioBase.setHours(hora, minuto || 0, 0, 0);
-
-        const horarioBaseOntem = new Date(horarioBase);
-        horarioBaseOntem.setDate(horarioBaseOntem.getDate() - 1);
-
-        let horarioReferencia = horarioBase.getTime();
-        if (currentTime < horarioBase.getTime()) {
-          horarioReferencia = horarioBaseOntem.getTime();
-        }
-
-        const tempoDecorrido = currentTime - horarioReferencia;
-        const dosesEsperadas = Math.floor(tempoDecorrido / intervaloMs);
-        const proximoAlarmeTime =
-          horarioReferencia + dosesEsperadas * intervaloMs;
-
-        const diffMinutos = (currentTime - proximoAlarmeTime) / 1000 / 60;
-        const dentroJanela = diffMinutos >= 0 && diffMinutos <= 5;
-
-        if (!dentroJanela) {
-          return false;
-        }
-
-        const hoje = new Date(now);
-        hoje.setHours(0, 0, 0, 0);
-        const diaHojeStr = hoje.toISOString().slice(0, 10);
-
-        const horarioEsperado = new Date(proximoAlarmeTime)
-          .toTimeString()
-          .slice(0, 5);
-
-        const tomadosSnapshot = await firestore()
-          .collection('medicamentos_tomados')
-          .where('usuarioId', '==', uid)
-          .where('remedioId', '==', alarm.remedioId)
-          .where('dia', '==', diaHojeStr)
-          .get();
-
-        const jaFoiTomado = tomadosSnapshot.docs.some(doc => {
-          const data = doc.data();
-          if (!data.horario) {
-            return false;
-          }
-
-          const [hTomado, mTomado] = String(data.horario)
-            .split(':')
-            .map(Number);
-          const [hEsperado, mEsperado] = String(horarioEsperado)
-            .split(':')
-            .map(Number);
-
-          const minutosTomado = (hTomado || 0) * 60 + (mTomado || 0);
-          const minutosEsperado = (hEsperado || 0) * 60 + (mEsperado || 0);
-
-          const diferenca = Math.abs(minutosTomado - minutosEsperado);
-          return diferenca <= 30;
-        });
-
-        if (jaFoiTomado) {
-          console.log(`⏭️ Alarme de ${horarioEsperado} já foi tomado`);
-          return false;
-        }
-
-        console.log(
-          `⏰ Disparando alarme de intervalo no horário ${horarioEsperado}`,
-        );
-        return true;
-      } catch (error) {
-        console.error('Erro ao verificar timing de intervalo:', error);
-        return false;
-      }
-    },
-    [uid],
-  );
-
+  // ⭐ TOCAR SOM DO ALARME
   const playAlarmSound = useCallback(() => {
     if (alarmSound.current) {
       try {
@@ -1543,11 +996,12 @@ const AlarmSystem = () => {
           }
         });
       } catch (e) {
-        console.error('Erro playAlarmSound:', e);
+        console.error('Erro ao tocar som:', e);
       }
     }
   }, []);
 
+  // ⭐ PARAR SOM DO ALARME
   const stopAlarmSound = useCallback(() => {
     try {
       if (alarmSound.current) {
@@ -1556,131 +1010,20 @@ const AlarmSystem = () => {
         }
       }
     } catch (e) {
-      console.error('Erro stopAlarmSound:', e);
+      console.error('Erro ao parar som:', e);
     }
     Vibration.cancel();
   }, []);
 
-  const logMedicationTaken = useCallback(
-    async notifData => {
-      if (!uid) {
-        return;
-      }
-
-      try {
-        console.log('💊 Registrando medicamento tomado:', notifData);
-
-        const now = new Date();
-        const diaStr = now.toISOString().slice(0, 10);
-
-        const dados = {
-          usuarioId: uid,
-          remedioId: notifData.remedioId,
-          remedioNome: notifData.remedioNome || '',
-          dosagem: notifData.dosagem || '',
-          dia: diaStr,
-          timestamp: firestore.FieldValue.serverTimestamp(),
-          status: 'tomado', // ⭐ Adicionar status
-        };
-
-        if (notifData.tipoAlerta === 'dias') {
-          dados.horario = notifData.horario;
-          dados.tipoAlerta = 'dias';
-        } else if (notifData.tipoAlerta === 'intervalo') {
-          dados.horario = notifData.horario || now.toTimeString().slice(0, 5);
-          dados.tipoAlerta = 'intervalo';
-          dados.intervaloHoras = notifData.intervaloHoras;
-        }
-
-        await firestore().collection('medicamentos_tomados').add(dados);
-
-        console.log('✅ Medicamento registrado como tomado');
-
-        // ⭐ Se for intervalo, atualizar próximo horário
-        if (notifData.tipoAlerta === 'intervalo' && notifData.id) {
-          const alertaDoc = await firestore()
-            .collection('alertas')
-            .doc(notifData.id)
-            .get();
-          
-          if (alertaDoc.exists) {
-            await atualizarProximoHorarioIntervalo(alertaDoc.data(), notifData.id);
-          }
-        }
-
-        setTimeout(() => {
-          scheduleAllNotifications();
-        }, 1000);
-      } catch (error) {
-        console.error('❌ Erro ao registrar medicamento:', error);
-      }
-    },
-    [uid, scheduleAllNotifications, atualizarProximoHorarioIntervalo],
-  );
-
-  const dismissAlarm = useCallback(
-    async notifData => {
-      console.log('✅ Usuário confirmou medicamento:', notifData);
-
-      stopAlarmSound();
-      Vibration.cancel();
-
-      if (notifData) {
-        await logMedicationTaken(notifData);
-      }
-
-      setShowAlarm(false);
-      setTimeout(() => {
-        setCurrentAlarm(null);
-        setAlarmType(null);
-      }, 500);
-
-      try {
-        if (MedicationModule && MedicationModule.stopForegroundService) {
-          console.log('🛑 Parando serviço nativo de foreground...');
-          await MedicationModule.stopForegroundService();
-          console.log('✅ Serviço nativo parado - Notificação removida');
-        }
-
-        if (notifData?.id) {
-          console.log('🔕 Cancelando notificação notifee:', notifData.id);
-          await notifee.cancelNotification(notifData.id);
-        }
-
-        if (notifData?.remedioId) {
-          const displayedNotifications =
-            await notifee.getDisplayedNotifications();
-          console.log(
-            `🔍 Verificando ${displayedNotifications.length} notificações ativas`,
-          );
-
-          for (const notif of displayedNotifications) {
-            const notifRemedioId = notif.notification?.data?.remedioId;
-            if (notifRemedioId === notifData.remedioId) {
-              console.log(
-                `🔕 Cancelando notificação relacionada: ${notif.notification.id}`,
-              );
-              await notifee.cancelNotification(notif.notification.id);
-            }
-          }
-        }
-
-        console.log('✅ Todas as notificações foram removidas');
-      } catch (e) {
-        console.error('❌ Erro ao remover notificações:', e);
-      }
-    },
-    [logMedicationTaken, stopAlarmSound],
-  );
-
+  // ⭐ DISPARAR ALARME VISUAL
   const triggerAlarm = useCallback(
-    async (alarmData, type) => {
+    (alarmData, type) => {
       if (showAlarm) {
         console.log('⚠️ Alarme já está ativo');
         return;
       }
 
-      console.log('🔔 Disparando alarme para:', alarmData);
+      console.log('🔔 Disparando alarme visual para:', alarmData);
       setCurrentAlarm(alarmData);
       setAlarmType(type);
       setShowAlarm(true);
@@ -1692,50 +1035,92 @@ const AlarmSystem = () => {
       } catch (e) {
         console.warn('❌ Erro ao ativar vibração:', e);
       }
-
-      try {
-        if (MedicationModule && MedicationModule.startForegroundService) {
-          console.log('🚀 Iniciando serviço nativo de foreground...');
-
-          const medicationData = {
-            medicationName: alarmData.remedioNome || 'Medicamento',
-            dosage: alarmData.dosagem || '',
-            time: alarmData.horario || new Date().toTimeString().slice(0, 5),
-            medicationId: alarmData.remedioId || '',
-            alarmType: type || 'dias',
-            intervalHours: alarmData.intervaloHoras
-              ? String(alarmData.intervaloHoras)
-              : '',
-          };
-
-          await MedicationModule.startForegroundService(medicationData);
-          console.log(
-            '✅ Serviço nativo iniciado - Notificação ABSOLUTAMENTE não descartável',
-          );
-        } else {
-          console.warn('⚠️ MedicationModule não disponível, usando notifee');
-          await showMedicationNotification(
-            alarmData.id || 'default-alarm',
-            '💊 Hora de tomar seu medicamento',
-            `${alarmData.remedioNome || ''} - ${alarmData.dosagem || ''}`,
-            alarmData,
-          );
-        }
-      } catch (e) {
-        console.error('❌ Erro ao iniciar serviço/notificação:', e);
-      }
     },
     [playAlarmSound, showAlarm],
   );
 
-  const cleanup = useCallback(() => {
-    stopAlarmChecker();
+  // ⭐ FECHAR ALARME
+  const dismissAlarm = useCallback(async () => {
+    console.log('✅ Fechando alarme');
 
-    // ⭐ Parar também a verificação de não tomados
-    if (checkNaoTomadoInterval.current) {
-      BackgroundTimer.clearInterval(checkNaoTomadoInterval.current);
-      checkNaoTomadoInterval.current = null;
+    // ✅ Registrar como tomado
+    if (currentAlarm) {
+      const now = new Date();
+      const diaStr = now.toISOString().slice(0, 10);
+      const horarioAtual = now.toTimeString().slice(0, 5);
+      const horarioAgendado =
+        currentAlarm.horario || currentAlarm.horarioInicio;
+
+      // Verificar se já existe registro para evitar duplicatas
+      const registroExistente = await firestore()
+        .collection('medicamentos_tomados')
+        .where('usuarioId', '==', uid)
+        .where('remedioId', '==', currentAlarm.remedioId)
+        .where('dia', '==', diaStr)
+        .where('horarioAgendado', '==', horarioAgendado)
+        .get();
+
+      if (registroExistente.empty) {
+        await firestore().collection('medicamentos_tomados').add({
+          usuarioId: uid,
+          remedioId: currentAlarm.remedioId,
+          remedioNome: currentAlarm.remedioNome,
+          dosagem: currentAlarm.dosagem,
+          dia: diaStr,
+          horario: horarioAtual,
+          horarioAgendado: horarioAgendado,
+          timestamp: firestore.FieldValue.serverTimestamp(),
+          status: 'tomado',
+          atrasado: false,
+          tipoAlerta: currentAlarm.tipoAlerta,
+        });
+
+        console.log('✅ Medicamento registrado como tomado');
+      } else {
+        console.log('⚠️ Medicamento já estava registrado como tomado');
+      }
     }
+
+    stopAlarmSound();
+    Vibration.cancel();
+    setShowAlarm(false);
+
+    setTimeout(() => {
+      setCurrentAlarm(null);
+      setAlarmType(null);
+    }, 500);
+  }, [stopAlarmSound, currentAlarm, uid]);
+
+  // ⭐ INICIAR VERIFICAÇÃO PERIÓDICA
+  const startPeriodicCheck = useCallback(() => {
+    if (checkInterval.current) {
+      return;
+    }
+
+    console.log('⏰ Iniciando verificação periódica...');
+
+    // Verificação imediata
+    verificarMedicamentosNaoTomados();
+
+    // Verificação a cada 1 minuto
+    checkInterval.current = BackgroundTimer.setInterval(() => {
+      console.log('[INTERVALO] Verificando medicamentos...');
+      verificarMedicamentosNaoTomados();
+    }, 60000); // 60 segundos
+  }, [verificarMedicamentosNaoTomados]);
+
+  // ⭐ PARAR VERIFICAÇÃO PERIÓDICA
+  const stopPeriodicCheck = useCallback(() => {
+    if (checkInterval.current) {
+      BackgroundTimer.clearInterval(checkInterval.current);
+      checkInterval.current = null;
+      console.log('⏸️ Verificação periódica parada');
+    }
+  }, []);
+
+  // ⭐ CLEANUP
+  const cleanup = useCallback(() => {
+    stopPeriodicCheck();
 
     try {
       stopAlarmSound();
@@ -1755,79 +1140,143 @@ const AlarmSystem = () => {
     try {
       Vibration.cancel();
     } catch (e) {}
-  }, [stopAlarmChecker, stopAlarmSound]);
+  }, [stopPeriodicCheck, stopAlarmSound]);
 
-  // Inicializar handlers de notificação
+  // ⭐ EFEITO: Registrar handlers de notificação
   useEffect(() => {
-    const handleConfirm = async notifData => {
-      console.log(
-        '👆 Usuário confirmou medicação pela notificação:',
-        notifData,
-      );
-      await dismissAlarm(notifData);
-    };
+    console.log('📡 Registrando handlers de notificação...');
 
-    const cleanupHandlers = registerMedicationHandler(handleConfirm);
+    // Handler de foreground (app aberto)
+    const unsubscribeForeground = notifee.onForegroundEvent(
+      async ({type, detail}) => {
+        console.log('📱 [FOREGROUND] Evento:', type);
 
-    let nativeEventListener = null;
-    if (MedicationModule) {
-      console.log('📡 Registrando listener para eventos nativos...');
-      nativeEventListener = DeviceEventEmitter.addListener(
-        'onMedicationConfirmed',
-        async data => {
-          console.log(
-            '📥 Evento nativo recebido - Medicamento confirmado:',
-            data,
-          );
+        // ✅ NOVO: Quando notificação for entregue, disparar alarme visual
+        if (type === EventType.DELIVERED) {
+          const notifData = detail.notification?.data;
 
-          const notifData = {
-            id: data.medicationId,
-            remedioId: data.medicationId,
-            remedioNome: data.medicationName,
-            dosagem: data.dosage,
-            horario: data.time,
-            tipoAlerta: data.alarmType,
-            intervaloHoras: data.intervalHours,
+          // Só disparar para notificações principais, não para lembretes
+          if (notifData && notifData.isReminder !== 'true') {
+            console.log('🔔 Notificação entregue - Disparando alarme visual');
+
+            const alarmData = {
+              remedioId: notifData.remedioId,
+              remedioNome: notifData.remedioNome,
+              dosagem: notifData.dosagem,
+              horario: notifData.horario,
+              horarioInicio: notifData.horarioInicio,
+              intervaloHoras: notifData.intervaloHoras,
+              tipoAlerta: notifData.tipoAlerta,
+            };
+
+            const type =
+              notifData.tipoAlerta === 'intervalo' ? 'intervalo' : 'horario';
+            triggerAlarm(alarmData, type);
+          }
+        }
+
+        if (
+          type === EventType.ACTION_PRESS &&
+          detail.pressAction?.id === 'confirm_late'
+        ) {
+          const notifData = detail.notification?.data;
+          if (notifData && notifData.isReminder === 'true') {
+            console.log('👆 Usuário confirmou medicamento atrasado');
+
+            await registrarMedicamentoTomadoTarde(notifData);
+
+            // Cancelar notificação
+            if (detail.notification?.id) {
+              await notifee.cancelNotification(detail.notification.id);
+            }
+
+            // Cancelar todas as notificações relacionadas
+            const displayedNotifications =
+              await notifee.getDisplayedNotifications();
+            for (const notif of displayedNotifications) {
+              const notifRemedioId = notif.notification?.data?.remedioId;
+              if (notifRemedioId === notifData.remedioId) {
+                await notifee.cancelNotification(notif.notification.id);
+              }
+            }
+          }
+        }
+      },
+    );
+
+    // Handler de background (app fechado)
+    notifee.onBackgroundEvent(async ({type, detail}) => {
+      console.log('🌙 [BACKGROUND] Evento:', type);
+
+      if (
+        type === EventType.ACTION_PRESS &&
+        detail.pressAction?.id === 'confirm_late'
+      ) {
+        const notifData = detail.notification?.data;
+        if (notifData && notifData.isReminder === 'true') {
+          console.log('👆 [BACKGROUND] Usuário confirmou medicamento atrasado');
+
+          // Registrar no Firestore
+          const uid = auth().currentUser?.uid;
+          if (!uid) return;
+
+          const now = new Date();
+          const diaStr = now.toISOString().slice(0, 10);
+          const horarioAtual = now.toTimeString().slice(0, 5);
+
+          const dados = {
+            usuarioId: uid,
+            remedioId: notifData.remedioId,
+            remedioNome: notifData.remedioNome || '',
+            dosagem: notifData.dosagem || '',
+            dia: diaStr,
+            horario: horarioAtual,
+            horarioAgendado: notifData.horario,
+            timestamp: firestore.FieldValue.serverTimestamp(),
+            status: 'tomado',
+            atrasado: true,
+            tipoAlerta: notifData.tipoAlerta || 'dias',
           };
 
-          await dismissAlarm(notifData);
-        },
-      );
-    }
+          await firestore().collection('medicamentos_tomados').add(dados);
+
+          // Cancelar notificação
+          if (detail.notification?.id) {
+            await notifee.cancelNotification(detail.notification.id);
+          }
+
+          console.log('✅ [BACKGROUND] Medicamento registrado');
+        }
+      }
+    });
 
     return () => {
       console.log('🧹 Limpando handlers de notificação...');
-      cleanupHandlers();
-
-      if (nativeEventListener) {
-        nativeEventListener.remove();
-      }
+      unsubscribeForeground();
     };
-  }, [dismissAlarm]);
+  }, [registrarMedicamentoTomadoTarde, triggerAlarm]);
 
-  // Hook principal
+  // ⭐ EFEITO PRINCIPAL: Inicializar sistema
   useEffect(() => {
-    if (uid) {
-      initializeAlarmSystem();
-      scheduleAllNotifications();
-    }
+    if (!uid) return;
+
+    console.log('🚀 Inicializando AlarmSystem...');
+
+    initializeAlarmSound();
+    startPeriodicCheck();
 
     const handleAppStateChange = nextAppState => {
       console.log('📱 App state mudou:', appState, '→', nextAppState);
 
       if (appState.match(/inactive|background/) && nextAppState === 'active') {
         console.log('✅ App voltou para foreground');
-        if (uid) {
-          scheduleAllNotifications();
-          startAlarmChecker();
-          // ⭐ Verificar medicamentos não tomados ao voltar
-          verificarMedicamentosNaoTomados();
-        }
+        startPeriodicCheck();
+        verificarMedicamentosNaoTomados();
       }
 
       if (nextAppState.match(/inactive|background/)) {
         console.log('⏸️ App foi para background');
-        stopAlarmChecker();
+        stopPeriodicCheck();
       }
 
       setAppState(nextAppState);
@@ -1847,12 +1296,11 @@ const AlarmSystem = () => {
   }, [
     uid,
     appState,
-    initializeAlarmSystem,
-    scheduleAllNotifications,
-    startAlarmChecker,
-    stopAlarmChecker,
-    cleanup,
+    initializeAlarmSound,
+    startPeriodicCheck,
+    stopPeriodicCheck,
     verificarMedicamentosNaoTomados,
+    cleanup,
   ]);
 
   if (!uid) {
@@ -1863,12 +1311,12 @@ const AlarmSystem = () => {
     <>
       <AlarmHorarioFixo
         visible={showAlarm && alarmType === 'horario'}
-        onDismiss={() => dismissAlarm(currentAlarm)}
+        onDismiss={dismissAlarm}
         alarmData={currentAlarm}
       />
       <AlarmIntervalo
         visible={showAlarm && alarmType === 'intervalo'}
-        onDismiss={() => dismissAlarm(currentAlarm)}
+        onDismiss={dismissAlarm}
         alarmData={currentAlarm}
       />
     </>
