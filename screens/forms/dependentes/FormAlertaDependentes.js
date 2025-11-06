@@ -20,11 +20,18 @@ import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
 import Icon from 'react-native-vector-icons/Ionicons';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import notifee, {
+  AndroidImportance,
+  AndroidCategory,
+  TriggerType,
+  AndroidStyle,
+  EventType,
+  AlarmType,
+} from '@notifee/react-native';
 
 const {width, height} = Dimensions.get('window');
 
 const isSmallScreen = width < 360;
-const isMediumScreen = width >= 360 && width < 400;
 
 const diasSemana = [
   {abrev: 'Dom', completo: 'Domingo'},
@@ -35,6 +42,303 @@ const diasSemana = [
   {abrev: 'Sex', completo: 'Sexta'},
   {abrev: 'Sáb', completo: 'Sábado'},
 ];
+
+// ===== FUNÇÕES DE NOTIFICAÇÃO =====
+
+async function createNotificationChannel() {
+  try {
+    const channelId = await notifee.createChannel({
+      id: 'alarm-channel-dependente',
+      name: 'Alarmes de Medicação - Dependentes',
+      sound: 'default',
+      importance: AndroidImportance.HIGH,
+      vibration: true,
+      lights: true,
+      bypassDnd: true,
+    });
+    return channelId;
+  } catch (error) {
+    console.error('Erro ao criar canal:', error);
+    return 'alarm-channel-dependente';
+  }
+}
+
+async function scheduleNotification(id, title, body, triggerDate, alarmData) {
+  try {
+    console.log(`  📲 Criando notificação: ${id}`);
+    console.log(`     Horário: ${triggerDate.toLocaleString('pt-BR')}`);
+
+    const channelId = await createNotificationChannel();
+
+    const trigger = {
+      type: TriggerType.TIMESTAMP,
+      timestamp: triggerDate.getTime(),
+      alarmManager: {
+        type: AlarmType.SET_EXACT_AND_ALLOW_WHILE_IDLE,
+        allowWhileIdle: true,
+      },
+    };
+
+    const notificationConfig = {
+      id,
+      title,
+      body,
+      android: {
+        channelId,
+        smallIcon: 'icon',
+        category: AndroidCategory.ALARM,
+        autoCancel: false,
+        sound: 'default',
+        importance: AndroidImportance.HIGH,
+        visibility: 1,
+        showTimestamp: true,
+        timestamp: Date.now(),
+        fullScreenAction: {
+          id: 'default',
+          launchActivity: 'default',
+        },
+        pressAction: {
+          id: 'default',
+        },
+        style: {
+          type: AndroidStyle.BIGTEXT,
+          text: body,
+        },
+      },
+      data: {
+        id: String(id || ''),
+        remedioId: String(alarmData?.remedioId || ''),
+        remedioNome: String(alarmData?.remedioNome || ''),
+        dosagem: String(alarmData?.dosagem || ''),
+        tipoAlerta: String(alarmData?.tipoAlerta || ''),
+        horario: String(alarmData?.horario || ''),
+        intervaloHoras: String(alarmData?.intervaloHoras || ''),
+        horarioInicio: String(alarmData?.horarioInicio || ''),
+        alertaId: String(alarmData?.alertaId || ''),
+        usuarioId: String(alarmData?.usuarioId || ''),
+        dependenteId: String(alarmData?.dependenteId || ''),
+        dependenteNome: String(alarmData?.dependenteNome || ''),
+      },
+    };
+
+    await notifee.createTriggerNotification(notificationConfig, trigger);
+    console.log(`     ✅ Notificação principal criada`);
+
+    // Agendar notificação de lembrete 10 minutos depois
+    const reminderDate = new Date(triggerDate.getTime() + 10 * 60 * 1000);
+    const reminderId = `${id}_reminder`;
+
+    const reminderTrigger = {
+      type: TriggerType.TIMESTAMP,
+      timestamp: reminderDate.getTime(),
+      alarmManager: {
+        type: AlarmType.SET_EXACT_AND_ALLOW_WHILE_IDLE,
+        allowWhileIdle: true,
+      },
+    };
+
+    const reminderConfig = {
+      id: reminderId,
+      title: `⚠️ Lembrete: ${alarmData?.dependenteNome || 'Dependente'}`,
+      body: `Ainda não tomou: ${body}`,
+      android: {
+        channelId,
+        smallIcon: 'ic_launcher',
+        category: AndroidCategory.ALARM,
+        autoCancel: false,
+        sound: 'default',
+        importance: AndroidImportance.HIGH,
+        visibility: 1,
+        showTimestamp: true,
+        timestamp: Date.now(),
+        fullScreenAction: {
+          id: 'default',
+          launchActivity: 'default',
+        },
+        pressAction: {
+          id: 'default',
+        },
+        actions: [
+          {
+            title: '✅ Tomou agora',
+            pressAction: {
+              id: 'confirm',
+            },
+          },
+        ],
+        style: {
+          type: AndroidStyle.BIGTEXT,
+          text: `Lembrete: ${body}`,
+        },
+      },
+      data: {
+        ...notificationConfig.data,
+        isReminder: 'true',
+        originalNotificationId: String(id),
+      },
+    };
+
+    await notifee.createTriggerNotification(reminderConfig, reminderTrigger);
+    console.log(
+      `     ⏰ Lembrete agendado para ${reminderDate.toLocaleTimeString(
+        'pt-BR',
+      )}`,
+    );
+  } catch (error) {
+    console.error('❌ Erro ao agendar notificação:', error);
+    console.error('   Detalhes:', error.message);
+    console.error('   Stack:', error.stack);
+    throw error;
+  }
+}
+
+async function agendarNotificacoesHorarioFixo(
+  alerta,
+  alertaId,
+  remedioNome,
+  dependenteNome,
+) {
+  try {
+    console.log(
+      '\n📅 ========== AGENDANDO HORÁRIO FIXO (DEPENDENTE) ==========',
+    );
+    console.log('Dependente:', dependenteNome);
+    console.log('Medicamento:', remedioNome);
+    console.log('Horário:', alerta.horario);
+    console.log('Dias:', alerta.dias.join(', '));
+
+    const now = new Date();
+    console.log('Hora atual:', now.toLocaleString('pt-BR'));
+
+    const [hora, minuto] = alerta.horario.split(':').map(Number);
+
+    let agendados = 0;
+
+    for (let i = 0; i < 30; i++) {
+      const dataFutura = new Date(now);
+      dataFutura.setDate(now.getDate() + i);
+      dataFutura.setHours(hora, minuto, 0, 0);
+
+      const diaSemana = diasSemana[dataFutura.getDay()].abrev;
+
+      if (alerta.dias.includes(diaSemana) && dataFutura > now) {
+        const notifId = `alarm_dep_${alertaId}_${dataFutura.getTime()}`;
+
+        console.log(
+          `→ Agendando: ${diaSemana} ${dataFutura.toLocaleDateString(
+            'pt-BR',
+          )} ${alerta.horario}`,
+        );
+
+        await scheduleNotification(
+          notifId,
+          `💊 Medicamento para ${dependenteNome}`,
+          `${remedioNome} - ${alerta.dosagem}`,
+          dataFutura,
+          {
+            remedioId: alerta.remedioId,
+            remedioNome: remedioNome,
+            dosagem: alerta.dosagem,
+            tipoAlerta: 'dias',
+            horario: alerta.horario,
+            alertaId: alertaId,
+            usuarioId: alerta.usuarioId,
+            dependenteId: alerta.dependenteId,
+            dependenteNome: dependenteNome,
+          },
+        );
+
+        agendados++;
+      }
+    }
+
+    console.log(`🎯 Total agendado: ${agendados} notificações`);
+    console.log('==========================================\n');
+
+    return agendados;
+  } catch (error) {
+    console.error('❌ Erro ao agendar horário fixo:', error);
+    console.error('Stack:', error.stack);
+    throw error;
+  }
+}
+
+async function agendarNotificacoesIntervalo(
+  alerta,
+  alertaId,
+  remedioNome,
+  dependenteNome,
+) {
+  try {
+    console.log('\n⏰ ========== AGENDANDO INTERVALO (DEPENDENTE) ==========');
+    console.log('Dependente:', dependenteNome);
+    console.log('Medicamento:', remedioNome);
+    console.log('Intervalo:', alerta.intervaloHoras, 'horas');
+    console.log('Início:', alerta.horarioInicio);
+
+    const now = new Date();
+    const [hora, minuto] = alerta.horarioInicio.split(':').map(Number);
+    const intervaloMs = alerta.intervaloHoras * 60 * 60 * 1000;
+
+    let agendados = 0;
+
+    for (let dia = 0; dia < 7; dia++) {
+      const diaAtual = new Date(now);
+      diaAtual.setDate(now.getDate() + dia);
+      diaAtual.setHours(hora, minuto, 0, 0);
+
+      const fimDia = new Date(diaAtual);
+      fimDia.setHours(23, 59, 59, 999);
+
+      let proximaDose = new Date(diaAtual);
+
+      while (proximaDose <= fimDia) {
+        if (proximaDose > now) {
+          const horarioFormatado = proximaDose.toTimeString().slice(0, 5);
+          const notifId = `interval_dep_${alertaId}_${proximaDose.getTime()}`;
+
+          console.log(
+            `✅ ${proximaDose.toLocaleDateString(
+              'pt-BR',
+            )} às ${horarioFormatado}`,
+          );
+
+          await scheduleNotification(
+            notifId,
+            `💊 Medicamento para ${dependenteNome}`,
+            `${remedioNome} - ${alerta.dosagem} (A cada ${alerta.intervaloHoras}h)`,
+            proximaDose,
+            {
+              remedioId: alerta.remedioId,
+              remedioNome: remedioNome,
+              dosagem: alerta.dosagem,
+              tipoAlerta: 'intervalo',
+              horario: horarioFormatado,
+              horarioInicio: alerta.horarioInicio,
+              intervaloHoras: alerta.intervaloHoras,
+              alertaId: alertaId,
+              usuarioId: alerta.usuarioId,
+              dependenteId: alerta.dependenteId,
+              dependenteNome: dependenteNome,
+            },
+          );
+
+          agendados++;
+        }
+
+        proximaDose = new Date(proximaDose.getTime() + intervaloMs);
+      }
+    }
+
+    console.log(`🎯 Total agendado: ${agendados} notificações`);
+    console.log('==========================================\n');
+  } catch (error) {
+    console.error('❌ Erro ao agendar intervalo:', error);
+    console.error('Stack:', error.stack);
+  }
+}
+
+// ===== COMPONENTE PRINCIPAL =====
 
 const FormAlertaDependente = ({navigation, route}) => {
   const [remedios, setRemedios] = useState([]);
@@ -47,7 +351,7 @@ const FormAlertaDependente = ({navigation, route}) => {
   const [showPickerModal, setShowPickerModal] = useState(false);
 
   const [tipoAlerta, setTipoAlerta] = useState('dias');
-  
+
   const [diasSelecionados, setDiasSelecionados] = useState([]);
   const [horario, setHorario] = useState(new Date());
   const [showTimePicker, setShowTimePicker] = useState(false);
@@ -55,7 +359,7 @@ const FormAlertaDependente = ({navigation, route}) => {
   const [intervaloHoras, setIntervaloHoras] = useState('');
   const [horarioInicio, setHorarioInicio] = useState(new Date());
   const [showTimePickerInicio, setShowTimePickerInicio] = useState(false);
-  
+
   const [usarDataLimite, setUsarDataLimite] = useState(false);
   const [dataLimite, setDataLimite] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -65,6 +369,131 @@ const FormAlertaDependente = ({navigation, route}) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideUpAnim = useRef(new Animated.Value(30)).current;
   const backgroundAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    async function requestPermissions() {
+      try {
+        const settings = await notifee.requestPermission();
+
+        if (settings.authorizationStatus !== 1) {
+          Alert.alert(
+            '⚠️ Permissão Necessária',
+            'O app precisa de permissão para enviar notificações.',
+            [
+              {text: 'Cancelar', style: 'cancel'},
+              {
+                text: 'Abrir Configurações',
+                onPress: () => notifee.openNotificationSettings(),
+              },
+            ],
+          );
+          return;
+        }
+
+        await createNotificationChannel();
+
+        // Registrar handler de background
+        notifee.onBackgroundEvent(async ({type, detail}) => {
+          console.log('🔔 Evento em background (dependente):', type);
+
+          if (
+            type === EventType.ACTION_PRESS &&
+            detail.pressAction?.id === 'confirm'
+          ) {
+            const notifData = detail.notification?.data;
+            if (notifData) {
+              await registrarMedicamentoTomado(notifData);
+              await notifee.cancelNotification(detail.notification.id);
+
+              const originalId =
+                notifData.isReminder === 'true'
+                  ? notifData.originalNotificationId
+                  : detail.notification.id;
+              const reminderId = `${originalId}_reminder`;
+              await notifee.cancelNotification(reminderId);
+            }
+          }
+
+          if (type === EventType.DELIVERED) {
+            console.log('✅ Notificação entregue:', detail.notification?.id);
+          }
+        });
+      } catch (error) {
+        console.error('Erro ao solicitar permissões:', error);
+        Alert.alert('Erro', 'Falha ao configurar permissões: ' + error.message);
+      }
+    }
+
+    requestPermissions();
+  }, []);
+
+  useEffect(() => {
+    // APENAS listener de FOREGROUND (quando app está aberto)
+    const unsubscribeForeground = notifee.onForegroundEvent(
+      async ({type, detail}) => {
+        console.log('🔔 [FOREGROUND] Evento (dependente):', type);
+
+        if (
+          type === EventType.ACTION_PRESS &&
+          detail.pressAction?.id === 'confirm'
+        ) {
+          const notifData = detail.notification?.data;
+          if (notifData) {
+            await registrarMedicamentoTomado(notifData);
+            await notifee.cancelNotification(detail.notification.id);
+
+            // Cancelar o lembrete de 10 minutos se existir
+            const originalId =
+              notifData.isReminder === 'true'
+                ? notifData.originalNotificationId
+                : detail.notification.id;
+            const reminderId = `${originalId}_reminder`;
+            await notifee.cancelNotification(reminderId);
+
+            console.log('✅ [FOREGROUND] Medicamento registrado (dependente)');
+          }
+        }
+      },
+    );
+
+    return () => {
+      unsubscribeForeground();
+    };
+  }, []);
+
+  const registrarMedicamentoTomado = async notifData => {
+    try {
+      const user = auth().currentUser;
+      if (!user) return;
+
+      const now = new Date();
+      const diaStr = now.toISOString().slice(0, 10);
+
+      const dados = {
+        usuarioId: user.uid,
+        dependenteId: notifData.dependenteId,
+        dependenteNome: notifData.dependenteNome,
+        remedioId: notifData.remedioId,
+        remedioNome: notifData.remedioNome,
+        dosagem: notifData.dosagem,
+        dia: diaStr,
+        horario: notifData.horario,
+        timestamp: firestore.FieldValue.serverTimestamp(),
+        status: 'tomado',
+        tipoAlerta: notifData.tipoAlerta,
+      };
+
+      if (notifData.tipoAlerta === 'intervalo') {
+        dados.intervaloHoras = notifData.intervaloHoras;
+      }
+
+      await firestore()
+        .collection('medicamentos_tomados_dependentes')
+        .add(dados);
+    } catch (error) {
+      console.error('Erro ao registrar:', error);
+    }
+  };
 
   useEffect(() => {
     Animated.parallel([
@@ -97,7 +526,7 @@ const FormAlertaDependente = ({navigation, route}) => {
     backgroundAnimation.start();
 
     return () => backgroundAnimation.stop();
-  }, []);
+  }, [backgroundAnim, fadeAnim, slideUpAnim]);
 
   useEffect(() => {
     const getCurrentUser = () => {
@@ -173,7 +602,7 @@ const FormAlertaDependente = ({navigation, route}) => {
     };
 
     inicializar();
-  }, [userInfo, dependenteId]);
+  }, [userInfo, dependenteId, navigation]);
 
   useEffect(() => {
     if (!userInfo?.uid) return;
@@ -238,8 +667,16 @@ const FormAlertaDependente = ({navigation, route}) => {
       }
     } else {
       const intervalo = parseInt(intervaloHoras);
-      if (!intervaloHoras || isNaN(intervalo) || intervalo < 1 || intervalo > 24) {
-        Alert.alert('Atenção', 'Informe um intervalo válido entre 1 e 24 horas');
+      if (
+        !intervaloHoras ||
+        isNaN(intervalo) ||
+        intervalo < 1 ||
+        intervalo > 24
+      ) {
+        Alert.alert(
+          'Atenção',
+          'Informe um intervalo válido entre 1 e 24 horas',
+        );
         return false;
       }
     }
@@ -257,6 +694,8 @@ const FormAlertaDependente = ({navigation, route}) => {
     setLoading(true);
 
     try {
+      console.log('🎯 Iniciando salvamento do alerta (dependente)...');
+
       const alertaBase = {
         usuarioId: userInfo.uid,
         dependenteId: dependenteId,
@@ -275,28 +714,66 @@ const FormAlertaDependente = ({navigation, route}) => {
       if (tipoAlerta === 'dias') {
         alertaBase.dias = diasSelecionados;
         alertaBase.horario = horario.toTimeString().slice(0, 5);
+        console.log('📅 Tipo: Dias específicos');
+        console.log('   Dias:', diasSelecionados);
+        console.log('   Horário:', alertaBase.horario);
       } else {
         alertaBase.intervaloHoras = parseInt(intervaloHoras);
         alertaBase.horarioInicio = horarioInicio.toTimeString().slice(0, 5);
+        console.log('⏰ Tipo: Intervalo');
+        console.log('   Intervalo:', alertaBase.intervaloHoras, 'horas');
+        console.log('   Início:', alertaBase.horarioInicio);
       }
 
-      await firestore().collection('alertas_dependentes').add(alertaBase);
+      const alertaRef = await firestore()
+        .collection('alertas_dependentes')
+        .add(alertaBase);
+      console.log('✅ Alerta salvo no Firestore:', alertaRef.id);
 
       const remedio = remedios.find(r => r.id === remedioSelecionado);
-      const mensagem =
-        tipoAlerta === 'dias'
-          ? `Alerta criado para ${remedio?.nome} às ${formatarHorario(horario)}`
-          : `Alerta criado para ${remedio?.nome} a cada ${intervaloHoras} hora(s)`;
+      const remedioNome = remedio?.nome || 'Medicamento';
+      const dependenteNome = dependente?.nome || 'Dependente';
+      console.log('💊 Medicamento:', remedioNome);
+      console.log('👤 Dependente:', dependenteNome);
 
-      Alert.alert('Sucesso!', mensagem, [
+      console.log('\n📅 Agendando notificações...');
+
+      if (tipoAlerta === 'dias') {
+        const agendados = await agendarNotificacoesHorarioFixo(
+          alertaBase,
+          alertaRef.id,
+          remedioNome,
+          dependenteNome,
+        );
+        console.log(`✅ ${agendados} notificações agendadas`);
+      } else {
+        await agendarNotificacoesIntervalo(
+          alertaBase,
+          alertaRef.id,
+          remedioNome,
+          dependenteNome,
+        );
+        console.log('✅ Notificações de intervalo agendadas');
+      }
+
+      const scheduled = await notifee.getTriggerNotifications();
+      console.log(`\n📋 Total de notificações no sistema: ${scheduled.length}`);
+
+      Alert.alert('Sucesso! 🎉', `Alarme registrado para ${dependenteNome}!`, [
         {
           text: 'OK',
           onPress: () => navigation.goBack(),
         },
       ]);
     } catch (error) {
-      console.error('Erro ao salvar:', error);
-      Alert.alert('Erro', 'Não foi possível salvar o alerta.');
+      console.error('❌ Erro ao salvar:', error);
+      console.error('Stack:', error.stack);
+      Alert.alert(
+        'Erro',
+        `Não foi possível salvar o alerta.\n\n${
+          error.message || 'Erro desconhecido'
+        }`,
+      );
     } finally {
       setLoading(false);
     }
@@ -367,7 +844,11 @@ const FormAlertaDependente = ({navigation, route}) => {
                     setShowPickerModal(false);
                   }}>
                   <View style={styles.customPickerItemContent}>
-                    <MaterialIcons name="medication" size={20} color="#3B82F6" />
+                    <MaterialIcons
+                      name="medication"
+                      size={20}
+                      color="#3B82F6"
+                    />
                     <Text style={styles.customPickerItemText}>
                       {remedio.nome}
                     </Text>
@@ -475,7 +956,7 @@ const FormAlertaDependente = ({navigation, route}) => {
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>Novo Alerta</Text>
           <Text style={styles.headerSubtitle}>
-            Configure seu lembrete
+            {dependente?.nome || 'Configure seu lembrete'}
           </Text>
         </View>
 
@@ -594,7 +1075,9 @@ const FormAlertaDependente = ({navigation, route}) => {
                 <TouchableOpacity
                   style={styles.timeContainer}
                   onPress={() => setShowTimePicker(true)}>
-                  <Text style={styles.timeText}>{formatarHorario(horario)}</Text>
+                  <Text style={styles.timeText}>
+                    {formatarHorario(horario)}
+                  </Text>
                   <Icon name="alarm" size={24} color="#3B82F6" />
                 </TouchableOpacity>
               </View>
@@ -614,7 +1097,9 @@ const FormAlertaDependente = ({navigation, route}) => {
                         ? 'Todos os dias'
                         : `${diasSelecionados.length} dia${
                             diasSelecionados.length > 1 ? 's' : ''
-                          } selecionado${diasSelecionados.length > 1 ? 's' : ''}`}
+                          } selecionado${
+                            diasSelecionados.length > 1 ? 's' : ''
+                          }`}
                     </Text>
                   </View>
                 )}
@@ -670,53 +1155,18 @@ const FormAlertaDependente = ({navigation, route}) => {
             </>
           )}
 
-          {/* Data Limite */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Icon name="calendar-outline" size={20} color="#F59E0B" />
-              <Text style={styles.sectionTitle}>Data Limite (Opcional)</Text>
-            </View>
-
-            <TouchableOpacity
-              style={[
-                styles.checkboxContainer,
-                usarDataLimite && styles.checkboxContainerActive,
-              ]}
-              onPress={() => setUsarDataLimite(!usarDataLimite)}>
-              <View
-                style={[
-                  styles.checkbox,
-                  usarDataLimite && styles.checkboxChecked,
-                ]}>
-                {usarDataLimite && (
-                  <Icon name="checkmark" size={16} color="#FFFFFF" />
-                )}
-              </View>
-              <Text style={styles.checkboxText}>
-                Desativar automaticamente após uma data
-              </Text>
-            </TouchableOpacity>
-
-            {usarDataLimite && (
-              <TouchableOpacity
-                style={styles.dateContainer}
-                onPress={() => setShowDatePicker(true)}>
-                <Icon name="calendar" size={20} color="#F59E0B" />
-                <Text style={styles.dateText}>{formatarData(dataLimite)}</Text>
-                <Icon name="chevron-down" size={20} color="#94a3b8" />
-              </TouchableOpacity>
-            )}
-          </View>
-
           {/* Botão Salvar */}
           <TouchableOpacity
-            style={[styles.salvarButton, loading && styles.salvarButtonDisabled]}
+            style={[
+              styles.salvarButton,
+              loading && styles.salvarButtonDisabled,
+            ]}
             onPress={salvarAviso}
             disabled={loading}>
             {loading ? (
               <>
                 <ActivityIndicator size="small" color="#FFFFFF" />
-                <Text style={styles.salvarButtonText}>Salvando...</Text>
+                <Text style={styles.salvarButtonText}>Agendando...</Text>
               </>
             ) : (
               <>
@@ -751,19 +1201,6 @@ const FormAlertaDependente = ({navigation, route}) => {
             setShowTimePickerInicio(Platform.OS === 'ios');
             if (selectedDate) setHorarioInicio(selectedDate);
           }}
-        />
-      )}
-
-      {showDatePicker && (
-        <DateTimePicker
-          value={dataLimite}
-          mode="date"
-          display="default"
-          onChange={(event, selectedDate) => {
-            setShowDatePicker(Platform.OS === 'ios');
-            if (selectedDate) setDataLimite(selectedDate);
-          }}
-          minimumDate={new Date()}
         />
       )}
 
@@ -1023,58 +1460,6 @@ const styles = StyleSheet.create({
     color: '#3B82F6',
     fontWeight: '500',
     textAlign: 'center',
-    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
-  },
-  checkboxContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(30, 41, 59, 0.8)',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(51, 65, 85, 0.6)',
-    gap: 12,
-  },
-  checkboxContainerActive: {
-    backgroundColor: 'rgba(245, 158, 11, 0.1)',
-    borderColor: 'rgba(245, 158, 11, 0.3)',
-  },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: '#64748b',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  checkboxChecked: {
-    backgroundColor: '#F59E0B',
-    borderColor: '#F59E0B',
-  },
-  checkboxText: {
-    flex: 1,
-    fontSize: 14,
-    color: '#e2e8f0',
-    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
-  },
-  dateContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: 'rgba(245, 158, 11, 0.1)',
-    borderRadius: 16,
-    padding: 16,
-    marginTop: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.3)',
-    gap: 12,
-  },
-  dateText: {
-    flex: 1,
-    fontSize: 16,
-    color: '#FFFFFF',
-    fontWeight: '600',
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
   },
   salvarButton: {
