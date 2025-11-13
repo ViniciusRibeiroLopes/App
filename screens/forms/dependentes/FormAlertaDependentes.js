@@ -232,7 +232,7 @@ async function agendarNotificacoesHorarioFixo(
 
         await scheduleNotification(
           notifId,
-          `💊 Medicamento para ${dependenteNome}`,
+          `Medicamento para ${dependenteNome}`,
           `${remedioNome} - ${alerta.dosagem}`,
           dataFutura,
           {

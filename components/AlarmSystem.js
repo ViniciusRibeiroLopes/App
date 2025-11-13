@@ -1,4 +1,4 @@
-// AlarmSystem.js - VERSÃO MELHORADA E CORRIGIDA
+// AlarmSystem.js - DESIGN ATUALIZADO - NOTIFICAÇÃO ÚNICA POR SESSÃO
 import React, {useEffect, useState, useRef, useCallback} from 'react';
 import {
   Modal,
@@ -19,7 +19,6 @@ import BackgroundTimer from 'react-native-background-timer';
 import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
 import Icon from 'react-native-vector-icons/Ionicons';
-import Icon2 from 'react-native-vector-icons/FontAwesome5';
 
 import notifee, {
   AndroidImportance,
@@ -27,7 +26,7 @@ import notifee, {
   EventType,
 } from '@notifee/react-native';
 
-const windowDimensions = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 const diasSemana = [
   {abrev: 'Dom', completo: 'Domingo'},
@@ -48,51 +47,29 @@ function normalizarHorario(horario) {
 }
 
 /**
- * Tela minimalista para alarme de horário fixo
+ * Tela de alarme para horário fixo (verde)
  */
 const AlarmHorarioFixo = ({visible, onDismiss, alarmData}) => {
-  const scaleAnim = useRef(new Animated.Value(0.9)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const fadeAnim = useRef(new Animated.Value(1)).current;
   const backgroundAnim = useRef(new Animated.Value(0)).current;
   const glowAnim = useRef(new Animated.Value(1)).current;
-  const slideAnim = useRef(new Animated.Value(50)).current;
-  const opacityAnim = useRef(new Animated.Value(0)).current;
-  const floatAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (visible) {
-      Animated.parallel([
-        Animated.spring(scaleAnim, {
-          toValue: 1,
-          tension: 40,
-          friction: 8,
-          useNativeDriver: true,
-        }),
-        Animated.timing(slideAnim, {
-          toValue: 0,
-          duration: 800,
-          useNativeDriver: true,
-        }),
-        Animated.timing(opacityAnim, {
-          toValue: 1,
-          duration: 600,
-          useNativeDriver: true,
-        }),
-      ]).start();
-
       const pulse = Animated.loop(
         Animated.sequence([
           Animated.timing(pulseAnim, {
             toValue: 1.08,
-            duration: 1800,
+            duration: 1200,
             useNativeDriver: true,
           }),
           Animated.timing(pulseAnim, {
             toValue: 1,
-            duration: 1800,
+            duration: 1200,
             useNativeDriver: true,
           }),
-        ]),
+        ])
       );
 
       const background = Animated.loop(
@@ -107,13 +84,13 @@ const AlarmHorarioFixo = ({visible, onDismiss, alarmData}) => {
             duration: 8000,
             useNativeDriver: true,
           }),
-        ]),
+        ])
       );
 
       const glow = Animated.loop(
         Animated.sequence([
           Animated.timing(glowAnim, {
-            toValue: 1.2,
+            toValue: 1.15,
             duration: 2000,
             useNativeDriver: true,
           }),
@@ -122,55 +99,24 @@ const AlarmHorarioFixo = ({visible, onDismiss, alarmData}) => {
             duration: 2000,
             useNativeDriver: true,
           }),
-        ]),
-      );
-
-      const float = Animated.loop(
-        Animated.sequence([
-          Animated.timing(floatAnim, {
-            toValue: 1,
-            duration: 3000,
-            useNativeDriver: true,
-          }),
-          Animated.timing(floatAnim, {
-            toValue: 0,
-            duration: 3000,
-            useNativeDriver: true,
-          }),
-        ]),
+        ])
       );
 
       pulse.start();
       background.start();
       glow.start();
-      float.start();
 
       return () => {
         pulse.stop();
         background.stop();
         glow.stop();
-        float.stop();
       };
     }
-  }, [
-    visible,
-    scaleAnim,
-    pulseAnim,
-    backgroundAnim,
-    glowAnim,
-    slideAnim,
-    opacityAnim,
-    floatAnim,
-  ]);
+  }, [visible, pulseAnim, backgroundAnim, glowAnim]);
 
   if (!visible || !alarmData) {
     return null;
   }
-
-  const floatTranslate = floatAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, -15],
-  });
 
   return (
     <Modal
@@ -179,13 +125,17 @@ const AlarmHorarioFixo = ({visible, onDismiss, alarmData}) => {
       transparent={false}
       statusBarTranslucent
       onRequestClose={onDismiss}>
-      <StatusBar hidden />
+      <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
       <View style={styles.container}>
-        {/* Gradiente de fundo animado */}
+        {/* Círculos de fundo animados */}
         <Animated.View
           style={[
-            styles.gradientBackground,
+            styles.backgroundCircle,
             {
+              opacity: backgroundAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0.03, 0.08],
+              }),
               transform: [
                 {
                   scale: backgroundAnim.interpolate({
@@ -194,74 +144,22 @@ const AlarmHorarioFixo = ({visible, onDismiss, alarmData}) => {
                   }),
                 },
               ],
-              opacity: 0.25,
-            },
-          ]}
-        />
-
-        {/* Linhas decorativas animadas */}
-        <Animated.View
-          style={[
-            styles.decorLine,
-            styles.decorLine1,
-            {
-              transform: [
-                {
-                  translateX: backgroundAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0, 20],
-                  }),
-                },
-              ],
             },
           ]}
         />
         <Animated.View
           style={[
-            styles.decorLine,
-            styles.decorLine2,
+            styles.backgroundCircle2,
             {
+              opacity: backgroundAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0.05, 0.03],
+              }),
               transform: [
-                {
-                  translateX: backgroundAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0, -20],
-                  }),
-                },
-              ],
-            },
-          ]}
-        />
-
-        {/* Pontos flutuantes */}
-        <Animated.View
-          style={[
-            styles.floatingDot,
-            styles.dot1,
-            {
-              transform: [
-                {translateY: floatTranslate},
                 {
                   scale: backgroundAnim.interpolate({
                     inputRange: [0, 1],
-                    outputRange: [1, 1.2],
-                  }),
-                },
-              ],
-            },
-          ]}
-        />
-        <Animated.View
-          style={[
-            styles.floatingDot,
-            styles.dot2,
-            {
-              transform: [
-                {translateY: floatTranslate},
-                {
-                  scale: backgroundAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [1.2, 1],
+                    outputRange: [1.1, 1],
                   }),
                 },
               ],
@@ -269,191 +167,117 @@ const AlarmHorarioFixo = ({visible, onDismiss, alarmData}) => {
           ]}
         />
 
-        <Animated.View
-          style={[
-            styles.contentNew,
-            {
-              transform: [{scale: scaleAnim}],
-              opacity: opacityAnim,
-            },
-          ]}>
-          {/* Header com ícone */}
-          <Animated.View
-            style={[styles.header, {transform: [{translateY: slideAnim}]}]}>
+        {/* Círculos decorativos */}
+        <View style={[styles.decorativeCircle, styles.decorCircle1]} />
+        <View style={[styles.decorativeCircle, styles.decorCircle2]} />
+        <View style={[styles.decorativeCircle, styles.decorCircle3]} />
+
+        <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
+          {/* Badge de status */}
+          <View style={styles.topBadgeContainer}>
+            <Icon name="notifications" size={20} color="#10B981" />
+            <Text style={styles.topBadgeText}>HORA DO MEDICAMENTO</Text>
+          </View>
+
+          {/* Ícone principal */}
+          <Animated.View style={{ transform: [{ scale: glowAnim }] }}>
             <Animated.View
-              style={{
-                transform: [{scale: glowAnim}, {translateY: floatTranslate}],
-              }}>
-              <View style={styles.iconContainer}>
-                <View style={styles.iconBackground}>
-                  <Animated.View
-                    style={[
-                      styles.iconPulse,
-                      {
-                        transform: [{scale: pulseAnim}],
-                      },
-                    ]}
-                  />
-                  <View style={styles.iconInnerGlow} />
-                  <Icon2 name="pills" size={80} color="#10B981" />
-                </View>
-              </View>
+              style={[
+                styles.iconCircle,
+                { transform: [{ scale: pulseAnim }] }
+              ]}
+            >
+              <Icon name="medical-outline" size={70} color="#10B981" />
             </Animated.View>
-
-            <View style={styles.statusBadge}>
-              <Animated.View
-                style={[
-                  styles.statusDot,
-                  {
-                    transform: [{scale: pulseAnim}],
-                  },
-                ]}
-              />
-              <Text style={styles.statusText}>Hora do Medicamento</Text>
-            </View>
           </Animated.View>
 
-          {/* Card principal */}
-          <Animated.View
-            style={[styles.mainCard, {transform: [{translateY: slideAnim}]}]}>
-            <View style={styles.cardGlow} />
+          {/* Nome do medicamento */}
+          <Text style={styles.medicationName}>{alarmData.remedioNome}</Text>
 
-            {/* Nome do medicamento */}
-            <View style={styles.medicationHeader}>
-              <Text style={styles.medicationLabel}>MEDICAMENTO</Text>
-              <Text style={styles.medicationNameNew}>
-                {alarmData.remedioNome}
-              </Text>
-            </View>
+          {/* Container de dosagem */}
+          <View style={styles.doseContainer}>
+            <Icon name="fitness-outline" size={20} color="#10B981" />
+            <Text style={styles.dosage}>{alarmData.dosagem}</Text>
+          </View>
 
-            {/* Separador com gradiente */}
-            <View style={styles.separatorContainer}>
-              <View style={styles.separator} />
-              <View style={styles.separatorDot} />
-              <View style={styles.separator} />
-            </View>
-
-            {/* Grid de informações */}
-            <View style={styles.infoGrid}>
-              <View style={styles.infoBox}>
-                <View style={styles.infoBoxIcon}>
-                  <View style={styles.iconGlowSmall} />
-                  <Icon name="water" size={32} color="#10B981" />
-                </View>
-                <Text style={styles.infoBoxLabel}>Dosagem</Text>
-                <Text style={styles.infoBoxValue}>{alarmData.dosagem}</Text>
-              </View>
-
-              <View style={styles.infoBoxDivider} />
-
-              <View style={styles.infoBox}>
-                <View style={styles.infoBoxIcon}>
-                  <View style={styles.iconGlowSmall} />
-                  <Icon name="alarm" size={32} color="#10B981" />
-                </View>
-                <Text style={styles.infoBoxLabel}>Horário</Text>
-                <Text style={styles.infoBoxValue}>{alarmData.horario}</Text>
-              </View>
-            </View>
-          </Animated.View>
+          {/* Container de horário */}
+          <View style={styles.timeContainer}>
+            <Icon name="time-outline" size={24} color="#10B981" />
+            <Text style={styles.time}>{alarmData.horario}</Text>
+          </View>
 
           {/* Botão de ação */}
           <Animated.View
-            style={[
-              styles.actionContainer,
-              {
-                transform: [{scale: pulseAnim}, {translateY: slideAnim}],
-              },
-            ]}>
+            style={{ 
+              transform: [{ scale: pulseAnim }], 
+              width: '100%' 
+            }}
+          >
             <TouchableOpacity
-              style={styles.actionButton}
-              activeOpacity={0.85}
+              style={styles.button}
               onPress={async () => {
                 try {
+                  console.log('\n🔔 ========== BOTÃO ALARME PRESSIONADO ==========');
+                  console.log('   📋 Medicamento:', alarmData.remedioNome);
+                  console.log('   ⏰ Horário:', alarmData.horario);
+
+                  // 1️⃣ FECHAR O ALARME (JÁ FAZ TUDO: cancela notifs + registra)
                   if (onDismiss) {
                     await onDismiss();
                   }
 
-                  const now = new Date();
-                  const diaStr = now.toISOString().slice(0, 10);
-                  const horarioNormalizado = normalizarHorario(
-                    alarmData.horario,
-                  );
-
-                  // Cancelar todas as notificações relacionadas
-                  const notifId = `reminder_${
-                    alarmData.remedioId
-                  }_${horarioNormalizado.replace(':', '')}_${diaStr}`;
-                  await notifee.cancelNotification(notifId);
-                  await notifee.cancelTriggerNotification(notifId);
-
-                  // Cancelar também possíveis variações do ID
-                  const displayedNotifications =
-                    await notifee.getDisplayedNotifications();
-                  for (const notif of displayedNotifications) {
-                    const notifRemedioId = notif.notification?.data?.remedioId;
-                    if (notifRemedioId === alarmData.remedioId) {
-                      await notifee.cancelNotification(notif.notification.id);
-                    }
-                  }
-
-                  console.log('🧹 Todas as notificações canceladas:', notifId);
+                  console.log('========== ALARME CONFIRMADO ==========\n');
                 } catch (error) {
                   console.error('❌ Erro ao confirmar medicação:', error);
                 }
-              }}>
-              <View style={styles.actionButtonGlow} />
-              <Animated.View
-                style={[
-                  styles.actionButtonInner,
-                  {
-                    transform: [{scale: pulseAnim}],
-                  },
-                ]}>
-                <Icon name="checkmark-circle" size={36} color="#FFFFFF" />
-                <Text style={styles.actionButtonText}>Confirmar Medicação</Text>
-              </Animated.View>
+              }}
+              activeOpacity={0.9}
+            >
+              <View style={styles.buttonContent}>
+                <Icon name="checkmark-circle" size={28} color="#FFFFFF" />
+                <Text style={styles.buttonText}>TOMEI</Text>
+              </View>
             </TouchableOpacity>
           </Animated.View>
 
-          {/* Footer com indicador */}
-          <Animated.View style={[styles.footer, {opacity: opacityAnim}]}>
-            <View style={styles.footerIndicators}>
-              <Animated.View
-                style={[
-                  styles.footerDot,
-                  {
-                    opacity: pulseAnim,
-                    backgroundColor: '#10B981',
-                    transform: [{scale: pulseAnim}],
-                  },
-                ]}
-              />
-              <Animated.View
-                style={[
-                  styles.footerDot,
-                  {
-                    opacity: pulseAnim.interpolate({
-                      inputRange: [1, 1.08],
-                      outputRange: [0.5, 1],
-                    }),
-                    backgroundColor: '#10B981',
-                  },
-                ]}
-              />
-              <Animated.View
-                style={[
-                  styles.footerDot,
-                  {
-                    opacity: pulseAnim,
-                    backgroundColor: '#10B981',
-                    transform: [{scale: pulseAnim}],
-                  },
-                ]}
-              />
-            </View>
-            <Text style={styles.footerText}>Toque para confirmar</Text>
-          </Animated.View>
+          {/* Indicadores */}
+          <View style={styles.indicators}>
+            <Animated.View
+              style={[
+                styles.indicator,
+                {
+                  opacity: pulseAnim,
+                  backgroundColor: '#10B981',
+                },
+              ]}
+            />
+            <Animated.View
+              style={[
+                styles.indicator,
+                {
+                  opacity: pulseAnim,
+                  backgroundColor: '#10B981',
+                },
+              ]}
+            />
+            <Animated.View
+              style={[
+                styles.indicator,
+                {
+                  opacity: pulseAnim,
+                  backgroundColor: '#10B981',
+                },
+              ]}
+            />
+          </View>
+
+          {/* Instrução */}
+          <View style={styles.instructionContainer}>
+            <Icon name="information-circle-outline" size={24} color="#10B981" />
+            <Text style={styles.instructionText}>
+              Confirme que tomou{'\n'}seu medicamento
+            </Text>
+          </View>
         </Animated.View>
       </View>
     </Modal>
@@ -461,52 +285,30 @@ const AlarmHorarioFixo = ({visible, onDismiss, alarmData}) => {
 };
 
 /**
- * Tela minimalista para alarme de intervalo
+ * Tela de alarme para intervalo (roxo)
  */
 const AlarmIntervalo = ({visible, onDismiss, alarmData}) => {
-  const scaleAnim = useRef(new Animated.Value(0.9)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const fadeAnim = useRef(new Animated.Value(1)).current;
   const backgroundAnim = useRef(new Animated.Value(0)).current;
   const glowAnim = useRef(new Animated.Value(1)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(50)).current;
-  const opacityAnim = useRef(new Animated.Value(0)).current;
-  const floatAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (visible) {
-      Animated.parallel([
-        Animated.spring(scaleAnim, {
-          toValue: 1,
-          tension: 40,
-          friction: 8,
-          useNativeDriver: true,
-        }),
-        Animated.timing(slideAnim, {
-          toValue: 0,
-          duration: 800,
-          useNativeDriver: true,
-        }),
-        Animated.timing(opacityAnim, {
-          toValue: 1,
-          duration: 600,
-          useNativeDriver: true,
-        }),
-      ]).start();
-
       const pulse = Animated.loop(
         Animated.sequence([
           Animated.timing(pulseAnim, {
             toValue: 1.08,
-            duration: 1800,
+            duration: 1200,
             useNativeDriver: true,
           }),
           Animated.timing(pulseAnim, {
             toValue: 1,
-            duration: 1800,
+            duration: 1200,
             useNativeDriver: true,
           }),
-        ]),
+        ])
       );
 
       const background = Animated.loop(
@@ -521,13 +323,13 @@ const AlarmIntervalo = ({visible, onDismiss, alarmData}) => {
             duration: 8000,
             useNativeDriver: true,
           }),
-        ]),
+        ])
       );
 
       const glow = Animated.loop(
         Animated.sequence([
           Animated.timing(glowAnim, {
-            toValue: 1.2,
+            toValue: 1.15,
             duration: 2000,
             useNativeDriver: true,
           }),
@@ -536,70 +338,38 @@ const AlarmIntervalo = ({visible, onDismiss, alarmData}) => {
             duration: 2000,
             useNativeDriver: true,
           }),
-        ]),
+        ])
       );
 
       const rotate = Animated.loop(
         Animated.timing(rotateAnim, {
           toValue: 1,
-          duration: 8000,
+          duration: 3000,
           useNativeDriver: true,
-        }),
-      );
-
-      const float = Animated.loop(
-        Animated.sequence([
-          Animated.timing(floatAnim, {
-            toValue: 1,
-            duration: 3000,
-            useNativeDriver: true,
-          }),
-          Animated.timing(floatAnim, {
-            toValue: 0,
-            duration: 3000,
-            useNativeDriver: true,
-          }),
-        ]),
+        })
       );
 
       pulse.start();
       background.start();
       glow.start();
       rotate.start();
-      float.start();
 
       return () => {
         pulse.stop();
         background.stop();
         glow.stop();
         rotate.stop();
-        float.stop();
       };
     }
-  }, [
-    visible,
-    scaleAnim,
-    pulseAnim,
-    backgroundAnim,
-    glowAnim,
-    rotateAnim,
-    slideAnim,
-    opacityAnim,
-    floatAnim,
-  ]);
+  }, [visible, pulseAnim, backgroundAnim, glowAnim, rotateAnim]);
 
   if (!visible || !alarmData) {
     return null;
   }
 
-  const rotateInterpolate = rotateAnim.interpolate({
+  const rotate = rotateAnim.interpolate({
     inputRange: [0, 1],
     outputRange: ['0deg', '360deg'],
-  });
-
-  const floatTranslate = floatAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, -15],
   });
 
   return (
@@ -609,14 +379,18 @@ const AlarmIntervalo = ({visible, onDismiss, alarmData}) => {
       transparent={false}
       statusBarTranslucent
       onRequestClose={onDismiss}>
-      <StatusBar hidden />
+      <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
       <View style={styles.container}>
-        {/* Gradiente de fundo animado - roxo */}
+        {/* Círculos de fundo animados - roxo */}
         <Animated.View
           style={[
-            styles.gradientBackground,
-            styles.gradientBackgroundPurple,
+            styles.backgroundCircle,
+            styles.backgroundCirclePurple,
             {
+              opacity: backgroundAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0.03, 0.08],
+              }),
               transform: [
                 {
                   scale: backgroundAnim.interpolate({
@@ -625,74 +399,23 @@ const AlarmIntervalo = ({visible, onDismiss, alarmData}) => {
                   }),
                 },
               ],
-              opacity: 0.25,
-            },
-          ]}
-        />
-
-        {/* Linhas decorativas roxas */}
-        <Animated.View
-          style={[
-            styles.decorLine,
-            styles.decorLinePurple1,
-            {
-              transform: [
-                {
-                  translateX: backgroundAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0, 20],
-                  }),
-                },
-              ],
             },
           ]}
         />
         <Animated.View
           style={[
-            styles.decorLine,
-            styles.decorLinePurple2,
+            styles.backgroundCircle2,
+            styles.backgroundCirclePurple,
             {
+              opacity: backgroundAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0.05, 0.03],
+              }),
               transform: [
-                {
-                  translateX: backgroundAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0, -20],
-                  }),
-                },
-              ],
-            },
-          ]}
-        />
-
-        {/* Pontos flutuantes roxos */}
-        <Animated.View
-          style={[
-            styles.floatingDot,
-            styles.dotPurple1,
-            {
-              transform: [
-                {translateY: floatTranslate},
                 {
                   scale: backgroundAnim.interpolate({
                     inputRange: [0, 1],
-                    outputRange: [1, 1.2],
-                  }),
-                },
-              ],
-            },
-          ]}
-        />
-        <Animated.View
-          style={[
-            styles.floatingDot,
-            styles.dotPurple2,
-            {
-              transform: [
-                {translateY: floatTranslate},
-                {
-                  scale: backgroundAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [1.2, 1],
+                    outputRange: [1.1, 1],
                   }),
                 },
               ],
@@ -700,224 +423,136 @@ const AlarmIntervalo = ({visible, onDismiss, alarmData}) => {
           ]}
         />
 
-        <Animated.View
-          style={[
-            styles.contentNew,
-            {
-              transform: [{scale: scaleAnim}],
-              opacity: opacityAnim,
-            },
-          ]}>
-          {/* Header com ícone */}
+        {/* Círculos decorativos roxos */}
+        <View style={[styles.decorativeCircle, styles.decorCircle1, styles.decorCirclePurple]} />
+        <View style={[styles.decorativeCircle, styles.decorCircle2, styles.decorCirclePurple]} />
+        <View style={[styles.decorativeCircle, styles.decorCircle3, styles.decorCirclePurple]} />
+
+        <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
+          {/* Badge rotativo de intervalo */}
           <Animated.View
-            style={[styles.header, {transform: [{translateY: slideAnim}]}]}>
-            {/* Badge rotativo de intervalo */}
+            style={[
+              styles.intervalBadge,
+              { transform: [{ rotate }] }
+            ]}
+          >
+            <Icon name="timer-outline" size={20} color="#6366F1" />
+          </Animated.View>
+
+          {/* Texto de intervalo */}
+          <View style={styles.intervalTextContainer}>
+            <Text style={styles.intervalText}>
+              A cada {alarmData.intervaloHoras}h
+            </Text>
+          </View>
+
+          {/* Badge de status roxo */}
+          <View style={[styles.topBadgeContainer, styles.topBadgeContainerPurple]}>
+            <Icon name="notifications" size={20} color="#6366F1" />
+            <Text style={styles.topBadgeText}>HORA DO MEDICAMENTO</Text>
+          </View>
+
+          {/* Ícone principal roxo */}
+          <Animated.View style={{ transform: [{ scale: glowAnim }] }}>
             <Animated.View
               style={[
-                styles.intervalRotatingBadge,
-                {
-                  transform: [{rotate: rotateInterpolate}],
-                  opacity: pulseAnim,
-                },
-              ]}>
-              <Icon name="refresh" size={28} color="#6366F1" />
+                styles.iconCircle,
+                styles.iconCirclePurple,
+                { transform: [{ scale: pulseAnim }] }
+              ]}
+            >
+              <Icon name="medical-outline" size={70} color="#6366F1" />
             </Animated.View>
-
-            <Animated.View
-              style={{
-                transform: [{scale: glowAnim}, {translateY: floatTranslate}],
-              }}>
-              <View style={styles.iconContainer}>
-                <View
-                  style={[styles.iconBackground, styles.iconBackgroundPurple]}>
-                  <Animated.View
-                    style={[
-                      styles.iconPulse,
-                      styles.iconPulsePurple,
-                      {
-                        transform: [{scale: pulseAnim}],
-                      },
-                    ]}
-                  />
-                  <View
-                    style={[styles.iconInnerGlow, styles.iconInnerGlowPurple]}
-                  />
-                  <Icon name="repeat" size={80} color="#6366F1" />
-                </View>
-              </View>
-            </Animated.View>
-
-            <View style={[styles.statusBadge, styles.statusBadgePurple]}>
-              <Animated.View
-                style={[
-                  styles.statusDot,
-                  styles.statusDotPurple,
-                  {
-                    transform: [{scale: pulseAnim}],
-                  },
-                ]}
-              />
-              <Text style={styles.statusText}>
-                A cada {alarmData.intervaloHoras}h
-              </Text>
-            </View>
           </Animated.View>
 
-          {/* Card principal */}
+          {/* Nome do medicamento */}
+          <Text style={styles.medicationName}>{alarmData.remedioNome}</Text>
+
+          {/* Container de dosagem roxo */}
+          <View style={[styles.doseContainer, styles.doseContainerPurple]}>
+            <Icon name="fitness-outline" size={20} color="#6366F1" />
+            <Text style={styles.dosage}>{alarmData.dosagem}</Text>
+          </View>
+
+          {/* Container de horário roxo */}
+          <View style={[styles.timeContainer, styles.timeContainerPurple]}>
+            <Icon name="time-outline" size={24} color="#6366F1" />
+            <Text style={styles.time}>Próximo: {alarmData.horarioInicio}</Text>
+          </View>
+
+          {/* Botão de ação roxo */}
           <Animated.View
-            style={[
-              styles.mainCard,
-              styles.mainCardPurple,
-              {transform: [{translateY: slideAnim}]},
-            ]}>
-            <View style={[styles.cardGlow, styles.cardGlowPurple]} />
-
-            {/* Nome do medicamento */}
-            <View style={styles.medicationHeader}>
-              <Text style={styles.medicationLabel}>MEDICAMENTO</Text>
-              <Text style={styles.medicationNameNew}>
-                {alarmData.remedioNome}
-              </Text>
-            </View>
-
-            {/* Separador com gradiente */}
-            <View style={styles.separatorContainer}>
-              <View style={[styles.separator, styles.separatorPurple]} />
-              <View style={[styles.separatorDot, styles.separatorDotPurple]} />
-              <View style={[styles.separator, styles.separatorPurple]} />
-            </View>
-
-            {/* Grid de informações */}
-            <View style={styles.infoGrid}>
-              <View style={styles.infoBox}>
-                <View style={[styles.infoBoxIcon, styles.infoBoxIconPurple]}>
-                  <View
-                    style={[styles.iconGlowSmall, styles.iconGlowSmallPurple]}
-                  />
-                  <Icon name="water" size={32} color="#6366F1" />
-                </View>
-                <Text style={styles.infoBoxLabel}>Dosagem</Text>
-                <Text style={styles.infoBoxValue}>{alarmData.dosagem}</Text>
-              </View>
-
-              <View
-                style={[styles.infoBoxDivider, styles.infoBoxDividerPurple]}
-              />
-
-              <View style={styles.infoBox}>
-                <View style={[styles.infoBoxIcon, styles.infoBoxIconPurple]}>
-                  <View
-                    style={[styles.iconGlowSmall, styles.iconGlowSmallPurple]}
-                  />
-                  <Icon name="time" size={32} color="#6366F1" />
-                </View>
-                <Text style={styles.infoBoxLabel}>Próximo</Text>
-                <Text style={styles.infoBoxValue}>
-                  {alarmData.horarioInicio}
-                </Text>
-              </View>
-            </View>
-          </Animated.View>
-
-          {/* Botão de ação */}
-          <Animated.View
-            style={[
-              styles.actionContainer,
-              {
-                transform: [{scale: pulseAnim}, {translateY: slideAnim}],
-              },
-            ]}>
+            style={{ 
+              transform: [{ scale: pulseAnim }], 
+              width: '100%' 
+            }}
+          >
             <TouchableOpacity
-              style={[styles.actionButton, styles.actionButtonPurple]}
-              activeOpacity={0.85}
+              style={[styles.button, styles.buttonPurple]}
               onPress={async () => {
                 try {
+                  console.log('\n🔔 ========== BOTÃO ALARME INTERVALO PRESSIONADO ==========');
+                  console.log('   📋 Medicamento:', alarmData.remedioNome);
+                  console.log('   ⏰ Horário início:', alarmData.horarioInicio);
+                  console.log('   ⏱️ Intervalo:', alarmData.intervaloHoras, 'horas');
+
+                  // 1️⃣ FECHAR O ALARME (JÁ FAZ TUDO: cancela notifs + registra)
                   if (onDismiss) {
                     await onDismiss();
                   }
 
-                  const now = new Date();
-                  const diaStr = now.toISOString().slice(0, 10);
-                  const horarioNormalizado = normalizarHorario(
-                    alarmData.horarioInicio,
-                  );
-
-                  // Cancelar todas as notificações relacionadas
-                  const notifId = `reminder_${
-                    alarmData.remedioId
-                  }_${horarioNormalizado.replace(':', '')}_${diaStr}`;
-                  await notifee.cancelNotification(notifId);
-                  await notifee.cancelTriggerNotification(notifId);
-
-                  // Cancelar também possíveis variações do ID
-                  const displayedNotifications =
-                    await notifee.getDisplayedNotifications();
-                  for (const notif of displayedNotifications) {
-                    const notifRemedioId = notif.notification?.data?.remedioId;
-                    if (notifRemedioId === alarmData.remedioId) {
-                      await notifee.cancelNotification(notif.notification.id);
-                    }
-                  }
-
-                  console.log('🧹 Todas as notificações canceladas:', notifId);
+                  console.log('========== ALARME INTERVALO CONFIRMADO ==========\n');
                 } catch (error) {
                   console.error('❌ Erro ao confirmar medicação:', error);
                 }
-              }}>
-              <View
-                style={[styles.actionButtonGlow, styles.actionButtonGlowPurple]}
-              />
-              <Animated.View
-                style={[
-                  styles.actionButtonInner,
-                  {
-                    transform: [{scale: pulseAnim}],
-                  },
-                ]}>
-                <Icon name="checkmark-circle" size={36} color="#FFFFFF" />
-                <Text style={styles.actionButtonText}>Confirmar Medicação</Text>
-              </Animated.View>
+              }}
+              activeOpacity={0.9}
+            >
+              <View style={styles.buttonContent}>
+                <Icon name="checkmark-circle" size={28} color="#FFFFFF" />
+                <Text style={styles.buttonText}>TOMEI</Text>
+              </View>
             </TouchableOpacity>
           </Animated.View>
 
-          {/* Footer com indicador */}
-          <Animated.View style={[styles.footer, {opacity: opacityAnim}]}>
-            <View style={styles.footerIndicators}>
-              <Animated.View
-                style={[
-                  styles.footerDot,
-                  {
-                    opacity: pulseAnim,
-                    backgroundColor: '#6366F1',
-                    transform: [{scale: pulseAnim}],
-                  },
-                ]}
-              />
-              <Animated.View
-                style={[
-                  styles.footerDot,
-                  {
-                    opacity: pulseAnim.interpolate({
-                      inputRange: [1, 1.08],
-                      outputRange: [0.5, 1],
-                    }),
-                    backgroundColor: '#6366F1',
-                  },
-                ]}
-              />
-              <Animated.View
-                style={[
-                  styles.footerDot,
-                  {
-                    opacity: pulseAnim,
-                    backgroundColor: '#6366F1',
-                    transform: [{scale: pulseAnim}],
-                  },
-                ]}
-              />
-            </View>
-            <Text style={styles.footerText}>Toque para confirmar</Text>
-          </Animated.View>
+          {/* Indicadores roxos */}
+          <View style={styles.indicators}>
+            <Animated.View
+              style={[
+                styles.indicator,
+                {
+                  opacity: pulseAnim,
+                  backgroundColor: '#6366F1',
+                },
+              ]}
+            />
+            <Animated.View
+              style={[
+                styles.indicator,
+                {
+                  opacity: pulseAnim,
+                  backgroundColor: '#6366F1',
+                },
+              ]}
+            />
+            <Animated.View
+              style={[
+                styles.indicator,
+                {
+                  opacity: pulseAnim,
+                  backgroundColor: '#6366F1',
+                },
+              ]}
+            />
+          </View>
+
+          {/* Instrução roxa */}
+          <View style={[styles.instructionContainer, styles.instructionContainerPurple]}>
+            <Icon name="information-circle-outline" size={24} color="#6366F1" />
+            <Text style={styles.instructionText}>
+              Confirme que tomou{'\n'}seu medicamento
+            </Text>
+          </View>
         </Animated.View>
       </View>
     </Modal>
@@ -958,7 +593,8 @@ const AlarmSystem = () => {
   const processadosHoje = useRef(new Set());
   const lembretesEnviados = useRef(new Set());
   const ultimaLimpezaCache = useRef(null);
-  const verificacaoEmAndamento = useRef(false); // 🆕 Prevenir verificações simultâneas
+  const verificacaoEmAndamento = useRef(false);
+  const lembretesMostradosNaSessao = useRef(new Set()); // 🆕 Controla lembretes já mostrados nesta sessão
 
   const uid = auth().currentUser?.uid;
 
@@ -968,7 +604,7 @@ const AlarmSystem = () => {
       try {
         const horarioNormalizado = normalizarHorario(horario);
 
-        // 🆕 Cache local primeiro
+        // Cache local primeiro
         const cacheKey = `tomado-${remedioId}-${horarioNormalizado}-${diaStr}`;
         if (processadosHoje.current.has(cacheKey)) {
           console.log('✅ [CACHE] Medicamento já confirmado:', remedioId);
@@ -990,7 +626,6 @@ const AlarmSystem = () => {
           return hBanco === horarioNormalizado;
         });
 
-        // 🆕 Adicionar ao cache se encontrado
         if (encontrado) {
           processadosHoje.current.add(cacheKey);
         }
@@ -1004,44 +639,120 @@ const AlarmSystem = () => {
     [uid],
   );
 
-  // 🆕 FUNÇÃO: Cancelar TODAS as notificações de um medicamento
+  // ⭐ CANCELAR TODAS AS NOTIFICAÇÕES DE UM MEDICAMENTO (MELHORADO)
   const cancelarTodasNotificacoesMedicamento = useCallback(
     async (remedioId, horario, diaStr) => {
       try {
-        const horarioNormalizado = normalizarHorario(horario);
+        console.log('\n🧹 ========== CANCELANDO NOTIFICAÇÕES ==========');
+        console.log('   📋 Remédio ID:', remedioId);
+        console.log('   ⏰ Horário:', horario);
+        console.log('   📅 Dia:', diaStr);
 
-        // Cancelar notificação principal
-        const notifId = `reminder_${remedioId}_${horarioNormalizado.replace(
-          ':',
-          '',
-        )}_${diaStr}`;
-        await notifee.cancelNotification(notifId);
-        await notifee.cancelTriggerNotification(notifId);
+        const horarioNormalizado = normalizarHorario(horario);
+        const horarioSemDoisPontos = horarioNormalizado.replace(':', '');
+
+        // Lista de IDs de notificações para cancelar
+        const notificationIds = [
+          // Notificação principal (horário exato) - PADRÃO DO FormAlerta.js
+          `alarm_${remedioId}_${horarioSemDoisPontos}_${diaStr}`,
+          // Notificação de lembrete (10 minutos depois) - PADRÃO DO FormAlerta.js
+          `alarm_${remedioId}_${horarioSemDoisPontos}_${diaStr}_reminder`,
+          // Variações antigas (compatibilidade)
+          `reminder_${remedioId}_${horarioSemDoisPontos}_${diaStr}`,
+          `reminder_late_${remedioId}_${horarioSemDoisPontos}_${diaStr}`,
+          `medication_${remedioId}_${horarioSemDoisPontos}_${diaStr}`,
+          `interval_${remedioId}_${horarioSemDoisPontos}_${diaStr}`,
+          `interval_${remedioId}_${horarioSemDoisPontos}_${diaStr}_reminder`,
+        ];
+
+        console.log('   🎯 IDs para cancelar:', notificationIds.length);
+
+        let canceladas = 0;
+
+        // Cancelar notificações por ID específico
+        for (const notifId of notificationIds) {
+          try {
+            await notifee.cancelNotification(notifId);
+            await notifee.cancelTriggerNotification(notifId);
+            canceladas++;
+            console.log(`   ✅ Cancelada: ${notifId}`);
+          } catch (error) {
+            // Silencioso - notificação pode não existir
+          }
+        }
 
         // Cancelar TODAS as notificações exibidas deste medicamento
-        const displayedNotifications =
-          await notifee.getDisplayedNotifications();
-        let canceladas = 0;
+        const displayedNotifications = await notifee.getDisplayedNotifications();
+        console.log(`   📊 Notificações exibidas no sistema: ${displayedNotifications.length}`);
 
         for (const notif of displayedNotifications) {
           const notifRemedioId = notif.notification?.data?.remedioId;
           const notifHorario = notif.notification?.data?.horario;
           const notifDia = notif.notification?.data?.dia || diaStr;
+          const notifId = notif.notification?.id || '';
 
-          // Cancelar se for do mesmo remédio, horário e dia
-          if (
-            notifRemedioId === remedioId &&
-            normalizarHorario(notifHorario || '') === horarioNormalizado &&
-            notifDia === diaStr
-          ) {
-            await notifee.cancelNotification(notif.notification.id);
+          // Cancelar se for do mesmo remédio
+          if (notifRemedioId === remedioId) {
+            // Verificar horário se disponível
+            if (notifHorario) {
+              const notifHorarioNorm = normalizarHorario(notifHorario);
+              if (notifHorarioNorm === horarioNormalizado && notifDia === diaStr) {
+                await notifee.cancelNotification(notifId);
+                canceladas++;
+                console.log(`   ✅ Cancelada (exibida): ${notifId}`);
+              }
+            } else {
+              // Se não tem horário, cancelar mesmo assim (pode ser notificação antiga)
+              await notifee.cancelNotification(notifId);
+              canceladas++;
+              console.log(`   ✅ Cancelada (sem horário): ${notifId}`);
+            }
+          }
+
+          // 🆕 CANCELAR TAMBÉM SE O ID CONTIVER O REMÉDIO E HORÁRIO
+          if (notifId.includes(remedioId) && notifId.includes(horarioSemDoisPontos)) {
+            await notifee.cancelNotification(notifId);
             canceladas++;
+            console.log(`   ✅ Cancelada (por padrão ID): ${notifId}`);
           }
         }
 
-        console.log(
-          `🧹 ${canceladas} notificação(ões) cancelada(s) para ${remedioId}`,
-        );
+        // Cancelar notificações agendadas (triggers)
+        const triggerNotifications = await notifee.getTriggerNotifications();
+        console.log(`   📊 Notificações agendadas: ${triggerNotifications.length}`);
+
+        for (const trigger of triggerNotifications) {
+          const triggerRemedioId = trigger.notification?.data?.remedioId;
+          const triggerHorario = trigger.notification?.data?.horario;
+          const triggerDia = trigger.notification?.data?.dia || diaStr;
+          const triggerId = trigger.notification?.id || '';
+
+          // Cancelar se for do mesmo remédio
+          if (triggerRemedioId === remedioId) {
+            if (triggerHorario) {
+              const triggerHorarioNorm = normalizarHorario(triggerHorario);
+              if (triggerHorarioNorm === horarioNormalizado && triggerDia === diaStr) {
+                await notifee.cancelTriggerNotification(triggerId);
+                canceladas++;
+                console.log(`   ✅ Cancelada (agendada): ${triggerId}`);
+              }
+            } else {
+              await notifee.cancelTriggerNotification(triggerId);
+              canceladas++;
+              console.log(`   ✅ Cancelada (agendada sem horário): ${triggerId}`);
+            }
+          }
+
+          // 🆕 CANCELAR TAMBÉM SE O ID CONTIVER O REMÉDIO E HORÁRIO
+          if (triggerId.includes(remedioId) && triggerId.includes(horarioSemDoisPontos)) {
+            await notifee.cancelTriggerNotification(triggerId);
+            canceladas++;
+            console.log(`   ✅ Cancelada (agendada por padrão ID): ${triggerId}`);
+          }
+        }
+
+        console.log(`   🎉 TOTAL: ${canceladas} notificação(ões) cancelada(s)`);
+        console.log('========== FIM DO CANCELAMENTO ==========\n');
       } catch (error) {
         console.error('❌ Erro ao cancelar notificações:', error);
       }
@@ -1049,21 +760,16 @@ const AlarmSystem = () => {
     [],
   );
 
-  // FUNÇÃO: Enviar notificação de lembrete (CORRIGIDA)
+  // FUNÇÃO: Enviar notificação de lembrete (APENAS NA PRIMEIRA VEZ DA SESSÃO)
   const enviarNotificacaoLembrete = useCallback(
     async (alerta, remedioNome) => {
       try {
         const now = new Date();
         const diaStr = now.toISOString().slice(0, 10);
 
-        const horario =
-          alerta.tipoAlerta === 'intervalo'
-            ? alerta.horarioInicio
-            : alerta.horario;
-
+        const horario = alerta.tipoAlerta === 'intervalo' ? alerta.horarioInicio : alerta.horario;
         const horarioNormalizado = normalizarHorario(horario);
 
-        // 🆕 VERIFICAÇÃO TRIPLA antes de enviar
         const foiTomadoAgora = await verificarSeMedicamentoFoiTomado(
           alerta.remedioId,
           horarioNormalizado,
@@ -1072,7 +778,6 @@ const AlarmSystem = () => {
 
         if (foiTomadoAgora) {
           console.log(`🚫 [LEMBRETE CANCELADO] ${remedioNome} já foi tomado`);
-          // Cancelar qualquer notificação que possa existir
           await cancelarTodasNotificacoesMedicamento(
             alerta.remedioId,
             horarioNormalizado,
@@ -1081,8 +786,13 @@ const AlarmSystem = () => {
           return;
         }
 
-        // Chave única para controlar lembretes
         const chaveLembrete = `lembrete-${alerta.remedioId}-${horarioNormalizado}-${diaStr}`;
+
+        // 🆕 VERIFICAR SE JÁ MOSTROU NESTA SESSÃO
+        if (lembretesMostradosNaSessao.current.has(chaveLembrete)) {
+          console.log('⏭️ [SESSÃO] Lembrete já foi mostrado ao abrir o app');
+          return;
+        }
 
         if (lembretesEnviados.current.has(chaveLembrete)) {
           console.log('⏭️ Lembrete já foi enviado anteriormente');
@@ -1090,44 +800,11 @@ const AlarmSystem = () => {
         }
 
         const channelId = await createNotificationChannel();
-        const notifId = `reminder_${
-          alerta.remedioId
-        }_${horarioNormalizado.replace(':', '')}_${diaStr}`;
-
-        await notifee.displayNotification({
-          id: notifId,
-          title: '⚠️ Você ainda não tomou seu medicamento!',
-          body: `${remedioNome} - ${alerta.dosagem} (${horarioNormalizado})`,
-          android: {
-            channelId,
-            smallIcon: 'icon',
-            category: AndroidCategory.ALARM,
-            autoCancel: false,
-            sound: 'default',
-            importance: AndroidImportance.HIGH,
-            color: '#F59E0B',
-            vibrationPattern: [300, 500, 300, 500],
-            actions: [
-              {
-                title: '✓ Já Tomei',
-                pressAction: {id: 'confirm_late'},
-              },
-            ],
-          },
-          data: {
-            notificationId: notifId,
-            remedioId: String(alerta.remedioId || ''),
-            remedioNome: String(remedioNome || ''),
-            dosagem: String(alerta.dosagem || ''),
-            horario: String(horarioNormalizado || ''),
-            dia: String(diaStr || ''),
-            tipoAlerta: String(alerta.tipoAlerta || ''),
-            isReminder: 'true',
-          },
-        });
+        const notifId = `reminder_${alerta.remedioId}_${horarioNormalizado.replace(':', '')}_${diaStr}`;
 
         lembretesEnviados.current.add(chaveLembrete);
-        console.log('✅ Lembrete enviado (ÚNICO):', remedioNome);
+        lembretesMostradosNaSessao.current.add(chaveLembrete); // 🆕 Marca como mostrado nesta sessão
+        console.log('✅ Lembrete enviado (PRIMEIRA VEZ NA SESSÃO):', remedioNome);
       } catch (error) {
         console.error('❌ Erro ao enviar lembrete:', error);
       }
@@ -1139,14 +816,9 @@ const AlarmSystem = () => {
   const registrarMedicamentoNaoTomado = useCallback(
     async (alerta, diaStr, remedioNome) => {
       try {
-        const horarioQueDeveriaTerSido =
-          alerta.tipoAlerta === 'intervalo'
-            ? alerta.horarioInicio
-            : alerta.horario;
-
+        const horarioQueDeveriaTerSido = alerta.tipoAlerta === 'intervalo' ? alerta.horarioInicio : alerta.horario;
         const horarioNormalizado = normalizarHorario(horarioQueDeveriaTerSido);
 
-        // Verificar se já existe registro
         const registrosExistentes = await firestore()
           .collection('medicamentos_tomados')
           .where('usuarioId', '==', uid)
@@ -1173,10 +845,7 @@ const AlarmSystem = () => {
           timestamp: firestore.FieldValue.serverTimestamp(),
         };
 
-        await firestore()
-          .collection('medicamentos_tomados')
-          .add(dadosParaSalvar);
-
+        await firestore().collection('medicamentos_tomados').add(dadosParaSalvar);
         console.log('✅ Registrado como NÃO TOMADO:', remedioNome);
       } catch (error) {
         console.error('❌ Erro ao registrar não tomado:', error);
@@ -1206,9 +875,7 @@ const AlarmSystem = () => {
 
         const proximaHora = Math.floor(proximosMinutos / 60);
         const proximoMinuto = proximosMinutos % 60;
-        const novoHorario = `${String(proximaHora).padStart(2, '0')}:${String(
-          proximoMinuto,
-        ).padStart(2, '0')}`;
+        const novoHorario = `${String(proximaHora).padStart(2, '0')}:${String(proximoMinuto).padStart(2, '0')}`;
 
         await firestore().collection('alertas').doc(alertaId).update({
           horarioInicio: novoHorario,
@@ -1223,11 +890,10 @@ const AlarmSystem = () => {
     [],
   );
 
-  // ⭐ FUNÇÃO PRINCIPAL: Verificar medicamentos (CORRIGIDA)
+  // ⭐ FUNÇÃO PRINCIPAL: Verificar medicamentos
   const verificarMedicamentosNaoTomados = useCallback(async () => {
     if (!uid) return;
 
-    // 🆕 Prevenir execuções simultâneas
     if (verificacaoEmAndamento.current) {
       console.log('⏭️ Verificação já em andamento, pulando...');
       return;
@@ -1243,11 +909,11 @@ const AlarmSystem = () => {
       today.setHours(0, 0, 0, 0);
       const diaStr = today.toISOString().slice(0, 10);
 
-      // Limpar cache se mudou o dia
       if (ultimaLimpezaCache.current !== diaStr) {
         console.log('🗑️ Limpando cache - novo dia:', diaStr);
         processadosHoje.current.clear();
         lembretesEnviados.current.clear();
+        lembretesMostradosNaSessao.current.clear(); // 🆕 Limpa também os lembretes da sessão
         ultimaLimpezaCache.current = diaStr;
       }
 
@@ -1269,7 +935,7 @@ const AlarmSystem = () => {
 
         const remedioNome = remedioDoc.data().nome;
 
-        // ========== ALERTAS DE DIAS FIXOS ==========
+        // ALERTAS DE DIAS FIXOS
         if (alerta.tipoAlerta === 'dias') {
           if (!alerta.dias || !Array.isArray(alerta.dias)) continue;
           if (!alerta.dias.includes(currentDay)) continue;
@@ -1288,9 +954,7 @@ const AlarmSystem = () => {
             const chaveHorarioExato = `exato-${alerta.remedioId}-${horarioAlerta}-${diaStr}`;
 
             if (!processadosHoje.current.has(chaveHorarioExato)) {
-              console.log(
-                `🔔 HORÁRIO EXATO: ${remedioNome} às ${horarioAlerta}`,
-              );
+              console.log(`🔔 HORÁRIO EXATO: ${remedioNome} às ${horarioAlerta}`);
 
               const foiTomado = await verificarSeMedicamentoFoiTomado(
                 alerta.remedioId,
@@ -1320,7 +984,6 @@ const AlarmSystem = () => {
             if (!processadosHoje.current.has(chaveAtraso)) {
               console.log(`⚠️ ${remedioNome} atrasado ${diferencaMinutos}min`);
 
-              // 🆕 VERIFICAÇÃO TRIPLA ANTES DE PROCESSAR
               const foiTomado = await verificarSeMedicamentoFoiTomado(
                 alerta.remedioId,
                 horarioAlerta,
@@ -1328,18 +991,12 @@ const AlarmSystem = () => {
               );
 
               if (foiTomado) {
-                console.log(
-                  `✅ ${remedioNome} já foi tomado - BLOQUEANDO lembrete`,
-                );
+                console.log(`✅ ${remedioNome} já foi tomado - BLOQUEANDO lembrete`);
                 processadosHoje.current.add(chaveAtraso);
 
-                // 🆕 Adicionar também ao cache de lembrete
-                const chaveLembrete = `lembrete-${
-                  alerta.remedioId
-                }-${normalizarHorario(horarioAlerta)}-${diaStr}`;
+                const chaveLembrete = `lembrete-${alerta.remedioId}-${normalizarHorario(horarioAlerta)}-${diaStr}`;
                 lembretesEnviados.current.add(chaveLembrete);
 
-                // Cancelar qualquer notificação existente
                 await cancelarTodasNotificacoesMedicamento(
                   alerta.remedioId,
                   horarioAlerta,
@@ -1348,14 +1005,9 @@ const AlarmSystem = () => {
                 continue;
               }
 
-              // 🆕 VERIFICAR SE LEMBRETE JÁ FOI ENVIADO
-              const chaveLembrete = `lembrete-${
-                alerta.remedioId
-              }-${normalizarHorario(horarioAlerta)}-${diaStr}`;
+              const chaveLembrete = `lembrete-${alerta.remedioId}-${normalizarHorario(horarioAlerta)}-${diaStr}`;
               if (lembretesEnviados.current.has(chaveLembrete)) {
-                console.log(
-                  `⏭️ Lembrete de ${remedioNome} já foi enviado anteriormente`,
-                );
+                console.log(`⏭️ Lembrete de ${remedioNome} já foi enviado anteriormente`);
                 processadosHoje.current.add(chaveAtraso);
                 continue;
               }
@@ -1367,7 +1019,7 @@ const AlarmSystem = () => {
           }
         }
 
-        // ========== ALERTAS DE INTERVALO ==========
+        // ALERTAS DE INTERVALO
         else if (alerta.tipoAlerta === 'intervalo') {
           const horarioAlerta = alerta.horarioInicio;
           const [hAlerta, mAlerta] = horarioAlerta.split(':').map(Number);
@@ -1383,9 +1035,7 @@ const AlarmSystem = () => {
             const chaveHorarioExato = `exato-intervalo-${alerta.remedioId}-${horarioAlerta}-${diaStr}`;
 
             if (!processadosHoje.current.has(chaveHorarioExato)) {
-              console.log(
-                `🔔 HORÁRIO EXATO (INTERVALO): ${remedioNome} às ${horarioAlerta}`,
-              );
+              console.log(`🔔 HORÁRIO EXATO (INTERVALO): ${remedioNome} às ${horarioAlerta}`);
 
               const foiTomado = await verificarSeMedicamentoFoiTomado(
                 alerta.remedioId,
@@ -1414,11 +1064,8 @@ const AlarmSystem = () => {
             const chaveAtraso = `atraso-intervalo-${alerta.remedioId}-${horarioAlerta}-${diaStr}`;
 
             if (!processadosHoje.current.has(chaveAtraso)) {
-              console.log(
-                `⚠️ ${remedioNome} (intervalo) atrasado ${diferencaMinutos}min`,
-              );
+              console.log(`⚠️ ${remedioNome} (intervalo) atrasado ${diferencaMinutos}min`);
 
-              // 🆕 VERIFICAÇÃO TRIPLA ANTES DE PROCESSAR
               const foiTomado = await verificarSeMedicamentoFoiTomado(
                 alerta.remedioId,
                 horarioAlerta,
@@ -1426,18 +1073,12 @@ const AlarmSystem = () => {
               );
 
               if (foiTomado) {
-                console.log(
-                  `✅ ${remedioNome} (intervalo) já foi tomado - BLOQUEANDO lembrete`,
-                );
+                console.log(`✅ ${remedioNome} (intervalo) já foi tomado - BLOQUEANDO lembrete`);
                 processadosHoje.current.add(chaveAtraso);
 
-                // 🆕 Adicionar também ao cache de lembrete
-                const chaveLembrete = `lembrete-${
-                  alerta.remedioId
-                }-${normalizarHorario(horarioAlerta)}-${diaStr}`;
+                const chaveLembrete = `lembrete-${alerta.remedioId}-${normalizarHorario(horarioAlerta)}-${diaStr}`;
                 lembretesEnviados.current.add(chaveLembrete);
 
-                // Cancelar qualquer notificação existente
                 await cancelarTodasNotificacoesMedicamento(
                   alerta.remedioId,
                   horarioAlerta,
@@ -1446,14 +1087,9 @@ const AlarmSystem = () => {
                 continue;
               }
 
-              // 🆕 VERIFICAR SE LEMBRETE JÁ FOI ENVIADO
-              const chaveLembrete = `lembrete-${
-                alerta.remedioId
-              }-${normalizarHorario(horarioAlerta)}-${diaStr}`;
+              const chaveLembrete = `lembrete-${alerta.remedioId}-${normalizarHorario(horarioAlerta)}-${diaStr}`;
               if (lembretesEnviados.current.has(chaveLembrete)) {
-                console.log(
-                  `⏭️ Lembrete de ${remedioNome} (intervalo) já foi enviado`,
-                );
+                console.log(`⏭️ Lembrete de ${remedioNome} (intervalo) já foi enviado`);
                 processadosHoje.current.add(chaveAtraso);
                 continue;
               }
@@ -1481,25 +1117,34 @@ const AlarmSystem = () => {
     atualizarProximoHorarioIntervalo,
   ]);
 
-  // ⭐ FUNÇÃO: Registrar medicamento tomado (tarde)
+  // ⭐ FUNÇÃO: Registrar medicamento tomado (tarde) - COM CANCELAMENTO
   const registrarMedicamentoTomadoTarde = useCallback(
     async notifData => {
       try {
-        console.log('💊 Registrando medicamento tomado (atrasado)');
+        console.log('\n💊 ========== REGISTRANDO MEDICAMENTO ATRASADO ==========');
+        console.log('   📋 Medicamento:', notifData.remedioNome);
+        console.log('   ⏰ Horário agendado:', notifData.horario);
 
         const now = new Date();
         const diaStr = now.toISOString().slice(0, 10);
         const horarioAtual = now.toTimeString().slice(0, 5);
         const horarioAgendadoNormalizado = normalizarHorario(notifData.horario);
 
-        // 🆕 ATUALIZAR TODOS OS CACHES PRIMEIRO
+        // 1️⃣ CANCELAR NOTIFICAÇÕES PRIMEIRO
+        console.log('🧹 Cancelando notificações...');
+        await cancelarTodasNotificacoesMedicamento(
+          notifData.remedioId,
+          horarioAgendadoNormalizado,
+          diaStr,
+        );
+
+        // 2️⃣ ATUALIZAR CACHES
         const cacheKey = `tomado-${notifData.remedioId}-${horarioAgendadoNormalizado}-${diaStr}`;
         processadosHoje.current.add(cacheKey);
 
         const chaveAtraso = `atraso-${notifData.remedioId}-${horarioAgendadoNormalizado}-${diaStr}`;
         processadosHoje.current.add(chaveAtraso);
 
-        // 🆕 ADICIONAR TAMBÉM COM PREFIXO DE INTERVALO (SE FOR INTERVALO)
         if (notifData.tipoAlerta === 'intervalo') {
           const chaveAtrasoIntervalo = `atraso-intervalo-${notifData.remedioId}-${horarioAgendadoNormalizado}-${diaStr}`;
           processadosHoje.current.add(chaveAtrasoIntervalo);
@@ -1508,13 +1153,9 @@ const AlarmSystem = () => {
         const chaveLembrete = `lembrete-${notifData.remedioId}-${horarioAgendadoNormalizado}-${diaStr}`;
         lembretesEnviados.current.add(chaveLembrete);
 
-        console.log('🔒 Caches atualizados (atrasado):', {
-          cacheKey,
-          chaveAtraso,
-          chaveLembrete,
-        });
+        console.log('🔒 Caches atualizados');
 
-        // Verificar se já existe registro
+        // 3️⃣ VERIFICAR SE JÁ EXISTE REGISTRO
         const registroExistente = await firestore()
           .collection('medicamentos_tomados')
           .where('usuarioId', '==', uid)
@@ -1525,16 +1166,11 @@ const AlarmSystem = () => {
 
         if (!registroExistente.empty) {
           console.log('⚠️ Medicamento já estava registrado');
-
-          // Cancelar notificações mesmo assim
-          await cancelarTodasNotificacoesMedicamento(
-            notifData.remedioId,
-            horarioAgendadoNormalizado,
-            diaStr,
-          );
+          console.log('========== FIM DO REGISTRO ==========\n');
           return;
         }
 
+        // 4️⃣ REGISTRAR NO FIRESTORE
         const dados = {
           usuarioId: uid,
           remedioId: notifData.remedioId,
@@ -1551,14 +1187,8 @@ const AlarmSystem = () => {
 
         await firestore().collection('medicamentos_tomados').add(dados);
 
-        // Cancelar TODAS as notificações relacionadas
-        await cancelarTodasNotificacoesMedicamento(
-          notifData.remedioId,
-          horarioAgendadoNormalizado,
-          diaStr,
-        );
-
         console.log('✅ Medicamento registrado como tomado (atrasado)');
+        console.log('========== FIM DO REGISTRO ==========\n');
       } catch (error) {
         console.error('❌ Erro ao registrar medicamento:', error);
       }
@@ -1647,9 +1277,9 @@ const AlarmSystem = () => {
     [playAlarmSound, showAlarm],
   );
 
-  // ⭐ FECHAR ALARME (CORRIGIDO)
+  // ⭐ FECHAR ALARME (COM CANCELAMENTO COMPLETO)
   const dismissAlarm = useCallback(async () => {
-    console.log('✅ Fechando alarme');
+    console.log('\n✅ ========== CONFIRMANDO MEDICAMENTO ==========');
 
     if (currentAlarm) {
       const now = new Date();
@@ -1659,7 +1289,19 @@ const AlarmSystem = () => {
         currentAlarm.horario || currentAlarm.horarioInicio,
       );
 
-      // Verificar duplicata
+      console.log('   💊 Medicamento:', currentAlarm.remedioNome);
+      console.log('   ⏰ Horário agendado:', horarioAgendado);
+      console.log('   ⏰ Horário real:', horarioAtual);
+
+      // 1️⃣ CANCELAR NOTIFICAÇÕES PRIMEIRO (antes de registrar)
+      console.log('\n🧹 Cancelando notificações...');
+      await cancelarTodasNotificacoesMedicamento(
+        currentAlarm.remedioId,
+        horarioAgendado,
+        diaStr,
+      );
+
+      // 2️⃣ VERIFICAR SE JÁ EXISTE REGISTRO
       const registroExistente = await firestore()
         .collection('medicamentos_tomados')
         .where('usuarioId', '==', uid)
@@ -1669,6 +1311,8 @@ const AlarmSystem = () => {
         .get();
 
       if (registroExistente.empty) {
+        // 3️⃣ REGISTRAR NO FIRESTORE
+        console.log('💾 Registrando medicamento como tomado...');
         await firestore().collection('medicamentos_tomados').add({
           usuarioId: uid,
           remedioId: currentAlarm.remedioId,
@@ -1683,29 +1327,32 @@ const AlarmSystem = () => {
           tipoAlerta: currentAlarm.tipoAlerta,
         });
 
-        console.log('✅ Medicamento registrado como tomado');
+        console.log('✅ Medicamento registrado com sucesso!');
       } else {
         console.log('⚠️ Medicamento já estava registrado');
       }
 
-      // 🆕 Adicionar aos caches locais
+      // 4️⃣ ATUALIZAR CACHES LOCAIS
       const cacheKey = `tomado-${currentAlarm.remedioId}-${horarioAgendado}-${diaStr}`;
       processadosHoje.current.add(cacheKey);
 
       const chaveAtraso = `atraso-${currentAlarm.remedioId}-${horarioAgendado}-${diaStr}`;
       processadosHoje.current.add(chaveAtraso);
 
+      if (currentAlarm.tipoAlerta === 'intervalo') {
+        const chaveAtrasoIntervalo = `atraso-intervalo-${currentAlarm.remedioId}-${horarioAgendado}-${diaStr}`;
+        processadosHoje.current.add(chaveAtrasoIntervalo);
+      }
+
       const chaveLembrete = `lembrete-${currentAlarm.remedioId}-${horarioAgendado}-${diaStr}`;
       lembretesEnviados.current.add(chaveLembrete);
 
-      // 🆕 Cancelar TODAS as notificações relacionadas
-      await cancelarTodasNotificacoesMedicamento(
-        currentAlarm.remedioId,
-        horarioAgendado,
-        diaStr,
-      );
+      console.log('🔒 Caches atualizados');
     }
 
+    console.log('========== FIM DA CONFIRMAÇÃO ==========\n');
+
+    // 5️⃣ PARAR SOM E VIBRAÇÃO
     stopAlarmSound();
     Vibration.cancel();
     setShowAlarm(false);
@@ -1761,7 +1408,7 @@ const AlarmSystem = () => {
     } catch (e) {}
   }, [stopPeriodicCheck, stopAlarmSound]);
 
-  // ⭐ EFEITO: Registrar handlers de notificação (CORRIGIDO)
+  // ⭐ EFEITO: Registrar handlers de notificação
   useEffect(() => {
     console.log('📡 Registrando handlers de notificação...');
 
@@ -1785,8 +1432,7 @@ const AlarmSystem = () => {
               tipoAlerta: notifData.tipoAlerta,
             };
 
-            const type =
-              notifData.tipoAlerta === 'intervalo' ? 'intervalo' : 'horario';
+            const type = notifData.tipoAlerta === 'intervalo' ? 'intervalo' : 'horario';
             triggerAlarm(alarmData, type);
           }
         }
@@ -1821,11 +1467,8 @@ const AlarmSystem = () => {
           const now = new Date();
           const diaStr = now.toISOString().slice(0, 10);
           const horarioAtual = now.toTimeString().slice(0, 5);
-          const horarioAgendadoNormalizado = normalizarHorario(
-            notifData.horario,
-          );
+          const horarioAgendadoNormalizado = normalizarHorario(notifData.horario);
 
-          // Verificar duplicata
           const registroExistente = await firestore()
             .collection('medicamentos_tomados')
             .where('usuarioId', '==', uid)
@@ -1853,9 +1496,7 @@ const AlarmSystem = () => {
             console.log('✅ [BACKGROUND] Medicamento registrado');
           }
 
-          // Cancelar TODAS as notificações relacionadas
-          const displayedNotifications =
-            await notifee.getDisplayedNotifications();
+          const displayedNotifications = await notifee.getDisplayedNotifications();
           for (const notif of displayedNotifications) {
             const notifRemedioId = notif.notification?.data?.remedioId;
             const notifHorario = notif.notification?.data?.horario;
@@ -1906,10 +1547,7 @@ const AlarmSystem = () => {
       setAppState(nextAppState);
     };
 
-    const subscription = AppState.addEventListener(
-      'change',
-      handleAppStateChange,
-    );
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
 
     return () => {
       cleanup();
@@ -1950,426 +1588,268 @@ const AlarmSystem = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0A0E1A',
+    backgroundColor: '#0F172A',
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 30,
     position: 'relative',
-    overflow: 'hidden',
   },
-
-  // ===== FUNDO ANIMADO =====
-  gradientBackground: {
+  backgroundCircle: {
     position: 'absolute',
-    width: windowDimensions.width * 2,
-    height: windowDimensions.height * 2,
-    borderRadius: windowDimensions.width,
-    backgroundColor: '#10B981',
-    top: -windowDimensions.height * 0.5,
-    left: -windowDimensions.width * 0.5,
+    width: width * 2,
+    height: width * 2,
+    borderRadius: width,
+    backgroundColor: '#3B82F6',
+    top: -width * 0.8,
+    left: -width * 0.5,
   },
-  gradientBackgroundPurple: {
-    backgroundColor: '#6366F1',
-  },
-
-  // ===== LINHAS DECORATIVAS =====
-  decorLine: {
+  backgroundCircle2: {
     position: 'absolute',
-    height: 2,
-    backgroundColor: '#10B981',
-    opacity: 0.15,
+    width: width * 1.5,
+    height: width * 1.5,
+    borderRadius: width * 0.75,
+    backgroundColor: '#3B82F6',
+    bottom: -width * 0.6,
+    right: -width * 0.4,
   },
-  decorLine1: {
-    width: windowDimensions.width * 0.6,
-    top: '20%',
-    left: -100,
-    transform: [{rotate: '-15deg'}],
-  },
-  decorLine2: {
-    width: windowDimensions.width * 0.8,
-    bottom: '25%',
-    right: -150,
-    transform: [{rotate: '20deg'}],
-  },
-  decorLine3: {
-    width: windowDimensions.width * 0.5,
-    top: '60%',
-    left: -80,
-    transform: [{rotate: '-25deg'}],
-  },
-  decorLinePurple1: {
+  backgroundCirclePurple: {
     backgroundColor: '#6366F1',
   },
-  decorLinePurple2: {
-    backgroundColor: '#6366F1',
-  },
-  decorLinePurple3: {
-    backgroundColor: '#6366F1',
-  },
-
-  // ===== PONTOS FLUTUANTES =====
-  floatingDot: {
+  decorativeCircle: {
     position: 'absolute',
     borderRadius: 100,
-    backgroundColor: '#10B981',
+    zIndex: 1,
   },
-  dot1: {
-    width: 120,
-    height: 120,
-    top: '15%',
-    right: '10%',
-    opacity: 0.2,
-  },
-  dot2: {
+  decorCircle1: {
+    top: height * 0.15,
+    right: width * 0.1,
     width: 80,
     height: 80,
-    bottom: '20%',
-    left: '5%',
-    opacity: 0.15,
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
   },
-  dot3: {
+  decorCircle2: {
+    bottom: height * 0.2,
+    left: width * 0.05,
     width: 60,
     height: 60,
-    top: '45%',
-    left: '8%',
-    opacity: 0.12,
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
   },
-  dotPurple1: {
-    backgroundColor: '#6366F1',
+  decorCircle3: {
+    top: height * 0.35,
+    left: width * 0.1,
+    width: 50,
+    height: 50,
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
   },
-  dotPurple2: {
-    backgroundColor: '#6366F1',
+  decorCirclePurple: {
+    backgroundColor: 'rgba(99, 102, 241, 0.15)',
   },
-  dotPurple3: {
-    backgroundColor: '#6366F1',
-  },
-
-  // ===== CONTEÚDO PRINCIPAL =====
-  contentNew: {
+  content: {
     width: '100%',
     maxWidth: 400,
     alignItems: 'center',
     zIndex: 10,
   },
-
-  // ===== HEADER =====
-  header: {
-    alignItems: 'center',
-    marginBottom: 40,
-  },
-  iconContainer: {
-    marginBottom: 24,
-  },
-  iconBackground: {
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 3,
-    borderColor: 'rgba(16, 185, 129, 0.3)',
-    shadowColor: '#10B981',
-    shadowOffset: {width: 0, height: 20},
-    shadowOpacity: 0.6,
-    shadowRadius: 30,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  iconBackgroundPurple: {
-    backgroundColor: 'rgba(99, 102, 241, 0.15)',
-    borderColor: 'rgba(99, 102, 241, 0.3)',
-    shadowColor: '#6366F1',
-  },
-  iconPulse: {
-    position: 'absolute',
-    width: '120%',
-    height: '120%',
-    borderRadius: 100,
-    backgroundColor: 'rgba(16, 185, 129, 0.2)',
-  },
-  iconPulsePurple: {
-    backgroundColor: 'rgba(99, 102, 241, 0.2)',
-  },
-  iconInnerGlow: {
-    position: 'absolute',
-    width: '80%',
-    height: '80%',
-    borderRadius: 80,
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-  },
-  iconInnerGlowPurple: {
-    backgroundColor: 'rgba(99, 102, 241, 0.1)',
-  },
-  statusBadge: {
+  topBadgeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 25,
-    borderWidth: 1.5,
-    borderColor: 'rgba(16, 185, 129, 0.3)',
-  },
-  statusBadgePurple: {
-    backgroundColor: 'rgba(99, 102, 241, 0.15)',
-    borderColor: 'rgba(99, 102, 241, 0.3)',
-  },
-  statusDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#10B981',
-    marginRight: 10,
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: 'rgba(16, 185, 129, 0.25)',
+    marginBottom: 24,
     shadowColor: '#10B981',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.8,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
   },
-  statusDotPurple: {
-    backgroundColor: '#6366F1',
+  topBadgeContainerPurple: {
+    backgroundColor: 'rgba(99, 102, 241, 0.12)',
+    borderColor: 'rgba(99, 102, 241, 0.25)',
     shadowColor: '#6366F1',
   },
-  statusText: {
-    fontSize: 16,
+  topBadgeText: {
+    fontSize: 14,
     fontWeight: '700',
     color: '#FFFFFF',
-    letterSpacing: 0.5,
+    marginLeft: 10,
+    letterSpacing: 1,
   },
-
-  // ===== BADGE ROTATIVO (INTERVALO) =====
-  intervalRotatingBadge: {
-    position: 'absolute',
-    top: -20,
-    right: 40,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: 'rgba(99, 102, 241, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'rgba(99, 102, 241, 0.4)',
-    shadowColor: '#6366F1',
-    shadowOffset: {width: 0, height: 8},
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    zIndex: 10,
-  },
-
-  // ===== CARD PRINCIPAL =====
-  mainCard: {
-    width: '100%',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 32,
-    padding: 32,
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.2)',
-    shadowColor: '#10B981',
-    shadowOffset: {width: 0, height: 15},
-    shadowOpacity: 0.3,
-    shadowRadius: 25,
-    marginBottom: 30,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  mainCardPurple: {
-    borderColor: 'rgba(99, 102, 241, 0.2)',
-    shadowColor: '#6366F1',
-  },
-  cardGlow: {
-    position: 'absolute',
-    top: -50,
-    right: -50,
-    width: 150,
-    height: 150,
-    borderRadius: 75,
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-  },
-  cardGlowPurple: {
-    backgroundColor: 'rgba(99, 102, 241, 0.1)',
-  },
-  medicationHeader: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  medicationLabel: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#6B7280',
-    letterSpacing: 2,
-    marginBottom: 10,
-  },
-  medicationNameNew: {
-    fontSize: 36,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    textAlign: 'center',
-    letterSpacing: -0.5,
-    lineHeight: 42,
-  },
-
-  // ===== SEPARADOR =====
-  separatorContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 28,
-    paddingHorizontal: 20,
-  },
-  separator: {
-    flex: 1,
-    height: 1,
-    backgroundColor: 'rgba(16, 185, 129, 0.2)',
-  },
-  separatorPurple: {
-    backgroundColor: 'rgba(99, 102, 241, 0.2)',
-  },
-  separatorDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#10B981',
-    marginHorizontal: 12,
-    shadowColor: '#10B981',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.6,
-    shadowRadius: 4,
-  },
-  separatorDotPurple: {
-    backgroundColor: '#6366F1',
-    shadowColor: '#6366F1',
-  },
-
-  // ===== GRID DE INFORMAÇÕES =====
-  infoGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  infoBox: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  infoBoxIcon: {
+  intervalBadge: {
     width: 70,
     height: 70,
     borderRadius: 35,
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 14,
-    borderWidth: 1.5,
-    borderColor: 'rgba(16, 185, 129, 0.25)',
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  infoBoxIconPurple: {
-    backgroundColor: 'rgba(99, 102, 241, 0.12)',
-    borderColor: 'rgba(99, 102, 241, 0.25)',
-  },
-  iconGlowSmall: {
-    position: 'absolute',
-    width: '100%',
-    height: '100%',
-    borderRadius: 35,
-    backgroundColor: 'rgba(16, 185, 129, 0.08)',
-  },
-  iconGlowSmallPurple: {
-    backgroundColor: 'rgba(99, 102, 241, 0.08)',
-  },
-  infoBoxLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#9CA3AF',
-    marginBottom: 6,
-    letterSpacing: 0.5,
-  },
-  infoBoxValue: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: 0.5,
-  },
-  infoBoxDivider: {
-    width: 1,
-    height: 80,
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
-    marginHorizontal: 20,
-  },
-  infoBoxDividerPurple: {
     backgroundColor: 'rgba(99, 102, 241, 0.15)',
-  },
-
-  // ===== BOTÃO DE AÇÃO =====
-  actionContainer: {
-    width: '100%',
-    marginBottom: 30,
-  },
-  actionButton: {
-    width: '100%',
-    backgroundColor: '#10B981',
-    borderRadius: 28,
-    paddingVertical: 4,
-    paddingHorizontal: 4,
-    shadowColor: '#10B981',
-    shadowOffset: {width: 0, height: 15},
-    shadowOpacity: 0.5,
-    shadowRadius: 25,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  actionButtonPurple: {
-    backgroundColor: '#6366F1',
-    shadowColor: '#6366F1',
-  },
-  actionButtonGlow: {
-    position: 'absolute',
-    top: -20,
-    left: -20,
-    right: -20,
-    bottom: -20,
-    backgroundColor: 'rgba(16, 185, 129, 0.3)',
-    borderRadius: 28,
-  },
-  actionButtonGlowPurple: {
-    backgroundColor: 'rgba(99, 102, 241, 0.3)',
-  },
-  actionButtonInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 24,
-    paddingVertical: 20,
-    paddingHorizontal: 30,
-  },
-  actionButtonText: {
-    fontSize: 20,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    marginLeft: 14,
-    letterSpacing: 0.5,
-  },
-
-  // ===== FOOTER =====
-  footer: {
     alignItems: 'center',
-  },
-  footerIndicators: {
-    flexDirection: 'row',
+    borderWidth: 2,
+    borderColor: 'rgba(99, 102, 241, 0.3)',
+    shadowColor: '#6366F1',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
     marginBottom: 12,
   },
-  footerDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginHorizontal: 5,
+  intervalTextContainer: {
+    backgroundColor: 'rgba(99, 102, 241, 0.12)',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(99, 102, 241, 0.25)',
+    marginBottom: 16,
   },
-  footerText: {
-    fontSize: 13,
-    color: '#6B7280',
+  intervalText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#A5B4FC',
+    letterSpacing: 0.5,
+  },
+  iconCircle: {
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 4,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 20,
+    marginBottom: 20,
+  },
+  iconCirclePurple: {
+    backgroundColor: 'rgba(99, 102, 241, 0.15)',
+    borderColor: 'rgba(99, 102, 241, 0.3)',
+    shadowColor: '#6366F1',
+  },
+  medicationName: {
+    fontSize: 36,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginBottom: 12,
+    letterSpacing: -0.5,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+  },
+  doseContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  doseContainerPurple: {
+    backgroundColor: 'rgba(99, 102, 241, 0.08)',
+    borderColor: 'rgba(99, 102, 241, 0.15)',
+  },
+  dosage: {
+    fontSize: 20,
     fontWeight: '600',
-    letterSpacing: 0.3,
+    color: '#D1D5DB',
+    marginLeft: 10,
+  },
+  timeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    paddingVertical: 16,
+    paddingHorizontal: 28,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: 'rgba(16, 185, 129, 0.25)',
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+  },
+  timeContainerPurple: {
+    backgroundColor: 'rgba(99, 102, 241, 0.12)',
+    borderColor: 'rgba(99, 102, 241, 0.25)',
+    shadowColor: '#6366F1',
+  },
+  time: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    fontFamily: 'monospace',
+    marginLeft: 12,
+  },
+  button: {
+    backgroundColor: '#10B981',
+    paddingVertical: 20,
+    paddingHorizontal: 50,
+    borderRadius: 25,
+    width: '100%',
+    borderWidth: 3,
+    borderColor: 'rgba(16, 185, 129, 0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.5,
+    shadowRadius: 15,
+    marginBottom: 20,
+  },
+  buttonPurple: {
+    backgroundColor: '#6366F1',
+    shadowColor: '#6366F1',
+    borderColor: 'rgba(99, 102, 241, 0.4)',
+  },
+  buttonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  buttonText: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: 2,
+    marginLeft: 12,
+  },
+  indicators: {
+    flexDirection: 'row',
+    marginBottom: 16,
+  },
+  indicator: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginHorizontal: 6,
+  },
+  instructionContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.2)',
+  },
+  instructionContainerPurple: {
+    backgroundColor: 'rgba(99, 102, 241, 0.1)',
+    borderColor: 'rgba(99, 102, 241, 0.2)',
+  },
+  instructionText: {
+    fontSize: 16,
+    color: '#D1D5DB',
+    fontWeight: '600',
+    textAlign: 'center',
+    lineHeight: 22,
   },
 });
 

@@ -121,9 +121,9 @@ async function scheduleNotification(id, title, body, triggerDate, alarmData) {
     };
 
     await notifee.createTriggerNotification(notificationConfig, trigger);
-    console.log(`     ✅ Notificação principal criada`);
+    console.log(`✅ Notificação principal criada`);
 
-    // Agendar notificação de lembrete 10 minutos depois
+    // Agendar notificação de lembrete 5 minutos depois
     const reminderDate = new Date(triggerDate.getTime() + 10 * 60 * 1000);
     const reminderId = `${id}_reminder`;
 
@@ -138,11 +138,11 @@ async function scheduleNotification(id, title, body, triggerDate, alarmData) {
 
     const reminderConfig = {
       id: reminderId,
-      title: '⚠️ Você ainda não tomou seu medicamento!',
+      title: 'Seu medicamento foi resgistrado como não tomado!',
       body: `Lembrete: ${body}`,
       android: {
         channelId,
-        smallIcon: 'ic_launcher',
+        smallIcon: 'icon',
         category: AndroidCategory.ALARM,
         autoCancel: false,
         sound: 'default',
@@ -157,14 +157,6 @@ async function scheduleNotification(id, title, body, triggerDate, alarmData) {
         pressAction: {
           id: 'default',
         },
-        actions: [
-          {
-            title: '✅ Tomei agora',
-            pressAction: {
-              id: 'confirm',
-            },
-          },
-        ],
         style: {
           type: AndroidStyle.BIGTEXT,
           text: `Lembrete: ${body}`,
@@ -223,7 +215,7 @@ async function agendarNotificacoesHorarioFixo(alerta, alertaId, remedioNome) {
 
         await scheduleNotification(
           notifId,
-          '💊 Hora de tomar seu medicamento',
+          'Hora de tomar seu medicamento!',
           `${remedioNome} - ${alerta.dosagem}`,
           dataFutura,
           {
@@ -288,7 +280,7 @@ async function agendarNotificacoesIntervalo(alerta, alertaId, remedioNome) {
 
           await scheduleNotification(
             notifId,
-            '💊 Hora de tomar seu medicamento',
+            'Hora de tomar seu medicamento!',
             `${remedioNome} - ${alerta.dosagem} (A cada ${alerta.intervaloHoras}h)`,
             proximaDose,
             {
