@@ -65,6 +65,8 @@ const LoginScreen = () => {
 
   const navigation = useNavigation();
 
+  const [showPassword, setShowPassword] = useState(false);
+
   useEffect(() => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
@@ -168,14 +170,14 @@ const LoginScreen = () => {
 
   const handleLottieAnimationFinish = async () => {
     console.log('🎬 Animação Lottie finalizada!');
-    
+
     try {
       await AsyncStorage.setItem('loginAnimationCompleted', 'true');
       console.log('✅ AsyncStorage atualizado - animação concluída');
     } catch (error) {
       console.error('Erro ao salvar no AsyncStorage:', error);
     }
-    
+
     setTimeout(() => {
       console.log('⏰ Fechando modal de sucesso');
       setShowSuccessAnimation(false);
@@ -185,7 +187,7 @@ const LoginScreen = () => {
   useEffect(() => {
     if (showSuccessAnimation) {
       console.log('📺 Modal está visível, verificando Lottie...');
-      
+
       const debugTimer = setTimeout(() => {
         console.log('🔍 Verificando ref do Lottie:', lottieRef.current);
         if (lottieRef.current) {
@@ -199,12 +201,12 @@ const LoginScreen = () => {
           console.log('❌ Ref do Lottie não encontrada');
         }
       }, 500);
-      
+
       const fallbackTimer = setTimeout(async () => {
         console.log('⚠️ Fallback timer - finalizando');
         await handleLottieAnimationFinish();
       }, 3000);
-      
+
       return () => {
         clearTimeout(debugTimer);
         clearTimeout(fallbackTimer);
@@ -232,20 +234,22 @@ const LoginScreen = () => {
     ]).start();
 
     setIsLoading(true);
-    
+
     try {
-      const userCredential = await auth().signInWithEmailAndPassword(email, password);
+      const userCredential = await auth().signInWithEmailAndPassword(
+        email,
+        password,
+      );
       console.log('Login realizado com sucesso:', userCredential.user.email);
-      
+
       setIsLoading(false);
       showSuccessAnimationOverlay();
-      
     } catch (error) {
       console.log('Erro no login:', error.code, error.message);
       setIsLoading(false);
-      
+
       let errorMessage = 'Erro no login. Tente novamente.';
-      
+
       switch (error.code) {
         case 'auth/user-not-found':
           errorMessage = 'Usuário não encontrado.';
@@ -260,7 +264,7 @@ const LoginScreen = () => {
           errorMessage = 'Muitas tentativas. Tente mais tarde.';
           break;
       }
-      
+
       Alert.alert('Erro no Login', errorMessage);
     }
   };
@@ -288,10 +292,10 @@ const LoginScreen = () => {
     console.log('📧 isLoading:', isLoading);
     console.log('📧 showSuccessAnimation:', showSuccessAnimation);
     console.log('📧 Email atual:', email);
-    
+
     setResetEmail(email); // Pré-preencher com o email do login
     setShowForgotPasswordModal(true);
-    
+
     console.log('📧 Modal deve estar visível agora');
   };
 
@@ -302,7 +306,7 @@ const LoginScreen = () => {
   };
 
   // Validar email
-  const validateEmail = (emailToValidate) => {
+  const validateEmail = emailToValidate => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(emailToValidate);
   };
@@ -327,7 +331,7 @@ const LoginScreen = () => {
     try {
       await auth().sendPasswordResetEmail(resetEmail);
       console.log('✅ Email de recuperação enviado com sucesso');
-      
+
       setIsResettingPassword(false);
       setResetEmailSent(true);
 
@@ -335,7 +339,6 @@ const LoginScreen = () => {
       setTimeout(() => {
         closeForgotPasswordModal();
       }, 3000);
-
     } catch (error) {
       console.error('❌ Erro ao enviar email de recuperação:', error);
       setIsResettingPassword(false);
@@ -364,11 +367,11 @@ const LoginScreen = () => {
   // Modal de recuperação de senha
   const renderForgotPasswordModal = () => {
     console.log('🎨 Renderizando modal. Visível:', showForgotPasswordModal);
-    
+
     if (!showForgotPasswordModal) {
       return null;
     }
-    
+
     return (
       <Modal
         visible={true}
@@ -385,7 +388,7 @@ const LoginScreen = () => {
           }}>
           <TouchableOpacity
             activeOpacity={1}
-            onPress={(e) => {
+            onPress={e => {
               console.log('🖱️ Clicou no container do modal');
               e.stopPropagation();
             }}>
@@ -397,7 +400,6 @@ const LoginScreen = () => {
                   transform: [{translateY: modalSlideAnim}],
                 },
               ]}>
-              
               {/* Conteúdo do modal - Estado normal */}
               {!resetEmailSent ? (
                 <>
@@ -408,7 +410,8 @@ const LoginScreen = () => {
                     </View>
                     <Text style={styles.modalTitle}>Recuperar Senha</Text>
                     <Text style={styles.modalSubtitle}>
-                      Digite seu email e enviaremos um link para redefinir sua senha
+                      Digite seu email e enviaremos um link para redefinir sua
+                      senha
                     </Text>
                   </View>
 
@@ -472,7 +475,11 @@ const LoginScreen = () => {
                       },
                     ]}>
                     <View style={styles.successIconCircle}>
-                      <Ionicons name="checkmark-circle" size={64} color="#10B981" />
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={64}
+                        color="#10B981"
+                      />
                     </View>
                     <Text style={styles.modalSuccessTitle}>Email Enviado!</Text>
                     <Text style={styles.modalSuccessMessage}>
@@ -548,7 +555,6 @@ const LoginScreen = () => {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled">
-          
           <Animated.View
             style={[
               styles.logoContainer,
@@ -593,21 +599,37 @@ const LoginScreen = () => {
 
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>Senha</Text>
-                <TextInput
-                  style={[styles.input, passwordFocused && styles.inputFocused]}
-                  placeholder="Digite sua senha"
-                  placeholderTextColor="#8A8A8A"
-                  secureTextEntry
-                  value={password}
-                  onChangeText={setPassword}
-                  onFocus={() => setPasswordFocused(true)}
-                  onBlur={() => setPasswordFocused(false)}
-                  editable={!isLoading && !showSuccessAnimation}
-                />
+                <View style={styles.passwordInputWrapper}>
+                  <TextInput
+                    style={[
+                      styles.input,
+                      styles.passwordInput,
+                      passwordFocused && styles.inputFocused,
+                    ]}
+                    placeholder="Digite sua senha"
+                    placeholderTextColor="#8A8A8A"
+                    secureTextEntry={!showPassword} // Mudança aqui
+                    value={password}
+                    onChangeText={setPassword}
+                    onFocus={() => setPasswordFocused(true)}
+                    onBlur={() => setPasswordFocused(false)}
+                    editable={!isLoading && !showSuccessAnimation}
+                  />
+                  <TouchableOpacity
+                    style={styles.eyeIconButton}
+                    onPress={() => setShowPassword(!showPassword)}
+                    disabled={isLoading || showSuccessAnimation}>
+                    <Ionicons
+                      name={showPassword ? 'eye-off' : 'eye'}
+                      size={22}
+                      color="#8A8A8A"
+                    />
+                  </TouchableOpacity>
+                </View>
               </View>
 
               {/* Link Esqueceu a Senha */}
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.forgotPassword}
                 onPress={() => {
                   console.log('🖱️ CLICOU em Esqueceu a senha');
@@ -622,7 +644,8 @@ const LoginScreen = () => {
                 <TouchableOpacity
                   style={[
                     styles.loginButton,
-                    (isLoading || showSuccessAnimation) && styles.loginButtonDisabled,
+                    (isLoading || showSuccessAnimation) &&
+                      styles.loginButtonDisabled,
                   ]}
                   onPress={signIn}
                   disabled={isLoading || showSuccessAnimation}>
@@ -645,7 +668,8 @@ const LoginScreen = () => {
                 <TouchableOpacity
                   style={[
                     styles.googleButton,
-                    (isLoading || showSuccessAnimation) && styles.buttonDisabled
+                    (isLoading || showSuccessAnimation) &&
+                      styles.buttonDisabled,
                   ]}
                   onPress={signInWithGoogle}
                   disabled={isLoading || showSuccessAnimation}>
@@ -680,16 +704,16 @@ const LoginScreen = () => {
           hardwareAccelerated={true}>
           <View style={styles.successOverlay}>
             <View style={styles.darkBackground} />
-              <LottieView
-                ref={lottieRef}
-                source={require('../../assets/animations/success.json')}
-                style={styles.lottieAnimation}
-                loop={false}
-                autoPlay={true}
-                onAnimationFinish={handleLottieAnimationFinish}
-                speed={1.0}
-                resizeMode="contain"
-              />
+            <LottieView
+              ref={lottieRef}
+              source={require('../../assets/animations/success.json')}
+              style={styles.lottieAnimation}
+              loop={false}
+              autoPlay={true}
+              onAnimationFinish={handleLottieAnimationFinish}
+              speed={1.0}
+              resizeMode="contain"
+            />
           </View>
         </Modal>
       )}
@@ -1101,6 +1125,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'Roboto',
+  },
+  passwordInputWrapper: {
+    position: 'relative',
+    width: '100%',
+  },
+  passwordInput: {
+    paddingRight: 50,
+  },
+  eyeIconButton: {
+    position: 'absolute',
+    right: 16,
+    top: 17,
+    padding: 4,
+    zIndex: 1,
   },
 });
 

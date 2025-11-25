@@ -19,6 +19,7 @@ import {
 import {useNavigation} from '@react-navigation/native';
 import auth from '@react-native-firebase/auth';
 import Icon from 'react-native-vector-icons/FontAwesome';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 
 /**
  * Obtém as dimensões da tela do dispositivo
@@ -48,7 +49,7 @@ const isLargeScreen = width >= 400;
 
 /**
  * Componente de tela de registro/cadastro com autenticação Firebase
- * 
+ *
  * Este componente oferece uma interface completa de registro com:
  * - Criação de conta com email/senha
  * - Integração com Firebase Auth
@@ -59,22 +60,22 @@ const isLargeScreen = width >= 400;
  * - Opção futura para registro com Google
  * - Navegação para tela de login
  * - Termos de uso e política de privacidade
- * 
+ *
  * @component
  * @returns {React.JSX.Element} O componente da tela de registro
- * 
+ *
  * @example
  * // Uso básico do componente
  * <RegisterScreen />
- * 
+ *
  * @example
  * // Integrado com navegação
- * <Stack.Screen 
- *   name="Register" 
- *   component={RegisterScreen} 
+ * <Stack.Screen
+ *   name="Register"
+ *   component={RegisterScreen}
  *   options={{headerShown: false}}
  * />
- * 
+ *
  * @version 1.0.0
  * @since 2025
  */
@@ -93,6 +94,7 @@ const RegisterScreen = () => {
   const buttonScaleAnim = useRef(new Animated.Value(1)).current;
   const googleButtonScaleAnim = useRef(new Animated.Value(1)).current;
   const backgroundAnim = useRef(new Animated.Value(0)).current;
+  const [showPassword, setShowPassword] = useState(false);
 
   const navigation = useNavigation();
 
@@ -100,7 +102,7 @@ const RegisterScreen = () => {
    * Efeito para inicializar as animações da tela
    * Executa animações paralelas de entrada suave dos elementos
    * e uma animação infinita do fundo
-   * 
+   *
    * @function
    * @name useEffect
    */
@@ -148,9 +150,9 @@ const RegisterScreen = () => {
   /**
    * Navega para a tela de login
    * Reseta a pilha de navegação e direciona para a tela de login
-   * 
+   *
    * @function goToLogin
-   * 
+   *
    * @example
    * // Chamado quando usuário clica em "Entrar"
    * goToLogin();
@@ -166,10 +168,10 @@ const RegisterScreen = () => {
    * Valida os campos do formulário de registro
    * Verifica se email e senha foram preenchidos corretamente
    * e se a senha atende aos critérios mínimos
-   * 
+   *
    * @function validateForm
    * @returns {boolean} true se o formulário é válido, false caso contrário
-   * 
+   *
    * @example
    * // Antes de criar a conta
    * if (!validateForm()) return;
@@ -194,11 +196,11 @@ const RegisterScreen = () => {
    * Cria uma nova conta de usuário com Firebase Auth
    * Valida o formulário, executa animação do botão e cria a conta
    * com tratamento específico de erros do Firebase
-   * 
+   *
    * @async
    * @function signUp
    * @throws {Error} Erros específicos do Firebase Auth
-   * 
+   *
    * @example
    * // Chamado quando usuário pressiona "Criar Conta"
    * await signUp();
@@ -250,10 +252,10 @@ const RegisterScreen = () => {
    * Inicia o processo de registro com Google
    * Executa animação do botão Google
    * Funcionalidade ainda não implementada
-   * 
+   *
    * @function signUpWithGoogle
    * @todo Implementar integração com Google Sign-In
-   * 
+   *
    * @example
    * // Chamado quando usuário pressiona "Continuar com Google"
    * signUpWithGoogle();
@@ -327,7 +329,6 @@ const RegisterScreen = () => {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled">
-          
           {/* Container do logo com animação */}
           <Animated.View
             style={[
@@ -377,16 +378,31 @@ const RegisterScreen = () => {
               {/* Campo de senha */}
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>Senha</Text>
-                <TextInput
-                  style={[styles.input, passwordFocused && styles.inputFocused]}
-                  placeholder="Crie uma senha (mín. 6 caracteres)"
-                  placeholderTextColor="#8A8A8A"
-                  secureTextEntry
-                  value={password}
-                  onChangeText={setPassword}
-                  onFocus={() => setPasswordFocused(true)}
-                  onBlur={() => setPasswordFocused(false)}
-                />
+                <View style={styles.passwordInputWrapper}>
+                  <TextInput
+                    style={[
+                      styles.input,
+                      styles.passwordInput,
+                      passwordFocused && styles.inputFocused,
+                    ]}
+                    placeholder="Crie uma senha (mín. 6 caracteres)"
+                    placeholderTextColor="#8A8A8A"
+                    secureTextEntry={!showPassword}
+                    value={password}
+                    onChangeText={setPassword}
+                    onFocus={() => setPasswordFocused(true)}
+                    onBlur={() => setPasswordFocused(false)}
+                  />
+                  <TouchableOpacity
+                    style={styles.eyeIconButton}
+                    onPress={() => setShowPassword(!showPassword)}>
+                    <Ionicons
+                      name={showPassword ? 'eye-off' : 'eye'}
+                      size={22}
+                      color="#8A8A8A"
+                    />
+                  </TouchableOpacity>
+                </View>
               </View>
 
               {/* Botão de criar conta */}
@@ -456,7 +472,7 @@ const RegisterScreen = () => {
  * Define a aparência visual de todos os elementos da tela de registro,
  * incluindo responsividade para diferentes tamanhos de tela e estados
  * de foco dos campos de entrada
- * 
+ *
  * @type {Object}
  */
 const styles = StyleSheet.create({
@@ -653,6 +669,20 @@ const styles = StyleSheet.create({
   termsLink: {
     color: '#4D97DB',
     fontWeight: '500',
+  },
+  passwordInputWrapper: {
+    position: 'relative',
+    width: '100%',
+  },
+  passwordInput: {
+    paddingRight: 50,
+  },
+  eyeIconButton: {
+    position: 'absolute',
+    right: 16,
+    top: 17,
+    padding: 4,
+    zIndex: 1,
   },
 });
 
